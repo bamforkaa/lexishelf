@@ -12,11 +12,17 @@ interface TagDao {
     @Query("SELECT * FROM tags ORDER BY name COLLATE NOCASE ASC")
     fun observeTags(): Flow<List<TagEntity>>
 
+    @Query("SELECT * FROM tags ORDER BY id ASC")
+    suspend fun getAll(): List<TagEntity>
+
     @Query("SELECT * FROM tags WHERE id = :id")
     suspend fun findById(id: Long): TagEntity?
 
     @Query("SELECT * FROM tags WHERE normalized_name = :normalizedName LIMIT 1")
     suspend fun findByNormalizedName(normalizedName: String): TagEntity?
+
+    @Query("SELECT * FROM tags WHERE backup_id = :backupId LIMIT 1")
+    suspend fun findByBackupId(backupId: String): TagEntity?
 
     @Insert
     suspend fun insert(tag: TagEntity): Long
@@ -26,4 +32,7 @@ interface TagDao {
 
     @Query("DELETE FROM tags WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM tags")
+    suspend fun deleteAll()
 }

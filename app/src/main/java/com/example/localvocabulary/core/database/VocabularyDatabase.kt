@@ -18,7 +18,7 @@ import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
         TagEntity::class,
         EntryTagCrossRef::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class VocabularyDatabase : RoomDatabase() {

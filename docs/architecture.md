@@ -16,6 +16,7 @@ com.example.localvocabulary/
 │   ├── database/           Room database, entities, DAO, relations
 │   └── ui/                 shared Compose theme
 ├── feature/
+│   ├── backup/             SAF launchers, backup UiState and ViewModel
 │   ├── wordlist/           list/search/filter UI and ViewModel
 │   ├── worddetail/         detail/delete UI and ViewModel
 │   ├── wordeditor/         add/edit UI and ViewModel
@@ -24,6 +25,9 @@ com.example.localvocabulary/
 ├── vocabulary/
 │   ├── domain/             user-owned models and repository contracts
 │   └── data/               Room-backed implementations and mapping
+├── backup/
+│   ├── domain/             versioned document, validation result, repository/file contracts
+│   └── data/               JSON codec, ContentResolver I/O, transactional Room import/export
 ├── settings/               DataStore contract and implementation
 └── dictionary/
     ├── domain/             provider contract and external result models
@@ -38,6 +42,8 @@ presentation 패키지는 feature별로 분리되고 domain/data/database는 And
 Compose Screen -> ViewModel -> Repository interface <- Room repository -> DAO -> Room
                            \-> Settings interface <- DataStore repository
 
+Backup Screen -> BackupViewModel -> backup contracts <- JSON/SAF/Room implementations
+
 Future search UI -> DictionaryProvider interface <- provider-specific implementation
 ```
 
@@ -48,21 +54,21 @@ Future search UI -> DictionaryProvider interface <- provider-specific implementa
 - UI에는 Room entity를 전달하지 않습니다.
 - 단순 repository 호출의 이름만 바꾸는 use-case 클래스는 두지 않았습니다. 입력 정규화와 규칙을 집행하는 validator만 domain에 둡니다.
 
-## Room schema version 1
+## Room schema version 2
 
 | 테이블 | 책임 | 핵심 제약 |
 | --- | --- | --- |
-| `vocabulary_entries` | headword, BCP 47 tag, notes, timestamps | local auto ID |
+| `vocabulary_entries` | headword, BCP 47 tag, notes, timestamps | local auto ID, unique backup ID |
 | `senses` | entry별 독립적인 뜻과 품사 | entry FK, cascade delete, index, sort order |
 | `examples` | sense별 여러 예문 | sense FK, cascade delete, index, sort order |
-| `tags` | 사용자 태그 | normalized name unique index |
+| `tags` | 사용자 태그 | normalized name와 backup ID unique index |
 | `entry_tag_cross_refs` | entry-tag 다대다 연결 | composite PK, 양쪽 FK/cascade, tag index |
 
 뜻과 예문은 delimiter 문자열로 합치지 않습니다. `VocabularyDao.saveEntry`는 entry, senses, examples, tag links 전체를 한 Room transaction으로 저장합니다. 수정 시 `createdAt`은 보존하고 `modifiedAt`만 갱신합니다. 태그 삭제는 교차 참조만 cascade하고 단어는 유지합니다.
 
 검색은 headword, notes, sense meaning, example text에 대해 로컬 SQLite `LIKE`를 사용합니다. `%`, `_`, `\`는 repository boundary에서 escape합니다. 태그 필터는 교차 테이블 `EXISTS` 조건으로 적용합니다.
 
-schema JSON은 `app/schemas/com.example.localvocabulary.core.database.VocabularyDatabase/1.json`에 export합니다. 첫 영속 릴리스 이후 schema 변경에는 검토된 migration과 migration test가 필요합니다. destructive migration은 정상 전략으로 사용하지 않습니다.
+Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용합니다. 외부 백업 식별자는 단어와 태그에 별도의 opaque stable ID를 사용합니다. 신규 row에는 UUID를 부여하며 `MIGRATION_1_2`는 기존 row마다 고유한 32자리 hex ID를 생성합니다. schema JSON 1과 2를 모두 보존하고 migration test로 데이터 보존과 ID uniqueness를 검증합니다. destructive migration은 정상 전략으로 사용하지 않습니다.
 
 ## 사용자 편집 데이터 보호
 
@@ -82,23 +88,17 @@ DataStore에는 현재 새 단어의 기본 BCP 47 태그만 저장합니다. AP
 
 이번 마일스톤에는 registry 구현, provider DTO, HTTP client, 로컬 dataset parser가 없습니다. 라이선스 승인이 선행되어야 합니다.
 
-## 백업/복원 설계(미구현)
+## 백업/복원 경계
 
-canonical backup은 다음 원칙의 UTF-8 JSON입니다.
+canonical backup은 Room schema와 독립된 `schemaVersion: 1` UTF-8 JSON입니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
 
-- 최상위 `schemaVersion`
-- entry/sense/example/tag/cross-reference를 lossless하게 표현
-- 전체 문서를 임시 구조로 deserialize하고 참조/언어 태그/필수 필드를 먼저 검증
-- 적용 전 신규/중복/충돌 수 preview
-- replace, merge, cancel 중 사용자가 명시적으로 선택하는 conflict policy
-- transaction 적용과 실패 시 전체 rollback
-- provider raw response나 API credential은 포함하지 않음
+가져오기 흐름은 `파일 읽기 → JSON parsing → schema version 분기 → 전체/필드/관계 validation → preview → 사용자 확인 → Room transaction`입니다. `ValidatedBackup`만 repository import 경계에 전달할 수 있어 parse되지 않은 문서가 DB 단계로 들어가지 않습니다. 실제 반영은 outer `VocabularyDatabase.withTransaction` 안에서 실행되며 aggregate 저장의 nested Room transaction도 같은 transaction에 참여합니다. 예외가 발생하면 삭제·태그·단어·관계 변경을 모두 rollback합니다.
 
-현재 OS cloud backup도 비활성화했으므로 uninstall 전에 데이터 보존 수단이 없습니다. JSON 구현은 완료 조건으로 남아 있습니다.
+기본 병합은 stable ID가 같은 entry의 뜻/예문/메모/태그 관계/시간을 포함한 aggregate 전체를 예측 가능하게 교체하고, 새 stable ID는 추가하며, 백업에 없는 기존 entry는 보존합니다. field-level merge는 하지 않습니다. 전체 교체는 UI에서 별도 선택과 미리보기를 거칩니다. normalized tag identity가 같으면 기존 tag row를 재사용하므로 공유 태그가 중복되지 않습니다. 세부 schema와 version migration 규칙은 [backup.md](backup.md), 결정 근거는 [ADR-0002](decisions/0002-versioned-json-backup.md)에 있습니다.
 
 ## 테스트 전략
 
-- JVM: BCP 47/입력 규칙, Room relation mapping, repository timestamp/aggregate behavior, ViewModel state transition
-- Android instrumented: in-memory Room의 aggregate/search/tag cascade
+- JVM: BCP 47/입력 규칙, Room relation mapping, JSON parse/validation, repository timestamp/aggregate behavior, ViewModel state transition
+- Android instrumented: in-memory Room의 aggregate/search/tag cascade와 export/import round trip/rollback/conflict policy, v1→v2 migration
 - Compose instrumented: 편집 validation 표시 같은 핵심 UI 계약
 - provider가 추가되면 local fixtures만 사용하고 live/paid API를 테스트에서 호출하지 않음

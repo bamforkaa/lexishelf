@@ -2,6 +2,7 @@ package com.example.localvocabulary.vocabulary.domain
 
 data class VocabularyEntry(
     val id: Long,
+    val backupId: String,
     val headword: String,
     val languageTag: String,
     val senses: List<VocabularySense>,
@@ -25,6 +26,7 @@ data class ExampleSentence(
 
 data class VocabularyTag(
     val id: Long,
+    val backupId: String,
     val name: String,
 )
 

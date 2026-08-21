@@ -52,6 +52,13 @@ interface VocabularyDao {
     @Query("SELECT * FROM vocabulary_entries WHERE id = :id")
     fun observeEntry(id: Long): Flow<VocabularyEntryWithDetails?>
 
+    @Transaction
+    @Query("SELECT * FROM vocabulary_entries ORDER BY id ASC")
+    suspend fun getAllEntries(): List<VocabularyEntryWithDetails>
+
+    @Query("SELECT * FROM vocabulary_entries WHERE backup_id = :backupId LIMIT 1")
+    suspend fun findEntryByBackupId(backupId: String): VocabularyEntryEntity?
+
     @Query("SELECT * FROM vocabulary_entries WHERE id = :id")
     suspend fun findEntryEntity(id: Long): VocabularyEntryEntity?
 
@@ -63,6 +70,9 @@ interface VocabularyDao {
 
     @Query("DELETE FROM vocabulary_entries WHERE id = :id")
     suspend fun deleteEntry(id: Long)
+
+    @Query("DELETE FROM vocabulary_entries")
+    suspend fun deleteAllEntries()
 
     @Query("DELETE FROM senses WHERE entry_id = :entryId")
     suspend fun deleteSenses(entryId: Long)

@@ -1,6 +1,7 @@
 package com.example.localvocabulary.vocabulary.data
 
 import com.example.localvocabulary.core.common.TimeProvider
+import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
@@ -20,7 +21,7 @@ class RoomVocabularyRepositoryTest {
     @Test
     fun `creating an entry writes timestamps and the complete aggregate`() = runTest {
         val dao = FakeVocabularyDao()
-        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 })
+        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "entry-new" })
 
         val id = repository.save(
             ValidatedVocabularyDraft(
@@ -49,6 +50,7 @@ class RoomVocabularyRepositoryTest {
         val dao = FakeVocabularyDao(
             storedEntry = VocabularyEntryEntity(
                 id = 8,
+                backupId = "entry-8",
                 headword = "old",
                 languageTag = "en",
                 notes = "old note",
@@ -56,7 +58,7 @@ class RoomVocabularyRepositoryTest {
                 modifiedAtEpochMillis = 200,
             ),
         )
-        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 })
+        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "unused" })
 
         repository.save(
             ValidatedVocabularyDraft(
@@ -79,7 +81,7 @@ class RoomVocabularyRepositoryTest {
     @Test
     fun `search treats SQL wildcard characters as literal user text`() {
         val dao = FakeVocabularyDao()
-        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 })
+        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "unused" })
 
         repository.observeEntries("  100%_\\  ", 7)
 
@@ -105,6 +107,11 @@ private class FakeVocabularyDao(
 
     override fun observeEntry(id: Long): Flow<VocabularyEntryWithDetails?> = flowOf(null)
 
+    override suspend fun getAllEntries(): List<VocabularyEntryWithDetails> = emptyList()
+
+    override suspend fun findEntryByBackupId(backupId: String): VocabularyEntryEntity? =
+        storedEntry?.takeIf { it.backupId == backupId }
+
     override suspend fun findEntryEntity(id: Long): VocabularyEntryEntity? =
         storedEntry?.takeIf { it.id == id }
 
@@ -119,6 +126,10 @@ private class FakeVocabularyDao(
     }
 
     override suspend fun deleteEntry(id: Long) {
+        storedEntry = null
+    }
+
+    override suspend fun deleteAllEntries() {
         storedEntry = null
     }
 

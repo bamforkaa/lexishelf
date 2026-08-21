@@ -36,6 +36,7 @@ fun WordListScreen(
     onAddWord: () -> Unit,
     onOpenWord: (Long) -> Unit,
     onManageTags: () -> Unit,
+    onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     Scaffold(
@@ -44,6 +45,7 @@ fun WordListScreen(
                 title = { Text("내 단어장") },
                 actions = {
                     TextButton(onClick = onManageTags) { Text("태그") }
+                    TextButton(onClick = onOpenBackup) { Text("백업") }
                     TextButton(onClick = onOpenSettings) { Text("설정") }
                 },
             )

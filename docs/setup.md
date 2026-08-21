@@ -1,6 +1,6 @@
 # 개발 환경 설정
 
-## 2026-08-21 현재 컴퓨터 점검 결과
+## 2026-08-22 현재 컴퓨터 점검 결과
 
 점검은 읽기 전용 명령으로 수행했습니다. 시스템 도구 설치, PATH/레지스트리/셸 프로필 변경은 하지 않았습니다.
 
@@ -18,7 +18,7 @@
 | adb | `1.0.41`, platform-tools `37.0.1-15733141` | 직접 경로로 사용 가능 |
 | Emulator | `37.1.11.0` | 실행 파일 설치됨 |
 | Command-line Tools | `cmdline-tools/latest/bin/sdkmanager.bat` 없음 | 선택 설치 필요 |
-| 시스템 이미지/AVD | 시스템 이미지와 AVD 없음 | 앱 실행/계측 테스트 전에 필요 |
+| 시스템 이미지/AVD | `Medium_Phone` AVD, Android 17/API 37, `emulator-5554` | 실행 및 계측 테스트 확인 |
 | 전역 Gradle | 없음 | 정상; 설치하지 않음 |
 | Gradle Wrapper | 프로젝트의 Gradle `9.5.0` Wrapper | 사용 가능 |
 | 전역 Kotlin CLI | `kotlinc` 없음 | 별도 설치 불필요 |
@@ -54,6 +54,8 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 .\gradlew.bat lintDebug
 ```
 
+백업/복원은 Android 시스템 파일 선택기(Storage Access Framework)를 사용하므로 별도 storage permission이나 SDK 도구 설치가 필요하지 않습니다. 실제 기기 또는 AVD에서 파일 제공자를 열 수 있어야 하며 수동 절차는 [backup.md](backup.md)에 있습니다.
+
 ## 누락 항목 설치 및 설정
 
 ### 1. Android Studio 안정 채널 확인
@@ -88,7 +90,7 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 
 ### 4. 에뮬레이터와 AVD 준비
 
-현재 Emulator 실행 파일만 있고 시스템 이미지와 AVD가 없습니다.
+현재 `Medium_Phone` API 37 AVD가 구성되어 있으며 `adb devices -l`에서 `emulator-5554 device`로 확인했습니다. 새 컴퓨터에서 같은 환경을 준비하려면 다음 절차를 사용합니다.
 
 1. `Tools > SDK Manager > SDK Platforms`에서 Android 17/API 37의 Google APIs x86_64 시스템 이미지를 설치합니다.
 2. `Tools > Device Manager > Add a new device > Create Virtual Device`를 선택합니다.
@@ -124,11 +126,10 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 | 명령 | 실제 결과 |
 | --- | --- |
 | `.\gradlew.bat --version` | 성공, Gradle 9.5.0 / JBR 25.0.2 / Windows amd64 |
-| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 6개 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 28개 통과 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 생성 |
-| `.\gradlew.bat assembleDebugAndroidTest` | 성공, 계측 테스트 APK 생성 |
-| `.\gradlew.bat lintDebug` | 성공, 0 errors / 2 version-availability warnings |
-| `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음: 시스템 이미지/AVD가 없고 실행 가능한 장치가 확인되지 않음 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone(AVD) - 17`에서 20개 통과 / 실패·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공, 0 errors / 4 version-availability warnings |
 
 중간 실패도 숨기지 않습니다.
 
@@ -136,8 +137,9 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 - 최초 Hilt 2.57.1: AGP 9 새 DSL 비호환으로 `Android BaseExtension not found`; AGP 9 지원 안정판 Hilt로 교체.
 - 첫 Kotlin 컴파일: 잘못 추가한 `weight` import가 internal symbol을 가리킴; import 제거 후 성공.
 - 첫 단위 테스트 실행: 테스트 자체가 `Int`와 `Long`을 비교; assertion을 `Long`으로 수정 후 6개 모두 통과.
-- 마지막 `adb devices -l` 진단: 샌드박스에서 응답 없이 대기하여 종료했고, 이 진단이 시작한 adb 프로세스도 정리함. 따라서 연결 장치 테스트 성공을 주장하지 않음.
+- 첫 백업 기능 전체 계측 실행: 새 migration test가 schema JSON을 test assets에서 찾지 못해 20개 중 1개 실패. `app/schemas`를 `androidTest` assets에 연결한 뒤 migration 단독 테스트와 전체 20개 테스트가 통과함.
+- migration 단독 검증의 첫 명령: PowerShell이 따옴표 없는 `-Pandroid.testInstrumentationRunnerArguments.class=...`를 분리해 테스트 시작 전에 실패. 인자 전체를 따옴표로 묶어 재실행함.
 
 JBR 25에서 Gradle native-platform이 제한 API 사용 경고를 출력하지만 현재 빌드 실패는 아닙니다. 원한다면 Gradle 실행 JDK를 17 또는 21로 통일해 경고를 줄일 수 있습니다.
 
-lint의 두 warning은 Gradle 9.7.1과 Compose compiler plugin 2.4.10이 더 새롭다는 알림입니다. 이 프로젝트는 AGP 9.3의 공식 기본 Gradle 9.5.0과 AGP 내장 Kotlin에 맞춰 실제 빌드 검증된 Compose compiler 2.3.10을 고정했으므로 자동 상향하지 않았습니다.
+lint의 네 warning은 Gradle 9.7.1, Compose/serialization compiler plugin 2.4.10, kotlinx.serialization 1.11.0이 더 새롭다는 알림입니다. 이 프로젝트는 AGP 9.3의 공식 기본 Gradle 9.5.0과 AGP 내장 Kotlin 2.3.10에 맞추고, 같은 Kotlin 계열에서 빌드 검증한 kotlinx.serialization 1.10.0을 사용하므로 자동 상향하지 않았습니다.

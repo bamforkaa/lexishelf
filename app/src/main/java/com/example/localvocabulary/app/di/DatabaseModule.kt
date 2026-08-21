@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import com.example.localvocabulary.core.common.SystemTimeProvider
 import com.example.localvocabulary.core.common.TimeProvider
+import com.example.localvocabulary.core.common.StableIdGenerator
+import com.example.localvocabulary.core.common.UuidStableIdGenerator
 import com.example.localvocabulary.core.database.VocabularyDatabase
+import com.example.localvocabulary.core.database.MIGRATION_1_2
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import dagger.Module
@@ -24,7 +27,7 @@ object DatabaseModule {
             context,
             VocabularyDatabase::class.java,
             "vocabulary.db",
-        ).build()
+        ).addMigrations(MIGRATION_1_2).build()
 
     @Provides
     fun provideVocabularyDao(database: VocabularyDatabase): VocabularyDao = database.vocabularyDao()
@@ -34,4 +37,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTimeProvider(): TimeProvider = SystemTimeProvider
+
+    @Provides
+    fun provideStableIdGenerator(): StableIdGenerator = UuidStableIdGenerator
 }

@@ -8,6 +8,7 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyTag
 
 internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = VocabularyEntry(
     id = entry.id,
+    backupId = entry.backupId,
     headword = entry.headword,
     languageTag = entry.languageTag,
     senses = senses
@@ -23,7 +24,7 @@ internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = Vocabulary
             )
         },
     notes = entry.notes,
-    tags = tags.sortedBy { it.name.lowercase() }.map { VocabularyTag(it.id, it.name) },
+    tags = tags.sortedBy { it.name.lowercase() }.map { VocabularyTag(it.id, it.backupId, it.name) },
     createdAtEpochMillis = entry.createdAtEpochMillis,
     modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
 )

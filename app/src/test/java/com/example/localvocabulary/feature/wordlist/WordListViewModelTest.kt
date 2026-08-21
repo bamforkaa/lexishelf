@@ -27,7 +27,7 @@ class WordListViewModelTest {
         val repository = RecordingVocabularyRepository()
         val viewModel = WordListViewModel(
             repository,
-            FakeTagRepository(listOf(VocabularyTag(4, "Selected"))),
+            FakeTagRepository(listOf(VocabularyTag(4, "tag-4", "Selected"))),
         )
 
         viewModel.onAction(WordListAction.QueryChanged("term"))
@@ -43,7 +43,7 @@ class WordListViewModelTest {
     @Test
     fun `removing the selected tag clears the stale filter`() = runTest {
         val repository = RecordingVocabularyRepository()
-        val tags = FakeTagRepository(listOf(VocabularyTag(4, "Selected")))
+        val tags = FakeTagRepository(listOf(VocabularyTag(4, "tag-4", "Selected")))
         val viewModel = WordListViewModel(repository, tags)
         viewModel.uiState.collectInBackground(backgroundScope)
         advanceUntilIdle()

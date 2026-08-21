@@ -15,6 +15,7 @@ class VocabularyMappersTest {
         val row = VocabularyEntryWithDetails(
             entry = VocabularyEntryEntity(
                 id = 4,
+                backupId = "entry-4",
                 headword = "run",
                 languageTag = "en",
                 notes = "note",
@@ -35,8 +36,8 @@ class VocabularyMappersTest {
                 ),
             ),
             tags = listOf(
-                TagEntity(2, "Verbs", "verbs"),
-                TagEntity(1, "Actions", "actions"),
+                TagEntity(id = 2, backupId = "tag-2", name = "Verbs", normalizedName = "verbs"),
+                TagEntity(id = 1, backupId = "tag-1", name = "Actions", normalizedName = "actions"),
             ),
         )
 

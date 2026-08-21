@@ -10,6 +10,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.localvocabulary.feature.backup.BackupScreen
+import com.example.localvocabulary.feature.backup.BackupViewModel
 import com.example.localvocabulary.feature.settings.SettingsScreen
 import com.example.localvocabulary.feature.settings.SettingsViewModel
 import com.example.localvocabulary.feature.tags.TagManagementScreen
@@ -27,6 +29,7 @@ private object Routes {
     const val WORDS = "words"
     const val TAGS = "tags"
     const val SETTINGS = "settings"
+    const val BACKUP = "backup"
     const val NEW_WORD = "word/new"
     const val WORD_DETAIL = "word/{entryId}"
     const val EDIT_WORD = "word/{entryId}/edit"
@@ -49,6 +52,7 @@ fun AppNavigation() {
                 onAddWord = { navController.navigate(Routes.NEW_WORD) },
                 onOpenWord = { navController.navigate(Routes.detail(it)) },
                 onManageTags = { navController.navigate(Routes.TAGS) },
+                onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
@@ -107,6 +111,16 @@ fun AppNavigation() {
             val viewModel = hiltViewModel<SettingsViewModel>()
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             SettingsScreen(
+                state = state,
+                onAction = viewModel::onAction,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.BACKUP) {
+            val viewModel = hiltViewModel<BackupViewModel>()
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            BackupScreen(
                 state = state,
                 onAction = viewModel::onAction,
                 onBack = { navController.popBackStack() },

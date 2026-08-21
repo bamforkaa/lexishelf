@@ -7,11 +7,16 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "tags",
-    indices = [Index(value = ["normalized_name"], unique = true)],
+    indices = [
+        Index(value = ["normalized_name"], unique = true),
+        Index(value = ["backup_id"], unique = true),
+    ],
 )
 data class TagEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    @ColumnInfo(name = "backup_id", defaultValue = "''")
+    val backupId: String,
     val name: String,
     @ColumnInfo(name = "normalized_name")
     val normalizedName: String,

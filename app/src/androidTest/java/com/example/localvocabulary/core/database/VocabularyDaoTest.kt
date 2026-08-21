@@ -225,7 +225,7 @@ class VocabularyDaoTest {
     }
 
     private suspend fun insertTag(name: String): Long = database.tagDao().insert(
-        TagEntity(name = name, normalizedName = name.lowercase()),
+        TagEntity(backupId = "tag-$name", name = name, normalizedName = name.lowercase()),
     )
 
     private fun entry(
@@ -235,6 +235,7 @@ class VocabularyDaoTest {
         modifiedAt: Long = 1,
     ) = VocabularyEntryEntity(
         id = id,
+        backupId = "entry-${if (id == 0L) headword else id}",
         headword = headword,
         languageTag = "en",
         notes = notes,

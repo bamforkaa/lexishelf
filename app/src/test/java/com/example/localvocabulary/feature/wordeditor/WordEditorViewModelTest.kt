@@ -52,7 +52,7 @@ class WordEditorViewModelTest {
         val repository = RecordingVocabularyRepository(savedId = 42)
         val viewModel = createViewModel(
             repository = repository,
-            tags = listOf(VocabularyTag(2, "Important")),
+            tags = listOf(VocabularyTag(2, "tag-2", "Important")),
         )
         advanceUntilIdle()
         val savedEffect = async(start = CoroutineStart.UNDISPATCHED) { viewModel.effects.first() }
@@ -157,6 +157,7 @@ private class FakeSettingsRepository : SettingsRepository {
 
 private fun entry(id: Long, headword: String) = VocabularyEntry(
     id = id,
+    backupId = "entry-$id",
     headword = headword,
     languageTag = "en",
     senses = listOf(
@@ -168,7 +169,7 @@ private fun entry(id: Long, headword: String) = VocabularyEntry(
         ),
     ),
     notes = "note",
-    tags = listOf(VocabularyTag(2, "Important")),
+    tags = listOf(VocabularyTag(2, "tag-2", "Important")),
     createdAtEpochMillis = 100,
     modifiedAtEpochMillis = 200,
 )

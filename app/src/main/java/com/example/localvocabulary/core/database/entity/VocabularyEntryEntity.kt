@@ -2,12 +2,18 @@ package com.example.localvocabulary.core.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "vocabulary_entries")
+@Entity(
+    tableName = "vocabulary_entries",
+    indices = [Index(value = ["backup_id"], unique = true)],
+)
 data class VocabularyEntryEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    @ColumnInfo(name = "backup_id", defaultValue = "''")
+    val backupId: String,
     val headword: String,
     @ColumnInfo(name = "language_tag")
     val languageTag: String,

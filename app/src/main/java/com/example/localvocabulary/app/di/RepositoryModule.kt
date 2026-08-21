@@ -1,5 +1,11 @@
 package com.example.localvocabulary.app.di
 
+import com.example.localvocabulary.backup.data.ContentResolverBackupFileStore
+import com.example.localvocabulary.backup.data.KotlinxBackupSerializer
+import com.example.localvocabulary.backup.data.RoomVocabularyBackupRepository
+import com.example.localvocabulary.backup.domain.BackupFileStore
+import com.example.localvocabulary.backup.domain.BackupSerializer
+import com.example.localvocabulary.backup.domain.VocabularyBackupRepository
 import com.example.localvocabulary.settings.DataStoreSettingsRepository
 import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.data.RoomTagRepository
@@ -15,6 +21,20 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindVocabularyBackupRepository(
+        implementation: RoomVocabularyBackupRepository,
+    ): VocabularyBackupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBackupSerializer(implementation: KotlinxBackupSerializer): BackupSerializer
+
+    @Binds
+    @Singleton
+    abstract fun bindBackupFileStore(implementation: ContentResolverBackupFileStore): BackupFileStore
+
     @Binds
     @Singleton
     abstract fun bindVocabularyRepository(

@@ -1,6 +1,7 @@
 package com.example.localvocabulary.vocabulary.data
 
 import com.example.localvocabulary.core.common.TimeProvider
+import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
@@ -14,6 +15,7 @@ import javax.inject.Inject
 class RoomVocabularyRepository @Inject constructor(
     private val vocabularyDao: VocabularyDao,
     private val timeProvider: TimeProvider,
+    private val stableIdGenerator: StableIdGenerator,
 ) : VocabularyRepository {
     override fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntry>> =
         vocabularyDao.observeEntries(query.escapeForLike(), tagId).map { rows ->
@@ -28,6 +30,7 @@ class RoomVocabularyRepository @Inject constructor(
         val existing = draft.id?.let { vocabularyDao.findEntryEntity(it) }
         val entity = VocabularyEntryEntity(
             id = draft.id ?: 0,
+            backupId = existing?.backupId ?: stableIdGenerator.newId(),
             headword = draft.headword,
             languageTag = draft.languageTag,
             notes = draft.notes,

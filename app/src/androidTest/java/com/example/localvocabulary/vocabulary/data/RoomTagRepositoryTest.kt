@@ -26,7 +26,8 @@ class RoomTagRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, VocabularyDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomTagRepository(database.tagDao())
+        var nextId = 1
+        repository = RoomTagRepository(database.tagDao()) { "tag-${nextId++}" }
     }
 
     @After
@@ -57,7 +58,7 @@ class RoomTagRepositoryTest {
 
         assertEquals(SaveTagResult.Saved(created.id), updated)
         assertEquals(
-            listOf(VocabularyTag(created.id, "Renamed Tag")),
+            listOf(VocabularyTag(created.id, "tag-1", "Renamed Tag")),
             repository.observeTags().first(),
         )
     }
