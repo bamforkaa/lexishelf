@@ -3,13 +3,18 @@ package com.example.localvocabulary.vocabulary.data
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
+import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
+import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
+import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
+import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
+import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -76,6 +81,47 @@ class RoomVocabularyRepositoryTest {
         assertEquals("edited", dao.storedEntry?.headword)
         assertEquals(listOf("new meaning"), dao.savedSenses.map { it.meaning })
         assertEquals(setOf(2L, 3L), dao.savedTagIds)
+    }
+
+    @Test
+    fun `provider provenance is written only for imported senses`() = runTest {
+        val dao = FakeVocabularyDao()
+        val repository = RoomVocabularyRepository(
+            dao,
+            TimeProvider { 500 },
+            StableIdGenerator { "entry-imported" },
+        )
+        val provenance = DictionaryProvenance(
+            providerId = "cc-cedict",
+            sourceEntryId = "source-key",
+            sourceSenseId = "0",
+            sourceName = "CC-CEDICT",
+            sourceUrl = "https://cc-cedict.org/editor/editor.php?handler=Download",
+            licenseName = "Creative Commons Attribution-ShareAlike 4.0 International",
+            licenseUrl = "https://creativecommons.org/licenses/by-sa/4.0/",
+            datasetVersion = "release-id",
+            importedFields = setOf(ImportedDictionaryField.MEANING),
+            importedAtEpochMillis = 400,
+            modifiedAfterImport = false,
+        )
+
+        repository.save(
+            ValidatedVocabularyDraft(
+                id = null,
+                headword = "word",
+                languageTag = "zh-Hans",
+                senses = listOf(
+                    VocabularySenseDraft("provider meaning", "", emptyList(), provenance),
+                    VocabularySenseDraft("user meaning", "", emptyList()),
+                ),
+                notes = "",
+                tagIds = emptySet(),
+            ),
+        )
+
+        assertEquals("cc-cedict", dao.savedSenses.first().provenance?.providerId)
+        assertEquals(setOf("MEANING"), dao.savedSenses.first().provenance?.importedFields)
+        assertEquals(null, dao.savedSenses.last().provenance)
     }
 
     @Test
@@ -147,6 +193,36 @@ private class FakeVocabularyDao(
             val last = savedSenses.last()
             savedSenses[savedSenses.lastIndex] = last.copy(examples = examples.map { it.text })
         }
+    }
+
+    override suspend fun insertSenseProvenance(provenance: SenseDictionaryProvenanceEntity) {
+        val last = savedSenses.last()
+        savedSenses[savedSenses.lastIndex] = last.copy(
+            provenance = SenseDictionaryProvenanceWrite(
+                providerId = provenance.providerId,
+                sourceEntryId = provenance.sourceEntryId,
+                sourceSenseId = provenance.sourceSenseId,
+                sourceName = provenance.sourceName,
+                sourceUrl = provenance.sourceUrl,
+                licenseName = provenance.licenseName,
+                licenseUrl = provenance.licenseUrl,
+                datasetVersion = provenance.datasetVersion,
+                importedFields = emptySet(),
+                importedAtEpochMillis = provenance.importedAtEpochMillis,
+                modifiedAfterImport = provenance.modifiedAfterImport,
+            ),
+        )
+    }
+
+    override suspend fun insertSenseProvenanceFields(
+        fields: List<SenseDictionaryProvenanceFieldEntity>,
+    ) {
+        val last = savedSenses.last()
+        savedSenses[savedSenses.lastIndex] = last.copy(
+            provenance = last.provenance?.copy(
+                importedFields = fields.mapTo(linkedSetOf()) { it.field },
+            ),
+        )
     }
 
     override suspend fun deleteEntryTags(entryId: Long) {

@@ -3,7 +3,7 @@ package com.example.localvocabulary.backup.domain
 import kotlinx.serialization.Serializable
 
 const val BACKUP_FORMAT_ID = "local-vocabulary-backup"
-const val CURRENT_BACKUP_SCHEMA_VERSION = 1
+const val CURRENT_BACKUP_SCHEMA_VERSION = 2
 
 @Serializable
 data class VocabularyBackupV1(
@@ -39,8 +39,59 @@ data class BackupSenseV1(
     val examples: List<String>,
 )
 
+@Serializable
+data class VocabularyBackupV2(
+    val format: String,
+    val schemaVersion: Int,
+    val exportedAtEpochMillis: Long,
+    val tags: List<BackupTagV1>,
+    val entries: List<BackupEntryV2>,
+)
+
+@Serializable
+data class BackupEntryV2(
+    val stableId: String,
+    val headword: String,
+    val languageTag: String,
+    val senses: List<BackupSenseV2>,
+    val notes: String,
+    val tagStableIds: List<String>,
+    val createdAtEpochMillis: Long,
+    val modifiedAtEpochMillis: Long,
+)
+
+@Serializable
+data class BackupSenseV2(
+    val meaning: String,
+    val partOfSpeech: String,
+    val examples: List<String>,
+    val provenance: BackupDictionaryProvenanceV2? = null,
+)
+
+@Serializable
+data class BackupDictionaryProvenanceV2(
+    val providerId: String,
+    val sourceEntryId: String? = null,
+    val sourceSenseId: String? = null,
+    val sourceName: String,
+    val sourceUrl: String? = null,
+    val licenseName: String,
+    val licenseUrl: String? = null,
+    val datasetVersion: String? = null,
+    val importedFields: List<BackupImportedFieldV2>,
+    val importedAtEpochMillis: Long,
+    val modifiedAfterImport: Boolean,
+)
+
+@Serializable
+enum class BackupImportedFieldV2 {
+    MEANING,
+    PART_OF_SPEECH,
+    EXAMPLES,
+}
+
 class ValidatedBackup internal constructor(
-    internal val document: VocabularyBackupV1,
+    internal val document: VocabularyBackupV2,
 )
 
 enum class BackupConflictPolicy {

@@ -27,3 +27,39 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
     }
 }
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS sense_dictionary_provenance (
+                sense_id INTEGER NOT NULL,
+                provider_id TEXT NOT NULL,
+                source_entry_id TEXT,
+                source_sense_id TEXT,
+                source_name TEXT NOT NULL,
+                source_url TEXT,
+                license_name TEXT NOT NULL,
+                license_url TEXT,
+                dataset_version TEXT,
+                imported_at_epoch_millis INTEGER NOT NULL,
+                modified_after_import INTEGER NOT NULL,
+                PRIMARY KEY(sense_id),
+                FOREIGN KEY(sense_id) REFERENCES senses(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS sense_dictionary_provenance_fields (
+                sense_id INTEGER NOT NULL,
+                field TEXT NOT NULL,
+                PRIMARY KEY(sense_id, field),
+                FOREIGN KEY(sense_id) REFERENCES sense_dictionary_provenance(sense_id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+}

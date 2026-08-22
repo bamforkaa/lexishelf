@@ -9,6 +9,8 @@ import androidx.room.Update
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
+import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
+import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +19,21 @@ data class SenseWrite(
     val meaning: String,
     val partOfSpeech: String,
     val examples: List<String>,
+    val provenance: SenseDictionaryProvenanceWrite? = null,
+)
+
+data class SenseDictionaryProvenanceWrite(
+    val providerId: String,
+    val sourceEntryId: String?,
+    val sourceSenseId: String?,
+    val sourceName: String,
+    val sourceUrl: String?,
+    val licenseName: String,
+    val licenseUrl: String?,
+    val datasetVersion: String?,
+    val importedFields: Set<String>,
+    val importedAtEpochMillis: Long,
+    val modifiedAfterImport: Boolean,
 )
 
 @Dao
@@ -83,6 +100,12 @@ interface VocabularyDao {
     @Insert
     suspend fun insertExamples(examples: List<ExampleEntity>)
 
+    @Insert
+    suspend fun insertSenseProvenance(provenance: SenseDictionaryProvenanceEntity)
+
+    @Insert
+    suspend fun insertSenseProvenanceFields(fields: List<SenseDictionaryProvenanceFieldEntity>)
+
     @Query("DELETE FROM entry_tag_cross_refs WHERE entry_id = :entryId")
     suspend fun deleteEntryTags(entryId: Long)
 
@@ -121,6 +144,28 @@ interface VocabularyDao {
                     )
                 },
             )
+            sense.provenance?.let { provenance ->
+                insertSenseProvenance(
+                    SenseDictionaryProvenanceEntity(
+                        senseId = senseId,
+                        providerId = provenance.providerId,
+                        sourceEntryId = provenance.sourceEntryId,
+                        sourceSenseId = provenance.sourceSenseId,
+                        sourceName = provenance.sourceName,
+                        sourceUrl = provenance.sourceUrl,
+                        licenseName = provenance.licenseName,
+                        licenseUrl = provenance.licenseUrl,
+                        datasetVersion = provenance.datasetVersion,
+                        importedAtEpochMillis = provenance.importedAtEpochMillis,
+                        modifiedAfterImport = provenance.modifiedAfterImport,
+                    ),
+                )
+                insertSenseProvenanceFields(
+                    provenance.importedFields.sorted().map { field ->
+                        SenseDictionaryProvenanceFieldEntity(senseId, field)
+                    },
+                )
+            }
         }
 
         deleteEntryTags(entryId)

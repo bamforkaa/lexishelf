@@ -1,5 +1,7 @@
 package com.example.localvocabulary.feature.settings
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,7 +45,8 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("새 단어의 기본 언어 태그")
@@ -57,7 +60,21 @@ fun SettingsScreen(
                 )
                 TextButton(onClick = { onAction(SettingsAction.Save) }) { Text("저장") }
                 state.message?.let { Text(it) }
-                Text("이 마일스톤에는 외부 사전이나 API 키 설정이 없습니다.")
+                Text("사전 출처")
+                state.dictionarySources.forEach { source ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(source.providerName)
+                        source.attributionNotice?.let { Text(it) }
+                        source.sourceUrl?.let { Text("Source: $it") }
+                        source.licenseName?.let { Text("License: $it") }
+                        source.licenseUrl?.let { Text(it) }
+                        source.releaseId?.let { Text("Expected release: $it") }
+                        source.releasePageUrl?.let { Text("Release page: $it") }
+                        source.entryCount?.let { Text("Entries: $it") }
+                        source.artifactName?.let { Text("Expected artifact: $it") }
+                        source.format?.let { Text("Format: $it") }
+                    }
+                }
             }
         }
     }

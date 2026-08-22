@@ -7,15 +7,18 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
 import com.example.localvocabulary.backup.domain.BackupDecodeResult
-import com.example.localvocabulary.backup.domain.BackupEntryV1
-import com.example.localvocabulary.backup.domain.BackupSenseV1
+import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
+import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupImportedFieldV2
+import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
-import com.example.localvocabulary.backup.domain.VocabularyBackupV1
+import com.example.localvocabulary.backup.domain.VocabularyBackupV2
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.SenseWrite
+import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import kotlinx.coroutines.flow.first
@@ -57,7 +60,12 @@ class RoomVocabularyBackupRepositoryTest {
             headword = "辞書",
             languageTag = "ja",
             senses = listOf(
-                SenseWrite("사전 / 詞典", "名詞", listOf("彼は辞書を引いた。", "他查了词典。")),
+                SenseWrite(
+                    "사전 / 詞典",
+                    "名詞",
+                    listOf("彼は辞書を引いた。", "他查了词典。"),
+                    provenanceWrite(modified = true),
+                ),
                 SenseWrite("lexicon", "noun", listOf("café naïve façade")),
             ),
             notes = "ملاحظة عربية",
@@ -93,6 +101,10 @@ class RoomVocabularyBackupRepositoryTest {
         )
         assertEquals(100L, japanese.entry.createdAtEpochMillis)
         assertEquals(200L, japanese.entry.modifiedAtEpochMillis)
+        assertEquals("cc-cedict", senses.first().provenance?.providerId)
+        assertEquals(setOf("MEANING"), senses.first().provenanceFields.map { it.field }.toSet())
+        assertTrue(senses.first().provenance!!.modifiedAfterImport)
+        assertEquals(null, senses.last().provenance)
         assertEquals(2, database.tagDao().getAll().size)
         assertEquals(
             2,
@@ -112,6 +124,36 @@ class RoomVocabularyBackupRepositoryTest {
         assertTrue(exported.tags.isEmpty())
         assertEquals(0, result.createdEntryCount)
         assertTrue(database.vocabularyDao().getAllEntries().isEmpty())
+    }
+
+    @Test
+    fun schemaV1BackupImportsWithUserAuthoredSemanticsAndNoProvenance() = runTest {
+        val v1Json =
+            """
+            {
+              "format": "$BACKUP_FORMAT_ID",
+              "schemaVersion": 1,
+              "exportedAtEpochMillis": 500,
+              "tags": [],
+              "entries": [{
+                "stableId": "entry-v1",
+                "headword": "legacy",
+                "languageTag": "en",
+                "senses": [{"meaning":"old meaning","partOfSpeech":"noun","examples":[]}],
+                "notes": "old note",
+                "tagStableIds": [],
+                "createdAtEpochMillis": 100,
+                "modifiedAtEpochMillis": 200
+              }]
+            }
+            """.trimIndent()
+
+        repository.importBackup(decode(v1Json), BackupConflictPolicy.MERGE_BY_STABLE_ID)
+
+        val stored = database.vocabularyDao().getAllEntries().single()
+        assertEquals("legacy", stored.entry.headword)
+        assertEquals("old meaning", stored.senses.single().sense.meaning)
+        assertEquals(null, stored.senses.single().provenance)
     }
 
     @Test
@@ -290,9 +332,9 @@ class RoomVocabularyBackupRepositoryTest {
         (serializer.decode(json) as BackupDecodeResult.Success).backup
 
     private fun backup(
-        entries: List<BackupEntryV1>,
+        entries: List<BackupEntryV2>,
         tags: List<BackupTagV1> = emptyList(),
-    ) = VocabularyBackupV1(
+    ) = VocabularyBackupV2(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 1_000,
@@ -306,14 +348,29 @@ class RoomVocabularyBackupRepositoryTest {
         languageTag: String = "en",
         meaning: String = "meaning",
         tagIds: List<String> = emptyList(),
-    ) = BackupEntryV1(
+    ) = BackupEntryV2(
         stableId = stableId,
         headword = headword,
         languageTag = languageTag,
-        senses = listOf(BackupSenseV1(meaning, "noun", listOf("example"))),
+        senses = listOf(BackupSenseV2(meaning, "noun", listOf("example"))),
         notes = "note",
         tagStableIds = tagIds,
         createdAtEpochMillis = 100,
         modifiedAtEpochMillis = 200,
     )
+
+    private fun provenanceWrite(modified: Boolean = false) =
+        SenseDictionaryProvenanceWrite(
+            providerId = "cc-cedict",
+            sourceEntryId = "詞典|词典|ci2dian3",
+            sourceSenseId = "0",
+            sourceName = "CC-CEDICT",
+            sourceUrl = "https://cc-cedict.org/editor/editor.php?handler=Download",
+            licenseName = "Creative Commons Attribution-ShareAlike 4.0 International",
+            licenseUrl = "https://creativecommons.org/licenses/by-sa/4.0/",
+            datasetVersion = "2026-08-22T08:27:42Z",
+            importedFields = setOf("MEANING"),
+            importedAtEpochMillis = 150,
+            modifiedAfterImport = modified,
+        )
 }

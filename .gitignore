@@ -15,3 +15,4 @@ captures/
 .externalNativeBuild/
 .cxx/
 app/schemas/.tmp/
+app/src/main/assets/dictionary/cccedict/*.gz

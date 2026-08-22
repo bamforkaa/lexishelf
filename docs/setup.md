@@ -56,6 +56,16 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 
 백업/복원은 Android 시스템 파일 선택기(Storage Access Framework)를 사용하므로 별도 storage permission이나 SDK 도구 설치가 필요하지 않습니다. 실제 기기 또는 AVD에서 파일 제공자를 열 수 있어야 하며 수동 절차는 [backup.md](backup.md)에 있습니다.
 
+## 선택 사항: CC-CEDICT local dataset
+
+CC-CEDICT provider에는 SDK 도구, network permission 또는 API key가 필요하지 않습니다. 다만 full GZip binary는 저장소에 포함되지 않으므로 실제 lookup을 하려면 브라우저에서 공식 release를 수동으로 받아 다음 asset 경로에 두어야 합니다.
+
+```text
+app/src/main/assets/dictionary/cccedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+```
+
+MDBG는 automated/scripted access를 금지하므로 project script가 다운로드하지 않습니다. 기대 release, attribution, 파일 복사와 update 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)를 따르세요. 파일이 없어도 build/test는 가능하며 앱은 검색 시 dataset unavailable을 표시합니다.
+
 ## 누락 항목 설치 및 설정
 
 ### 1. Android Studio 안정 채널 확인
@@ -126,9 +136,9 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 | 명령 | 실제 결과 |
 | --- | --- |
 | `.\gradlew.bat --version` | 성공, Gradle 9.5.0 / JBR 25.0.2 / Windows amd64 |
-| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 28개 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 38개 통과 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 생성 |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone(AVD) - 17`에서 20개 통과 / 실패·건너뜀 0 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone(AVD) - 17`에서 21개 통과 / 실패·건너뜀 0 |
 | `.\gradlew.bat lintDebug` | 성공, 0 errors / 4 version-availability warnings |
 
 중간 실패도 숨기지 않습니다.
@@ -143,3 +153,37 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 JBR 25에서 Gradle native-platform이 제한 API 사용 경고를 출력하지만 현재 빌드 실패는 아닙니다. 원한다면 Gradle 실행 JDK를 17 또는 21로 통일해 경고를 줄일 수 있습니다.
 
 lint의 네 warning은 Gradle 9.7.1, Compose/serialization compiler plugin 2.4.10, kotlinx.serialization 1.11.0이 더 새롭다는 알림입니다. 이 프로젝트는 AGP 9.3의 공식 기본 Gradle 9.5.0과 AGP 내장 Kotlin 2.3.10에 맞추고, 같은 Kotlin 계열에서 빌드 검증한 kotlinx.serialization 1.10.0을 사용하므로 자동 상향하지 않았습니다.
+
+## 2026-08-23 CC-CEDICT 작업 검증
+
+모든 Gradle 명령은 잘못된 global `JAVA_HOME`을 바꾸지 않고 현재 PowerShell process에서만 Android Studio JBR을 지정해 실행했습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `\.\gradlew.bat testDebugUnitTest` | 성공, 12 suites / 56 tests / 실패·오류·건너뜀 0 |
+| `\.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
+| `\.\gradlew.bat assembleDebug` | 성공, code-only `app-debug.apk` 14,046,842 bytes |
+| `\.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 `Medium_Phone`은 기존 사용자 데이터가 있는 수동 QA AVD이며 test-only AVD가 아님 |
+
+변경 전 기존 APK는 14,032,994 bytes였고 full CC-CEDICT GZip 없이 provider/UI/NOTICE만 포함한 APK 증가는 13,848 bytes입니다. full artifact가 없으므로 데이터셋 포함 APK 크기와 첫 parse 시간/peak memory는 측정하지 않았습니다.
+
+중간 실패:
+
+- 첫 기준선 실행은 global `JAVA_HOME=C:\Program Files\Java\jdk-21`이 존재하지 않아 Gradle 시작 전 실패했습니다. 시스템 설정을 바꾸지 않고 Studio JBR을 process-local로 사용했습니다.
+- sandbox 안의 첫 Wrapper 실행은 Gradle 9.5.0 다운로드가 `Permission denied: getsockopt`로 실패했고 승인된 외부 실행에서 wrapper distribution을 받은 뒤 성공했습니다.
+- 첫 production compile은 존재하지 않는 `Char.isNotWhitespace` reference와 잘못 명시한 Compose `weight` import로 실패했습니다. lambda와 scope extension 사용으로 수정한 뒤 성공했습니다.
+- 첫 새 test compile은 `VocabularySenseDraft`의 필수 `partOfSpeech`, `examples` 인자가 빠져 실패했습니다. fixture draft를 완전하게 만든 뒤 전체 56 tests가 통과했습니다.
+
+## 2026-08-23 dictionary provenance/autofill 검증
+
+Task 5.2 검증도 Android Studio JBR을 현재 PowerShell process에만 지정해 실행했습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 12 suites / 70 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공, errors 0 / dependency version warning 4개 |
+| `.\gradlew.bat assembleDebug` | 성공, CC-CEDICT asset을 포함한 `app-debug.apk` 18,588,003 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,265,222 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 기존 사용자 데이터가 있는 수동 QA AVD를 uninstall/초기화하지 않기 위해 별도 test-only AVD가 필요함 |
+
+Room v2→v3 aggregate 보존, provenance Room round trip, backup v1 호환성과 Compose attribution 테스트는 AndroidTest APK에 포함되어 컴파일되었습니다. 기기에서의 실제 실행 결과로 표현하지 않으며 test-only AVD에서 별도로 실행해야 합니다.

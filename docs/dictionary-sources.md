@@ -1,8 +1,10 @@
 # 사전 소스 라이선스 조사
 
-조사일: 2026-08-21
+최종 확인일: 2026-08-23
 
-이번 마일스톤에는 사전 데이터, API 응답 fixture, provider 구현, 다운로드 코드가 없습니다. 아래 내용은 향후 구현 여부를 결정하기 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
+현재 실제 provider는 CC-CEDICT 하나입니다. full dataset binary와 자동 download 코드는 저장소에 없고, parser test에는 출처와 license notice가 있는 작은 fixture만 있습니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
+
+코드의 `DictionaryUsagePolicy`도 법률 판단을 대신하지 않습니다. 확인하지 않은 local persistence, redistribution, cache 값은 기본 `UNKNOWN`입니다. 검색 결과 표시는 permission과 별개지만, provider text를 Room/backup으로 이어지는 draft에 복사하려면 local persistence와 redistribution이 모두 `PERMITTED`이고 app import mode도 `COPY_EXPORTABLE_FIELDS`여야 합니다. 복사된 sense는 provider/source/license provenance를 Room과 backup에 함께 보존해야 합니다. 이 조건을 충족하지 못하는 provider는 `REFERENCE_ONLY`입니다.
 
 ## Cambridge Dictionary API / licensed data
 
@@ -61,24 +63,46 @@
 
 공식 출처:
 
-- [CC-CEDICT project home](https://cc-cedict.org/wiki/)
 - [CC-CEDICT download page](https://cc-cedict.org/editor/editor.php?handler=Download)
+- [MDBG recommended release page](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
+- [CC-CEDICT v1 syntax](https://cc-cedict.org/wiki/syntax)
+- [CC-CEDICT v2 syntax](https://cc-cedict.org/wiki/syntax_v2)
+- [Creative Commons BY-SA 4.0 deed](https://creativecommons.org/licenses/by-sa/4.0/)
 
 확인된 사실:
 
-- project home은 downloadable collaborative Chinese-English dictionary라고 설명한다.
-- home은 CC Attribution-ShareAlike 3.0이라고 표시한다.
-- 2026 download page는 제공되는 current non-verified download를 CC Attribution-ShareAlike 4.0이라고 표시하고 attribution/share-alike를 설명한다.
-- download page는 recommended latest release와 editing/review용 non-verified build를 구분한다.
+- CC-CEDICT 공식 download page는 권장 최신 release를 MDBG에서 받도록 안내하고, editing/review용 latest non-verified build와 구분한다.
+- 2026-08-23 확인 당시 권장 release page는 `2026-08-22 08:27:42 GMT`, 124,889 entries, GZip artifact `cedict_1_0_ts_utf-8_mdbg.txt.gz`를 표시했다.
+- 두 선택한 download/release page는 현재 work를 Creative Commons Attribution-ShareAlike 4.0 International로 명시한다. source를 밝히는 attribution과 개선·추가한 데이터의 같은 license 공유 의무를 설명한다.
+- CC BY-SA 4.0은 조건을 준수하면 share/adapt와 재배포를 허용하며 attribution과 ShareAlike를 요구한다. 코드의 `PERMITTED`는 이 조건이 사라진다는 의미가 아니다.
+- MDBG release page는 automated or scripted access를 금지한다. 따라서 Gradle/app/shell downloader를 구현하지 않았고 이 작업에서도 artifact를 자동 취득하지 않았다.
+- visible release listing에는 공식 checksum이 없었다. 확인되지 않은 checksum은 만들지 않는다.
+- v1 기본 형식은 `Traditional Simplified [pin1 yin1] /sense/gloss/`이며 현재 규칙에서 slash는 sense, semicolon은 같은 sense의 gloss를 구분한다. v2는 pinyin에 double brackets를 쓰며 2023-12부터 도입되었다. provider parser는 둘을 명시적으로 구분한다.
+- CC-CEDICT 자체는 machine-readable POS를 제공한다고 가정할 수 없으며 공식 v1 guide도 POS를 쓰지 않는다고 설명한다. provider는 POS/example/etymology/audio를 생성하지 않는다.
 
-라이선스 충돌과 미결정 사항:
+선택한 release metadata와 배포:
 
-- 공식 페이지 두 곳의 3.0/4.0 표기가 일치하지 않는다.
-- recommended release artifact의 정확한 license/version, attribution 문구, update cadence를 artifact와 함께 확인해야 한다.
-- 사용자 수정 definition과 JSON export에 share-alike가 어떻게 전달되는지 정책이 필요하다.
-- local bundle 크기, update, integrity/checksum, Traditional/Simplified normalization 정책이 필요하다.
+| 항목 | 값 |
+| --- | --- |
+| provider ID | `cc-cedict` |
+| source/result | `zh-Hans → en`, `zh-Hant → en` translation |
+| artifact | `cedict_1_0_ts_utf-8_mdbg.txt.gz` |
+| release ID | `2026-08-22T08:27:42Z` |
+| entries | 124,889 |
+| format | CC-CEDICT v1 UTF-8 GZip; parser는 v2 record도 지원 |
+| license | Creative Commons Attribution-ShareAlike 4.0 International |
+| attribution | `CC-CEDICT data from MDBG, licensed under CC BY-SA 4.0.`과 source/license link를 Settings에 표시 |
 
-결정: 특정 release artifact와 동봉 license가 일치하는지 확인하기 전에는 다운로드, bundle, parser, fixture를 추가하지 않는다.
+저장/재배포 결정:
+
+- descriptor의 local persistence와 redistribution은 CC BY-SA 4.0 조건 아래 `PERMITTED`, cache는 `PERMITTED`로 기록한다.
+- Room schema 3과 backup schema 2는 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 explicit `Use`가 English gloss를 새 sense로 추가한다.
+- 검색 결과와 pinyin은 transient UI reference로 표시한다. 현재 vocabulary에 generic reading field가 없으므로 pinyin을 notes나 다른 field로 저장하지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
+- user-authored sense에는 provenance가 없고 imported sense에는 provenance가 있다. 사용자가 imported text를 자유롭게 수정할 수 있지만 출처는 유지되고 수정 여부가 표시된다. JSON backup도 이 구분을 보존한다.
+- 검색 결과 도착이나 provider refresh는 editor/Room을 변경하지 않는다. 같은 source entry/sense를 반복 선택하면 accidental duplicate를 추가하지 않는다.
+- full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 ignored asset path에 둔다. 정확한 설치/update/rollback 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있다.
+
+공식 project wiki home의 오래된 CC BY-SA 3.0 표기와 현재 download/release page의 4.0 표기가 일치하지 않는 점은 숨기지 않는다. 이번 구현이 선택한 2026 release의 distribution pages가 명시하는 4.0을 적용했고, future artifact update 때 license를 다시 확인한다.
 
 ## 구현 전 공통 승인 체크리스트
 

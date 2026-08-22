@@ -98,6 +98,10 @@ fun WordEditorScreen(
                 }
             }
 
+            item {
+                DictionarySuggestionSection(state = state, onAction = onAction)
+            }
+
             items(state.senses, key = { it.key }) { sense ->
                 SenseEditorCard(
                     sense = sense,
@@ -199,6 +203,18 @@ private fun SenseEditorCard(
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
             )
+            sense.provenance?.let { provenance ->
+                Text(
+                    text = buildString {
+                        append(provenance.sourceName)
+                        append(" 기반")
+                        if (provenance.modifiedAfterImport) append(" · 수정됨")
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("sense_provenance"),
+                )
+            }
             OutlinedTextField(
                 value = sense.partOfSpeech,
                 onValueChange = { onAction(WordEditorAction.PartOfSpeechChanged(sense.key, it)) },

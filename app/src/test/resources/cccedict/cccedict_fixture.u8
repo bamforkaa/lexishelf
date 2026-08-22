@@ -1,0 +1,12 @@
+# LocalVocabulary CC-CEDICT parser fixture.
+# Format examples are adapted for testing from https://cc-cedict.org/wiki/syntax and syntax_v2.
+# CC-CEDICT content is licensed under CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+
+中國 中国 [Zhong1 guo2] /China/Middle Kingdom/
+詞典 词典 [[ci2dian3]] /dictionary; lexicon/
+咖啡 咖啡 [[ka1fei1]] /coffee; café (loanword)/
+行 行 [hang2] /row/profession/
+行 行 [xing2] /to walk/to be OK/
+編程 编程 [bian1 cheng2] /(computing) programming/see also 程式|程序[cheng2 shi4]/
+阿拉伯語 阿拉伯语 [A1 la1 bo2 yu3] /Arabic language; العربية/
+this is malformed

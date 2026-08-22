@@ -1,6 +1,9 @@
 package com.example.localvocabulary.feature.wordeditor
 
 import androidx.lifecycle.SavedStateHandle
+import com.example.localvocabulary.core.common.TimeProvider
+import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
+import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
 import com.example.localvocabulary.feature.wordlist.MainDispatcherRule
 import com.example.localvocabulary.settings.AppSettings
 import com.example.localvocabulary.settings.SettingsRepository
@@ -114,11 +117,14 @@ class WordEditorViewModelTest {
         repository: RecordingVocabularyRepository,
         tags: List<VocabularyTag> = emptyList(),
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
+        providerRegistry: DictionaryProviderRegistry = DefaultDictionaryProviderRegistry(emptyList()),
     ) = WordEditorViewModel(
         savedStateHandle = savedStateHandle,
         vocabularyRepository = repository,
         tagRepository = FakeTagRepository(tags),
         settingsRepository = FakeSettingsRepository(),
+        dictionaryProviderRegistry = providerRegistry,
+        timeProvider = TimeProvider { 1_000L },
     )
 }
 

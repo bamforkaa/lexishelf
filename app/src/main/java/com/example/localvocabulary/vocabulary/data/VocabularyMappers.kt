@@ -2,6 +2,8 @@ package com.example.localvocabulary.vocabulary.data
 
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
 import com.example.localvocabulary.vocabulary.domain.ExampleSentence
+import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
+import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
@@ -21,6 +23,23 @@ internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = Vocabulary
                 examples = relation.examples
                     .sortedBy { it.sortOrder }
                     .map { ExampleSentence(id = it.id, text = it.text) },
+                provenance = relation.provenance?.let { provenance ->
+                    DictionaryProvenance(
+                        providerId = provenance.providerId,
+                        sourceEntryId = provenance.sourceEntryId,
+                        sourceSenseId = provenance.sourceSenseId,
+                        sourceName = provenance.sourceName,
+                        sourceUrl = provenance.sourceUrl,
+                        licenseName = provenance.licenseName,
+                        licenseUrl = provenance.licenseUrl,
+                        datasetVersion = provenance.datasetVersion,
+                        importedFields = relation.provenanceFields.mapTo(linkedSetOf()) {
+                            ImportedDictionaryField.valueOf(it.field)
+                        },
+                        importedAtEpochMillis = provenance.importedAtEpochMillis,
+                        modifiedAfterImport = provenance.modifiedAfterImport,
+                    )
+                },
             )
         },
     notes = entry.notes,

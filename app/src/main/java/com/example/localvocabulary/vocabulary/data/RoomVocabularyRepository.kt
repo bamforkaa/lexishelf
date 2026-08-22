@@ -3,6 +3,7 @@ package com.example.localvocabulary.vocabulary.data
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
+import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
@@ -44,6 +45,23 @@ class RoomVocabularyRepository @Inject constructor(
                     meaning = sense.meaning,
                     partOfSpeech = sense.partOfSpeech,
                     examples = sense.examples,
+                    provenance = sense.provenance?.let { provenance ->
+                        SenseDictionaryProvenanceWrite(
+                            providerId = provenance.providerId,
+                            sourceEntryId = provenance.sourceEntryId,
+                            sourceSenseId = provenance.sourceSenseId,
+                            sourceName = provenance.sourceName,
+                            sourceUrl = provenance.sourceUrl,
+                            licenseName = provenance.licenseName,
+                            licenseUrl = provenance.licenseUrl,
+                            datasetVersion = provenance.datasetVersion,
+                            importedFields = provenance.importedFields.mapTo(linkedSetOf()) {
+                                it.name
+                            },
+                            importedAtEpochMillis = provenance.importedAtEpochMillis,
+                            modifiedAfterImport = provenance.modifiedAfterImport,
+                        )
+                    },
                 )
             },
             tagIds = draft.tagIds,

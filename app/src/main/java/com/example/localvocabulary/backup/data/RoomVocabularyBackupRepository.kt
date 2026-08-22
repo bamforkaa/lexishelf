@@ -3,18 +3,19 @@ package com.example.localvocabulary.backup.data
 import androidx.room.withTransaction
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
-import com.example.localvocabulary.backup.domain.BackupEntryV1
+import com.example.localvocabulary.backup.domain.BackupEntryV2
 import com.example.localvocabulary.backup.domain.BackupImportPreview
 import com.example.localvocabulary.backup.domain.BackupImportResult
-import com.example.localvocabulary.backup.domain.BackupSenseV1
+import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupRepository
-import com.example.localvocabulary.backup.domain.VocabularyBackupV1
+import com.example.localvocabulary.backup.domain.VocabularyBackupV2
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.SenseWrite
+import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
@@ -24,22 +25,40 @@ class RoomVocabularyBackupRepository @Inject constructor(
     private val database: VocabularyDatabase,
     private val timeProvider: TimeProvider,
 ) : VocabularyBackupRepository {
-    override suspend fun createBackup(): VocabularyBackupV1 = database.withTransaction {
+    override suspend fun createBackup(): VocabularyBackupV2 = database.withTransaction {
         val tags = database.tagDao().getAll()
             .sortedBy { it.backupId }
             .map { BackupTagV1(stableId = it.backupId, name = it.name) }
         val entries = database.vocabularyDao().getAllEntries()
             .sortedBy { it.entry.backupId }
             .map { relation ->
-                BackupEntryV1(
+                BackupEntryV2(
                     stableId = relation.entry.backupId,
                     headword = relation.entry.headword,
                     languageTag = relation.entry.languageTag,
                     senses = relation.senses.sortedBy { it.sense.sortOrder }.map { sense ->
-                        BackupSenseV1(
+                        BackupSenseV2(
                             meaning = sense.sense.meaning,
                             partOfSpeech = sense.sense.partOfSpeech,
                             examples = sense.examples.sortedBy { it.sortOrder }.map { it.text },
+                            provenance = sense.provenance?.let { provenance ->
+                                com.example.localvocabulary.vocabulary.domain.DictionaryProvenance(
+                                    providerId = provenance.providerId,
+                                    sourceEntryId = provenance.sourceEntryId,
+                                    sourceSenseId = provenance.sourceSenseId,
+                                    sourceName = provenance.sourceName,
+                                    sourceUrl = provenance.sourceUrl,
+                                    licenseName = provenance.licenseName,
+                                    licenseUrl = provenance.licenseUrl,
+                                    datasetVersion = provenance.datasetVersion,
+                                    importedFields = sense.provenanceFields.mapTo(linkedSetOf()) {
+                                        com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
+                                            .valueOf(it.field)
+                                    },
+                                    importedAtEpochMillis = provenance.importedAtEpochMillis,
+                                    modifiedAfterImport = provenance.modifiedAfterImport,
+                                ).toBackupV2()
+                            },
                         )
                     },
                     notes = relation.entry.notes,
@@ -48,7 +67,7 @@ class RoomVocabularyBackupRepository @Inject constructor(
                     modifiedAtEpochMillis = relation.entry.modifiedAtEpochMillis,
                 )
             }
-        VocabularyBackupV1(
+        VocabularyBackupV2(
             format = BACKUP_FORMAT_ID,
             schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
             exportedAtEpochMillis = timeProvider.currentTimeMillis(),
@@ -110,7 +129,28 @@ class RoomVocabularyBackupRepository @Inject constructor(
                     modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
                 ),
                 senses = entry.senses.map { sense ->
-                    SenseWrite(sense.meaning, sense.partOfSpeech, sense.examples)
+                    SenseWrite(
+                        meaning = sense.meaning,
+                        partOfSpeech = sense.partOfSpeech,
+                        examples = sense.examples,
+                        provenance = sense.provenance?.toDomain()?.let { provenance ->
+                            SenseDictionaryProvenanceWrite(
+                                providerId = provenance.providerId,
+                                sourceEntryId = provenance.sourceEntryId,
+                                sourceSenseId = provenance.sourceSenseId,
+                                sourceName = provenance.sourceName,
+                                sourceUrl = provenance.sourceUrl,
+                                licenseName = provenance.licenseName,
+                                licenseUrl = provenance.licenseUrl,
+                                datasetVersion = provenance.datasetVersion,
+                                importedFields = provenance.importedFields.mapTo(linkedSetOf()) {
+                                    it.name
+                                },
+                                importedAtEpochMillis = provenance.importedAtEpochMillis,
+                                modifiedAfterImport = provenance.modifiedAfterImport,
+                            )
+                        },
+                    )
                 },
                 tagIds = entry.tagStableIds.mapTo(mutableSetOf()) { stableId ->
                     checkNotNull(localTagIds[stableId]) { "Validated tag reference is missing" }

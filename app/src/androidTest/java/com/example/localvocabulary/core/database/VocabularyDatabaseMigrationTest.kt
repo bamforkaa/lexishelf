@@ -215,9 +215,155 @@ class VocabularyDatabaseMigrationTest {
         migrated.close()
     }
 
+    @Test
+    fun migrate2To3PreservesExistingVocabularyAndAddsEmptyProvenanceTables() {
+        migrationHelper.createDatabase(PROVENANCE_MIGRATION_DATABASE, 2).apply {
+            execSQL(
+                """
+                INSERT INTO vocabulary_entries
+                    (id, backup_id, headword, language_tag, notes,
+                     created_at_epoch_millis, modified_at_epoch_millis)
+                VALUES
+                    (1, 'entry-one', 'dictionary', 'en', 'user note', 100, 200),
+                    (2, 'entry-two', 'manual', 'en', 'second note', 300, 400)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO senses (id, entry_id, meaning, part_of_speech, sort_order)
+                VALUES
+                    (10, 1, 'reference book', 'noun', 0),
+                    (11, 1, 'word list', 'noun', 1),
+                    (12, 2, 'made by hand', 'adjective', 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO examples (id, sense_id, text, sort_order)
+                VALUES
+                    (100, 10, 'Open the dictionary.', 0),
+                    (101, 11, 'The word list is ordered.', 0)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO tags (id, backup_id, name, normalized_name)
+                VALUES
+                    (20, 'tag-shared', 'Shared', 'shared'),
+                    (21, 'tag-study', 'Study', 'study')
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO entry_tag_cross_refs (entry_id, tag_id)
+                VALUES (1, 20), (1, 21), (2, 20)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            PROVENANCE_MIGRATION_DATABASE,
+            3,
+            true,
+            MIGRATION_2_3,
+        )
+
+        migrated.query(
+            """
+            SELECT id, backup_id, headword, language_tag, notes,
+                   created_at_epoch_millis, modified_at_epoch_millis
+            FROM vocabulary_entries ORDER BY id
+            """.trimIndent(),
+        ).use { cursor ->
+            assertEquals(2, cursor.count)
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1L, cursor.getLong(0))
+            assertEquals("entry-one", cursor.getString(1))
+            assertEquals("dictionary", cursor.getString(2))
+            assertEquals("en", cursor.getString(3))
+            assertEquals("user note", cursor.getString(4))
+            assertEquals(100L, cursor.getLong(5))
+            assertEquals(200L, cursor.getLong(6))
+            assertTrue(cursor.moveToNext())
+            assertEquals(2L, cursor.getLong(0))
+            assertEquals("entry-two", cursor.getString(1))
+            assertEquals("manual", cursor.getString(2))
+            assertEquals("en", cursor.getString(3))
+            assertEquals("second note", cursor.getString(4))
+            assertEquals(300L, cursor.getLong(5))
+            assertEquals(400L, cursor.getLong(6))
+        }
+        migrated.query(
+            "SELECT id, entry_id, meaning, part_of_speech, sort_order FROM senses ORDER BY id",
+        ).use { cursor ->
+            assertEquals(3, cursor.count)
+            assertTrue(cursor.moveToFirst())
+            assertEquals(listOf(10L, 1L, "reference book", "noun", 0), cursor.currentSenseRow())
+            assertTrue(cursor.moveToNext())
+            assertEquals(listOf(11L, 1L, "word list", "noun", 1), cursor.currentSenseRow())
+            assertTrue(cursor.moveToNext())
+            assertEquals(
+                listOf(12L, 2L, "made by hand", "adjective", 0),
+                cursor.currentSenseRow(),
+            )
+        }
+        migrated.query("SELECT id, sense_id, text, sort_order FROM examples ORDER BY id")
+            .use { cursor ->
+                assertEquals(2, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals(
+                    listOf(100L, 10L, "Open the dictionary.", 0),
+                    cursor.currentExampleRow(),
+                )
+                assertTrue(cursor.moveToNext())
+                assertEquals(
+                    listOf(101L, 11L, "The word list is ordered.", 0),
+                    cursor.currentExampleRow(),
+                )
+            }
+        migrated.query("SELECT id, backup_id, name, normalized_name FROM tags ORDER BY id")
+            .use { cursor ->
+                assertEquals(2, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals(20L, cursor.getLong(0))
+                assertEquals("tag-shared", cursor.getString(1))
+                assertEquals("Shared", cursor.getString(2))
+                assertEquals("shared", cursor.getString(3))
+                assertTrue(cursor.moveToNext())
+                assertEquals(21L, cursor.getLong(0))
+                assertEquals("tag-study", cursor.getString(1))
+                assertEquals("Study", cursor.getString(2))
+                assertEquals("study", cursor.getString(3))
+            }
+        migrated.query("SELECT entry_id, tag_id FROM entry_tag_cross_refs ORDER BY entry_id, tag_id")
+            .use { cursor ->
+                assertEquals(3, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals(listOf(1L, 20L), cursor.currentRelationRow())
+                assertTrue(cursor.moveToNext())
+                assertEquals(listOf(1L, 21L), cursor.currentRelationRow())
+                assertTrue(cursor.moveToNext())
+                assertEquals(listOf(2L, 20L), cursor.currentRelationRow())
+            }
+        migrated.query("SELECT COUNT(*) FROM sense_dictionary_provenance").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM sense_dictionary_provenance_fields").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { cursor ->
+            assertEquals(0, cursor.count)
+        }
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DATABASE = "migration-test"
         const val RELATION_MIGRATION_DATABASE = "relation-migration-test"
+        const val PROVENANCE_MIGRATION_DATABASE = "provenance-migration-test"
     }
 }
 

@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,6 +83,18 @@ fun WordDetailScreen(
                         ) {
                             Text("뜻 ${index + 1}", style = MaterialTheme.typography.labelLarge)
                             Text(sense.meaning, style = MaterialTheme.typography.titleMedium)
+                            sense.provenance?.let { provenance ->
+                                Text(
+                                    text = buildString {
+                                        append(provenance.sourceName)
+                                        append(" 기반")
+                                        if (provenance.modifiedAfterImport) append(" · 수정됨")
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.testTag("sense_provenance"),
+                                )
+                            }
                             if (sense.partOfSpeech.isNotBlank()) Text("품사: ${sense.partOfSpeech}")
                             sense.examples.forEach { example -> Text("예: ${example.text}") }
                         }
