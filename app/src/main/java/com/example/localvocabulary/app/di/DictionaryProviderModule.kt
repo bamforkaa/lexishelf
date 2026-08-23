@@ -4,6 +4,10 @@ import com.example.localvocabulary.dictionary.domain.DictionaryProvider
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictAssetSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictDataSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictProvider
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryDataSource
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryIndexSource
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryLookup
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryProvider
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
 import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
 import dagger.Module
@@ -30,6 +34,18 @@ abstract class DictionaryProviderModule {
         @Provides
         @IntoSet
         fun provideCcCedictProvider(provider: CcCedictProvider): DictionaryProvider = provider
+
+        @Provides
+        @Singleton
+        internal fun provideKoreanBasicDictionaryLookup(
+            indexSource: KoreanBasicDictionaryIndexSource,
+        ): KoreanBasicDictionaryLookup = KoreanBasicDictionaryDataSource(indexSource)
+
+        @Provides
+        @IntoSet
+        fun provideKoreanBasicDictionaryProvider(
+            provider: KoreanBasicDictionaryProvider,
+        ): DictionaryProvider = provider
 
         @Provides
         @Singleton

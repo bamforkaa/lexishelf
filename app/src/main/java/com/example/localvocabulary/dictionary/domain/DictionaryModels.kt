@@ -267,6 +267,7 @@ data class ExternalDictionarySense(
     val partOfSpeech: String? = null,
     val grammaticalGender: String? = null,
     val examples: List<DictionaryExample> = emptyList(),
+    val sourceSenseId: String? = null,
 )
 
 data class DictionaryMeaning(

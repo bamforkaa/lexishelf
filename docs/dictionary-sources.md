@@ -2,7 +2,7 @@
 
 최종 확인일: 2026-08-23
 
-현재 실제 provider는 CC-CEDICT 하나입니다. full dataset binary와 자동 download 코드는 저장소에 없고, parser test에는 출처와 license notice가 있는 작은 fixture만 있습니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
+현재 실제 provider는 CC-CEDICT와 한국어기초사전 두 개입니다. full dataset binary와 자동 download 코드는 저장소에 없고, 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
 
 코드의 `DictionaryUsagePolicy`도 법률 판단을 대신하지 않습니다. 확인하지 않은 local persistence, redistribution, cache 값은 기본 `UNKNOWN`입니다. 검색 결과 표시는 permission과 별개지만, provider text를 Room/backup으로 이어지는 draft에 복사하려면 local persistence와 redistribution이 모두 `PERMITTED`이고 app import mode도 `COPY_EXPORTABLE_FIELDS`여야 합니다. 복사된 sense는 provider/source/license provenance를 Room과 backup에 함께 보존해야 합니다. 이 조건을 충족하지 못하는 provider는 `REFERENCE_ONLY`입니다.
 
@@ -103,6 +103,56 @@
 - full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 ignored asset path에 둔다. 정확한 설치/update/rollback 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있다.
 
 공식 project wiki home의 오래된 CC BY-SA 3.0 표기와 현재 download/release page의 4.0 표기가 일치하지 않는 점은 숨기지 않는다. 이번 구현이 선택한 2026 release의 distribution pages가 명시하는 4.0을 적용했고, future artifact update 때 license를 다시 확인한다.
+
+## 한국어기초사전
+
+공식 출처:
+
+- [한국어기초사전](https://krdict.korean.go.kr/)
+- [Open API 사용 안내](https://krdict.korean.go.kr/kor/openApi/openApiInfo)
+- [Open API 인증키 신청](https://krdict.korean.go.kr/kor/openApi/openApiRegister)
+- [사전 전체 내려받기](https://krdict.korean.go.kr/download/downloadPopup)
+- [저작권 정책](https://krdict.korean.go.kr/eng/kboardPolicy/copyRightTermsInfo)
+- [CC BY-SA 2.0 KR](https://creativecommons.org/licenses/by-sa/2.0/kr/)
+
+확인된 사실:
+
+- 공식 Open API는 search/view XML API, 이메일로 발급되는 32자리 인증키와 하루 최대 50,000건 제한을 문서화한다.
+- 공식 translation language option은 English, Japanese, French, Spanish, Arabic, Mongolian, Vietnamese, Thai, Indonesian, Russian, Chinese의 11개다.
+- search data에는 stable target code, 한국어 표제어, 품사, sense 순서/definition과 언어별 번역 표제어/definition이 명시되어 있다.
+- 공식 전체 내려받기 화면은 Excel/XML/JSON을 제공한다. 2026-08-23 확인 당시 JSON release는 2026-08-19였고 ZIP response는 84,455,509 bytes였다.
+- 저작권 정책은 별도로 표시된 자료를 제외한 text를 CC BY-SA 2.0 KR로 제공하고 출처 표시와 동일 조건 공유를 요구한다.
+- multimedia/audio/image/video/발음 자료는 개별 저작권 조건을 가질 수 있으므로 이번 provider는 가져오거나 표시하거나 저장하지 않는다.
+
+선택한 구현과 metadata:
+
+| 항목 | 값 |
+| --- | --- |
+| provider ID | `korean-basic-dictionary` |
+| access | `LOCAL_DATASET` |
+| source/result | `ko ↔ en|ja|fr|es|ar|mn|vi|th|id|ru|zh` translation exact lookup |
+| source artifact | 공식 전체 JSON ZIP |
+| release ID | `2026-08-19` |
+| generated artifact | `korean_basic_dictionary.db` |
+| indexed entries | 56,555 |
+| license | Creative Commons Attribution-ShareAlike 2.0 Korea |
+| attribution | `한국어기초사전 - 국립국어원 제공, CC BY-SA 2.0 KR.` |
+
+API 대신 local dataset을 선택한 이유:
+
+- foreign→Korean reverse exact lookup을 offline에서 제공할 수 있다.
+- 사용자별 API key, network failure, 일일 요청 한도가 필요 없다.
+- raw JSON은 약 1GB 비압축이므로 runtime in-memory parse 대신 개발 시 별도 SQLite reverse index를 생성한다.
+- generated dictionary DB는 user Room/backup과 다른 lifecycle과 schema version을 가진다.
+
+저장/재배포 결정:
+
+- 확인한 text license 조건 아래 local persistence, cache와 redistribution을 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다. `PERMITTED`는 attribution/ShareAlike 의무가 사라진다는 의미가 아니다.
+- explicit `Use`로 가져온 한국어/외국어 translation과 명시적 POS에는 provider/source entry/source sense/license/release/import/수정 provenance가 함께 저장되고 JSON backup에도 유지된다.
+- 공식 전체 export의 ID가 관련 관용구에서 재사용되므로 source entry reference는 공식 ID와 표제어를 함께 사용하고 공식 sense ID도 별도로 보존한다.
+- provider refresh나 새 release는 저장된 user-authored/provider-derived sense를 자동 수정하지 않는다.
+- 생성 SQLite와 원본 ZIP은 Git에 포함하지 않는다. 설치/update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)에 있다.
+- 공식 중국어 data에 script 구분이 없으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 BCP 47 `zh`를 사용한다.
 
 ## 구현 전 공통 승인 체크리스트
 

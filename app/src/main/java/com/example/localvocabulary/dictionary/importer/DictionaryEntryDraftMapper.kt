@@ -103,7 +103,7 @@ object DictionaryEntryDraftMapper {
                     provenance = DictionaryProvenance(
                         providerId = entry.providerId.value,
                         sourceEntryId = entry.sourceEntryId,
-                        sourceSenseId = senseIndex.toString(),
+                        sourceSenseId = sense.sourceSenseId ?: senseIndex.toString(),
                         sourceName = entry.attribution.sourceName,
                         sourceUrl = entry.attribution.sourceUrl,
                         licenseName = licenseName,

@@ -147,6 +147,28 @@ class WordEditorDictionarySuggestionsTest {
     }
 
     @Test
+    fun `one provider failure does not hide another provider result`() = runTest {
+        val available = suggestionProvider(id = "available", displayName = "Available Dictionary")
+        val unavailable = suggestionProvider(id = "unavailable", displayName = "Unavailable Dictionary") {
+            DictionarySearchResult.Failure(DictionaryProviderError.LocalDatasetUnavailable)
+        }
+        val viewModel = createViewModel(providers = listOf(unavailable, available))
+        runCurrent()
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+
+        val groups = viewModel.uiState.value.dictionarySuggestionGroups
+        assertEquals(2, groups.size)
+        assertEquals(1, groups.single { it.providerId.value == "available" }.entries.size)
+        assertTrue(
+            groups.single { it.providerId.value == "unavailable" }
+                .message.orEmpty().contains("Unavailable Dictionary"),
+        )
+    }
+
+    @Test
     fun `local dataset error stays in suggestions and manual save still succeeds`() = runTest {
         val provider = suggestionProvider {
             DictionarySearchResult.Failure(DictionaryProviderError.LocalDatasetUnavailable)

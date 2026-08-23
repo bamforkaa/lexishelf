@@ -58,6 +58,39 @@ class KotlinxBackupSerializerTest {
     }
 
     @Test
+    fun `mixed CC CEDICT Korean Basic Dictionary and user senses round trip`() {
+        val ccCedict = provenance()
+        val koreanBasic = provenance().copy(
+            providerId = "korean-basic-dictionary",
+            sourceEntryId = "100:먹다",
+            sourceSenseId = "1",
+            sourceName = "한국어기초사전 - 국립국어원 제공",
+            sourceUrl = "https://krdict.korean.go.kr/",
+            licenseName = "Creative Commons Attribution-ShareAlike 2.0 Korea",
+            licenseUrl = "https://creativecommons.org/licenses/by-sa/2.0/kr/",
+            datasetVersion = "2026-08-19",
+        )
+        val backup = backup(
+            entries = listOf(
+                entry(
+                    senses = listOf(
+                        BackupSenseV2("hello", "", emptyList(), ccCedict),
+                        BackupSenseV2("먹다", "동사", emptyList(), koreanBasic),
+                        BackupSenseV2("내가 쓴 뜻", "", emptyList()),
+                    ),
+                ),
+            ),
+        )
+
+        val decoded = serializer.decode(serializer.encode(backup)) as BackupDecodeResult.Success
+        val senses = decoded.backup.document.entries.single().senses
+
+        assertEquals(ccCedict, senses[0].provenance)
+        assertEquals(koreanBasic, senses[1].provenance)
+        assertNull(senses[2].provenance)
+    }
+
+    @Test
     fun `schema v1 imports as current schema without provenance`() {
         val v1Json =
             """

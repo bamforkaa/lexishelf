@@ -16,3 +16,4 @@ captures/
 .cxx/
 app/schemas/.tmp/
 app/src/main/assets/dictionary/cccedict/*.gz
+app/src/main/assets/dictionary/koreanbasic/*.db

@@ -66,6 +66,18 @@ app/src/main/assets/dictionary/cccedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
 
 MDBG는 automated/scripted access를 금지하므로 project script가 다운로드하지 않습니다. 기대 release, attribution, 파일 복사와 update 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)를 따르세요. 파일이 없어도 build/test는 가능하며 앱은 검색 시 dataset unavailable을 표시합니다.
 
+## 선택 사항: 한국어기초사전 local reverse index
+
+한국어기초사전 provider도 API key, network permission 또는 Android SDK 추가 도구가 필요하지 않습니다. 공식 [사전 전체 내려받기](https://krdict.korean.go.kr/download/downloadPopup)에서 JSON ZIP을 브라우저로 받은 뒤 Python 3 표준 라이브러리 변환기를 실행합니다.
+
+```powershell
+python .\tools\build_krdict_index.py `
+  C:\path\to\korean-basic-dictionary-json.zip `
+  .\app\src\main\assets\dictionary\koreanbasic\korean_basic_dictionary.db
+```
+
+생성 DB는 약 200MB이며 `.gitignore` 대상입니다. 누락되어도 build/test와 수동 저장, CC-CEDICT 검색은 정상이고 한국어기초사전 suggestion group만 dataset unavailable을 표시합니다. 공식 source, license, 현재 release의 기대 count와 update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)를 따르세요.
+
 ## 누락 항목 설치 및 설정
 
 ### 1. Android Studio 안정 채널 확인
@@ -187,3 +199,24 @@ Task 5.2 검증도 Android Studio JBR을 현재 PowerShell process에만 지정�
 | `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 기존 사용자 데이터가 있는 수동 QA AVD를 uninstall/초기화하지 않기 위해 별도 test-only AVD가 필요함 |
 
 Room v2→v3 aggregate 보존, provenance Room round trip, backup v1 호환성과 Compose attribution 테스트는 AndroidTest APK에 포함되어 컴파일되었습니다. 기기에서의 실제 실행 결과로 표현하지 않으며 test-only AVD에서 별도로 실행해야 합니다.
+
+## 2026-08-23 한국어기초사전 provider 검증
+
+공식 2026-08-19 JSON ZIP을 저장소 밖의 임시 디렉터리에서 읽어 local SQLite index를 생성했습니다. 변환은 38.427초, 결과는 56,555 entries / 76,833 senses / 826,492 translations / 1,938,697 reverse keys / 211,701,760 bytes였습니다. PC SQLite cold exact query는 한국어 forward 0.271ms, English reverse 0.345ms였지만 Android 첫 asset 복사 latency와 peak memory는 별도로 측정하지 않았습니다. 런타임은 1MiB copy buffer와 disk-backed SQLite cursor를 사용하며 전체 index를 heap에 올리지 않습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `python -m unittest discover -s tools/tests -v` | 성공, converter fixture 2개 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 13 suites / 79 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
+| `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 93,170,569 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,265,280 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 28개 통과 |
+
+Task 5.2의 CC-CEDICT asset 포함 APK 18,588,003 bytes와 비교하면 provider 코드와 한국어기초사전 index 포함 후 74,582,566 bytes 증가했습니다. APK 안에서 211,701,760-byte SQLite asset은 deflate되어 74,551,231 bytes를 차지합니다. 수동 QA 데이터가 있는 `Medium_Phone`은 연결하지 않았고 명시적으로 분리된 `Medium_Phone_Test`만 계측 대상으로 사용했습니다.
+
+중간 결함도 기록합니다.
+
+- 공식 export에서 `LexicalEntry.val`이 관련 관용구에 재사용되어 최초 단독 PK 변환이 unique constraint로 실패했습니다. user Room이 아니라 provider index의 internal integer PK로 분리하고 provenance는 공식 ID와 표제어를 조합하도록 수정했습니다.
+- 공식 `Lemma`가 object뿐 아니라 활용형 variant를 포함한 array로도 나타나 최초 full conversion이 2,139개를 누락했습니다. 명시적 `writtenForm`을 두 형태에서 읽는 fixture regression을 추가한 뒤 전체 56,555개를 재생성했습니다.
+- 첫 compile은 sandbox 내부 Wrapper download가 `Permission denied: getsockopt`로 실패했습니다. 승인된 Gradle cache/network 접근으로 재실행해 성공했으며 시스템 설정은 변경하지 않았습니다.
