@@ -68,12 +68,9 @@ internal fun DictionarySuggestionSection(
                     group.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     group.entries.forEachIndexed { index, entry ->
                         if (index > 0) HorizontalDivider()
-                        DictionarySuggestionEntry(
-                            entry = entry,
-                            onUse = {
-                                onAction(WordEditorAction.DictionarySuggestionSelected(entry))
-                            },
-                        )
+                        DictionarySuggestionEntry(entry = entry) { selected ->
+                            onAction(WordEditorAction.DictionarySuggestionSelected(selected))
+                        }
                     }
                 }
             }
@@ -87,21 +84,45 @@ internal fun DictionarySuggestionSection(
 @Composable
 private fun DictionarySuggestionEntry(
     entry: ExternalDictionaryEntry,
-    onUse: () -> Unit,
+    onUse: (ExternalDictionaryEntry) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(entry.headword, style = MaterialTheme.typography.titleMedium)
         if (entry.alternateWrittenForms.isNotEmpty()) {
             Text(entry.alternateWrittenForms.joinToString { "${it.text} (${it.language.value})" })
         }
-        entry.linguisticFeatures.reading?.let { Text(it.text) }
-        entry.senses.forEach { sense ->
+        val readings = listOfNotNull(entry.linguisticFeatures.reading) +
+            entry.linguisticFeatures.alternativeReadings
+        if (readings.isNotEmpty()) Text(readings.joinToString { it.text })
+        entry.senses.forEachIndexed { senseIndex, sense ->
             Text(sense.meanings.joinToString(separator = "; ") { it.text })
+            sense.partOfSpeech?.takeIf(String::isNotBlank)?.let { Text(it) }
+            if (sense.writtenFormRestrictions.isNotEmpty() || sense.readingRestrictions.isNotEmpty()) {
+                Text(
+                    listOfNotNull(
+                        sense.writtenFormRestrictions.takeIf { it.isNotEmpty() }
+                            ?.joinToString(prefix = "writing: "),
+                        sense.readingRestrictions.takeIf { it.isNotEmpty() }
+                            ?.joinToString(prefix = "reading: "),
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(
+                onClick = { onUse(entry.copy(senses = listOf(sense))) },
+                modifier = Modifier.testTag(
+                    if (senseIndex == 0) "dictionary_suggestion_use" else {
+                        "dictionary_suggestion_use_$senseIndex"
+                    },
+                ),
+            ) { Text("Use this sense") }
         }
-        TextButton(
-            onClick = onUse,
-            modifier = Modifier.testTag("dictionary_suggestion_use"),
-        ) { Text("사용") }
+        if (entry.senses.isEmpty()) {
+            TextButton(
+                onClick = { onUse(entry) },
+                modifier = Modifier.testTag("dictionary_suggestion_use"),
+            ) { Text("사용") }
+        }
     }
 }
 
@@ -118,7 +139,9 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
         ) {
             Text("선택한 사전 참고 자료", style = MaterialTheme.typography.titleSmall)
             Text(entry.headword, style = MaterialTheme.typography.titleMedium)
-            entry.linguisticFeatures.reading?.let { Text(it.text) }
+            val readings = listOfNotNull(entry.linguisticFeatures.reading) +
+                entry.linguisticFeatures.alternativeReadings
+            if (readings.isNotEmpty()) Text(readings.joinToString { it.text })
             entry.senses.forEach { sense ->
                 Text(sense.meanings.joinToString(separator = "; ") { it.text })
             }

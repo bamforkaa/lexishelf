@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
+import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
@@ -21,8 +22,9 @@ import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
         EntryTagCrossRef::class,
         SenseDictionaryProvenanceEntity::class,
         SenseDictionaryProvenanceFieldEntity::class,
+        EntryDictionaryProvenanceEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class VocabularyDatabase : RoomDatabase() {

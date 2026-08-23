@@ -22,6 +22,8 @@ data class ValidatedVocabularyDraft(
     val senses: List<VocabularySenseDraft>,
     val notes: String,
     val tagIds: Set<Long>,
+    val reading: String = "",
+    val readingProvenance: DictionaryProvenance? = null,
 )
 
 object VocabularyEntryValidator {
@@ -60,6 +62,8 @@ object VocabularyEntryValidator {
                 senses = senses,
                 notes = draft.notes.trim(),
                 tagIds = draft.tagIds,
+                reading = draft.reading.trim(),
+                readingProvenance = draft.readingProvenance,
             ),
         )
     }

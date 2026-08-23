@@ -37,6 +37,7 @@ class RoomVocabularyRepository @Inject constructor(
             notes = draft.notes,
             createdAtEpochMillis = existing?.createdAtEpochMillis ?: now,
             modifiedAtEpochMillis = now,
+            reading = draft.reading,
         )
         return vocabularyDao.saveEntry(
             entry = entity,
@@ -65,6 +66,7 @@ class RoomVocabularyRepository @Inject constructor(
                 )
             },
             tagIds = draft.tagIds,
+            readingProvenance = draft.readingProvenance?.toWrite(),
         )
     }
 
@@ -72,6 +74,21 @@ class RoomVocabularyRepository @Inject constructor(
         vocabularyDao.deleteEntry(id)
     }
 }
+
+private fun com.example.localvocabulary.vocabulary.domain.DictionaryProvenance.toWrite() =
+    SenseDictionaryProvenanceWrite(
+        providerId = providerId,
+        sourceEntryId = sourceEntryId,
+        sourceSenseId = sourceSenseId,
+        sourceName = sourceName,
+        sourceUrl = sourceUrl,
+        licenseName = licenseName,
+        licenseUrl = licenseUrl,
+        datasetVersion = datasetVersion,
+        importedFields = importedFields.mapTo(linkedSetOf()) { it.name },
+        importedAtEpochMillis = importedAtEpochMillis,
+        modifiedAfterImport = modifiedAfterImport,
+    )
 
 private fun String.escapeForLike(): String = trim()
     .replace("\\", "\\\\")

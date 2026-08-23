@@ -93,6 +93,20 @@ python -X utf8 .\tools\build_panlex_index.py `
 
 생성 DB는 53,211,136 bytes이며 `.gitignore` 대상입니다. 누락되어도 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 reviewed language-variety allowlist와 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
 
+## 선택 사항: JMdict local index
+
+Android build는 JMdict를 다운로드하지 않습니다. 공식 `JMdict_e.gz`를 받은 후 checksum과
+release를 확인하고 다음을 실행합니다.
+
+```powershell
+python -X utf8 .\tools\build_jmdict_index.py `
+  C:\path\to\JMdict_e.gz `
+  .\app\src\main\assets\dictionary\jmdict\jmdict.db
+```
+
+정확한 Task 8 artifact와 checksum은 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다. DB가
+없어도 build와 manual vocabulary는 정상이며 JMdict suggestion group만 dataset unavailable입니다.
+
 ## 누락 항목 설치 및 설정
 
 ### 1. Android Studio 안정 채널 확인
@@ -256,3 +270,18 @@ Task 6 기준 APK 93,170,569 bytes에서 23,417,482 bytes 증가했습니다. 53
 - converter fixture의 첫 성공 경로는 Windows에서 `VACUUM` connection이 열린 채 atomic replace를 시도해 file lock으로 실패했습니다. connection을 명시적으로 닫도록 수정하고 partial cleanup까지 회귀 테스트했습니다.
 - Unicode fixture는 normalized lookup key뿐 아니라 display source text도 NFC로 바뀐다고 잘못 기대했습니다. 공식 expression 표기는 보존하고 normalized key만 NFC라는 경계를 검증하도록 테스트를 수정했습니다.
 - 첫 AndroidTest APK compile은 fixture의 mixed SQL bind array가 intersection type으로 추론되어 실패했습니다. test-only array type을 `Any`로 명시한 뒤 재실행해 성공했습니다.
+
+## 2026-08-23 JMdict provider 검증
+
+공식 2026-08-23 `JMdict_e.gz`를 저장소 밖 임시 경로에서 읽어 provider 전용 SQLite를 생성했습니다. 생성 DB는 113,729,536 bytes, 최종 debug APK는 144,462,083 bytes입니다. 자세한 checksum, mapping, QA sample, performance는 [jmdict-dataset.md](jmdict-dataset.md)에 기록했습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `python -X utf8 -m unittest discover -s tools\tests -v` | 성공, converter test 10개 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 15 suites / 94 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공 |
+| `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 144,462,083 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,283,741 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 37개 통과 |
+
+full asset 계측 test의 강제 첫 복사는 531ms, 첫 open + `食べる` exact query는 19ms였습니다. 중간에 추가한 Compose test가 동일 POS node 두 개를 단일 node로 기대해 37개 중 1개가 실패했습니다. production UI는 두 sense의 POS를 정상 표시하고 있었으며, test expectation을 2개로 바로잡은 뒤 해당 화면 test 5개와 전체 37개를 순서대로 재실행해 통과했습니다.

@@ -22,4 +22,6 @@ data class VocabularyEntryEntity(
     val createdAtEpochMillis: Long,
     @ColumnInfo(name = "modified_at_epoch_millis")
     val modifiedAtEpochMillis: Long,
+    @ColumnInfo(defaultValue = "''")
+    val reading: String = "",
 )

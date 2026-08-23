@@ -1,17 +1,21 @@
 package com.example.localvocabulary.feature.wordeditor
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
+import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryReading
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
@@ -94,6 +98,27 @@ class WordEditorScreenTest {
     }
 
     @Test
+    fun jmdictSuggestionDisplaysReadingPosAndEachSense() {
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                DictionarySuggestionSection(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        dictionarySuggestionGroups = listOf(jmDictSuggestionGroup()),
+                    ),
+                    onAction = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("たべる").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Ichidan verb; transitive verb").assertCountEquals(2)
+        composeRule.onNodeWithText("to eat").assertIsDisplayed()
+        composeRule.onNodeWithText("to live on").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Use this sense").assertCountEquals(2)
+    }
+
+    @Test
     fun importedSenseDisplaysGenericSourceAndModifiedIndicator() {
         composeRule.setContent {
             LocalVocabularyTheme {
@@ -166,6 +191,52 @@ class WordEditorScreenTest {
                     licenseUrl = null,
                     attributionNotice = null,
                     licenseShortName = licenseShortName,
+                ),
+            ),
+        ),
+    )
+
+    private fun jmDictSuggestionGroup() = DictionarySuggestionGroup(
+        providerId = DictionaryProviderId("jmdict"),
+        providerName = "JMdict",
+        entries = listOf(
+            ExternalDictionaryEntry(
+                providerId = DictionaryProviderId("jmdict"),
+                sourceEntryId = "1358280",
+                headword = "食べる",
+                sourceLanguage = Bcp47LanguageTag.requireValid("ja"),
+                linguisticFeatures = DictionaryLinguisticFeatures(
+                    reading = DictionaryReading("たべる"),
+                ),
+                senses = listOf(
+                    ExternalDictionarySense(
+                        meanings = listOf(
+                            DictionaryMeaning(
+                                text = "to eat",
+                                language = Bcp47LanguageTag.requireValid("en"),
+                                kind = DictionaryResultKind.TRANSLATION,
+                            ),
+                        ),
+                        partOfSpeech = "Ichidan verb; transitive verb",
+                    ),
+                    ExternalDictionarySense(
+                        meanings = listOf(
+                            DictionaryMeaning(
+                                text = "to live on",
+                                language = Bcp47LanguageTag.requireValid("en"),
+                                kind = DictionaryResultKind.TRANSLATION,
+                            ),
+                        ),
+                        partOfSpeech = "Ichidan verb; transitive verb",
+                    ),
+                ),
+                attribution = DictionaryAttribution(
+                    sourceName = "JMdict",
+                    sourceUrl = "https://www.edrdg.org/jmdict/j_jmdict.html",
+                    officialIdentifier = "jmdict",
+                    licenseName = "Creative Commons Attribution-ShareAlike 4.0 International",
+                    licenseUrl = "https://creativecommons.org/licenses/by-sa/4.0/",
+                    attributionNotice = "JMdict by EDRDG",
                 ),
             ),
         ),

@@ -3,7 +3,7 @@ package com.example.localvocabulary.backup.domain
 import kotlinx.serialization.Serializable
 
 const val BACKUP_FORMAT_ID = "local-vocabulary-backup"
-const val CURRENT_BACKUP_SCHEMA_VERSION = 2
+const val CURRENT_BACKUP_SCHEMA_VERSION = 3
 
 @Serializable
 data class VocabularyBackupV1(
@@ -58,6 +58,8 @@ data class BackupEntryV2(
     val tagStableIds: List<String>,
     val createdAtEpochMillis: Long,
     val modifiedAtEpochMillis: Long,
+    val reading: String = "",
+    val readingProvenance: BackupDictionaryProvenanceV2? = null,
 )
 
 @Serializable
@@ -88,6 +90,7 @@ enum class BackupImportedFieldV2 {
     MEANING,
     PART_OF_SPEECH,
     EXAMPLES,
+    READING,
 }
 
 class ValidatedBackup internal constructor(

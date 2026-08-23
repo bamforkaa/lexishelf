@@ -69,6 +69,20 @@ fun WordDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(state.entry.headword, style = MaterialTheme.typography.headlineMedium)
+                        if (state.entry.reading.isNotBlank()) {
+                            Text(state.entry.reading)
+                            state.entry.readingProvenance?.let { provenance ->
+                                Text(
+                                    buildString {
+                                        append(provenance.sourceName)
+                                        append(" reading")
+                                        if (provenance.modifiedAfterImport) append(" · modified")
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                         Text("언어: ${state.entry.languageTag}")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             state.entry.tags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag.name) }) }

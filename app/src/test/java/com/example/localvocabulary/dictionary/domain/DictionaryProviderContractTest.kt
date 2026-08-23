@@ -151,6 +151,7 @@ class DictionaryProviderContractTest {
 
         assertEquals(FakeDictionaryProvider.SUPPORTED_QUERY, mapped.seed.draft.headword)
         assertEquals("ja", mapped.seed.draft.languageTag)
+        assertEquals("\u3058\u3057\u3087", mapped.seed.draft.reading)
         assertEquals("test definition", mapped.seed.draft.senses.single().meaning)
         assertEquals(provider.descriptor.id, mapped.seed.source.providerId)
         assertEquals("fake-entry-1", mapped.seed.source.sourceEntryId)
@@ -162,6 +163,7 @@ class DictionaryProviderContractTest {
                 DictionaryContentField.TRANSLATION,
                 DictionaryContentField.PART_OF_SPEECH,
                 DictionaryContentField.EXAMPLE,
+                DictionaryContentField.READING,
             ),
             mapped.seed.copiedProviderFields,
         )

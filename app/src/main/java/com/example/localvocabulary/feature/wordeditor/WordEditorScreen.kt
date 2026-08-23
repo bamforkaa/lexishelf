@@ -95,6 +95,27 @@ fun WordEditorScreen(
                             .fillMaxWidth()
                             .testTag("language_tag"),
                     )
+                    OutlinedTextField(
+                        value = state.reading,
+                        onValueChange = { onAction(WordEditorAction.ReadingChanged(it)) },
+                        label = { Text("Reading / pronunciation") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("reading"),
+                    )
+                    state.readingProvenance?.let { provenance ->
+                        Text(
+                            buildString {
+                                append(provenance.sourceName)
+                                append(" reading")
+                                if (provenance.modifiedAfterImport) append(" · modified")
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.testTag("reading_provenance"),
+                        )
+                    }
                 }
             }
 

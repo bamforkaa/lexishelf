@@ -53,6 +53,9 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
 
         val document = when (version) {
             1 -> decodeDocument<VocabularyBackupV1>(root)?.toCurrent()
+            2 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
+                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
+            )
             CURRENT_BACKUP_SCHEMA_VERSION -> decodeDocument<VocabularyBackupV2>(root)
             else -> return BackupDecodeResult.Failure(
                 BackupReadError.UnsupportedSchemaVersion(version),
@@ -146,6 +149,30 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     provenance = provenance,
                 )
             }
+            val readingProvenance = entry.readingProvenance?.let {
+                validateProvenance(it)
+                    ?: return invalid(
+                        "entries[$entryIndex].readingProvenance",
+                        "Reading provenance is invalid.",
+                    )
+            }
+            if (readingProvenance != null && entry.reading.isBlank()) {
+                return invalid(
+                    "entries[$entryIndex].readingProvenance",
+                    "Reading provenance requires a persisted reading.",
+                )
+            }
+            if (
+                readingProvenance != null &&
+                readingProvenance.importedFields != setOf(
+                    com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.READING,
+                )
+            ) {
+                return invalid(
+                    "entries[$entryIndex].readingProvenance.importedFields",
+                    "Entry reading provenance may describe only READING.",
+                )
+            }
             val validation = VocabularyEntryValidator.validate(
                 VocabularyEntryDraft(
                     headword = entry.headword,
@@ -153,6 +180,8 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     senses = senseDrafts,
                     notes = entry.notes,
                     tagIds = emptySet(),
+                    reading = entry.reading,
+                    readingProvenance = readingProvenance,
                 ),
             )
             val draft = when (validation) {
@@ -177,6 +206,8 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                 tagStableIds = entry.tagStableIds,
                 createdAtEpochMillis = entry.createdAtEpochMillis,
                 modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
+                reading = draft.reading,
+                readingProvenance = draft.readingProvenance?.toBackupV2(),
             )
         }
 

@@ -58,6 +58,56 @@ class KotlinxBackupSerializerTest {
     }
 
     @Test
+    fun `reading and reading provenance survive current schema round trip`() {
+        val readingProvenance = provenance().copy(
+            providerId = "jmdict",
+            sourceEntryId = "1358280",
+            sourceSenseId = "1358280:1",
+            sourceName = "JMdict",
+            datasetVersion = "2026-08-23",
+            importedFields = listOf(BackupImportedFieldV2.READING),
+        )
+        val original = backup(
+            entries = listOf(
+                entry(
+                    headword = "食べる",
+                    languageTag = "ja",
+                    reading = "たべる",
+                    readingProvenance = readingProvenance,
+                    senses = listOf(
+                        BackupSenseV2("to eat", "Ichidan verb", emptyList()),
+                    ),
+                ),
+            ),
+        )
+
+        val decoded = serializer.decode(serializer.encode(original)) as BackupDecodeResult.Success
+
+        assertEquals("たべる", decoded.backup.document.entries.single().reading)
+        assertEquals(readingProvenance, decoded.backup.document.entries.single().readingProvenance)
+    }
+
+    @Test
+    fun `schema v2 imports with empty reading without changing old semantics`() {
+        val v2Json =
+            """
+            {
+              "format":"$BACKUP_FORMAT_ID","schemaVersion":2,"exportedAtEpochMillis":500,
+              "tags":[],"entries":[{
+                "stableId":"old-entry","headword":"word","languageTag":"en",
+                "senses":[{"meaning":"meaning","partOfSpeech":"noun","examples":[],"provenance":null}],
+                "notes":"note","tagStableIds":[],"createdAtEpochMillis":100,"modifiedAtEpochMillis":200
+              }]
+            }
+            """.trimIndent()
+
+        val decoded = serializer.decode(v2Json) as BackupDecodeResult.Success
+
+        assertEquals(CURRENT_BACKUP_SCHEMA_VERSION, decoded.backup.document.schemaVersion)
+        assertEquals("", decoded.backup.document.entries.single().reading)
+    }
+
+    @Test
     fun `mixed CC CEDICT Korean Basic Dictionary PanLex and user senses round trip`() {
         val ccCedict = provenance()
         val koreanBasic = provenance().copy(
@@ -238,6 +288,8 @@ class KotlinxBackupSerializerTest {
         meaning: String = "meaning",
         examples: List<String> = listOf("example"),
         senses: List<BackupSenseV2> = listOf(BackupSenseV2(meaning, "noun", examples)),
+        reading: String = "",
+        readingProvenance: BackupDictionaryProvenanceV2? = null,
     ) = BackupEntryV2(
         stableId = "entry-1",
         headword = headword,
@@ -247,6 +299,8 @@ class KotlinxBackupSerializerTest {
         tagStableIds = listOf("tag-shared"),
         createdAtEpochMillis = 100,
         modifiedAtEpochMillis = 200,
+        reading = reading,
+        readingProvenance = readingProvenance,
     )
 
     private fun provenance(modified: Boolean = false) = BackupDictionaryProvenanceV2(

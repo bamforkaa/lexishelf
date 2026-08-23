@@ -4,6 +4,7 @@ import androidx.room.Embedded
 import androidx.room.Junction
 import androidx.room.Relation
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
+import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
@@ -34,6 +35,11 @@ data class SenseWithExamples(
 data class VocabularyEntryWithDetails(
     @Embedded
     val entry: VocabularyEntryEntity,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "entry_id",
+    )
+    val entryProvenance: List<EntryDictionaryProvenanceEntity> = emptyList(),
     @Relation(
         entity = SenseEntity::class,
         parentColumn = "id",

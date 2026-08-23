@@ -31,10 +31,19 @@
 
 ## JMdict
 
+Task 8 구현 결정(2026-08-23): 공식 영문 전용 `JMdict_e.gz`를 `jmdict`
+(`LOCAL_DATASET`, `ja → en`)로 구현했습니다. 선택 release의 SHA-256은
+`11c3fb43a82ae775269e6832d117c4f52152f4d8cf49f44c16a0ed619aa98a6a`입니다. 생성
+index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
+[JMdict dataset 문서](jmdict-dataset.md)와 [ADR-0008](decisions/0008-jmdict-compact-local-index-and-reading.md)이
+정의합니다.
+
 공식 출처:
 
 - [EDRDG General Dictionary Licence Statement](https://www.edrdg.org/edrdg/licence.html)
-- [JMdict/EDICT project](https://www.edrdg.org/wiki/JMdict-EDICT_Dictionary_Project.html)
+- [JMdict project](https://www.edrdg.org/jmdict/j_jmdict.html)
+- [Official distribution index](https://ftp.edrdg.org/pub/Nihongo/00INDEX.html)
+- [JMdict DTD documentation](https://www.edrdg.org/jmdict/jmdict_dtd_h.html)
 
 확인된 사실:
 
@@ -43,21 +52,21 @@
 - smartphone app은 메뉴에서 접근 가능한 About/Sources 등의 별도 화면에 acknowledgement를 제공해야 하고 documentation/license 링크 또는 사본을 제공해야 한다.
 - 사용 앱은 최신 데이터로 정기 갱신하는 절차를 가져야 한다.
 - multilingual JMdict의 비영어 번역은 별도 compiler copyright가 적용될 수 있다고 명시되어 있다.
+- DTD는 `ent_seq`를 entry별 unique numeric sequence number로 정의한다. 이 값을 source entry ID로
+  보존하지만, 모든 향후 release에서의 불변성까지 보장하는 별도 계약은 확인하지
+  못했으므로 update 검증에서 QA key와 ID churn을 확인한다.
 
 저장/편집/재배포 판단:
 
-- license statement 범위의 데이터는 조건을 충족하면 복사·수정·배포가 가능하다.
-- 그러나 어떤 JMdict distribution(영어 전용/다국어)을 선택하는지에 따라 권리 범위가 달라질 수 있다.
-- 사용자 단어장으로 추출·편집한 definition을 backup/export할 때 share-alike 적용 범위와 attribution 전달 방식을 제품 정책으로 정해야 한다.
-
-미결정 구현 요구:
-
-- 정확한 download artifact와 checksum/update manifest
-- 앱 Sources 화면, license 사본/링크, 데이터 버전 표시
-- 정기 update 주기와 offline 실패/rollback 정책
-- 사용자가 수정한 JMdict 파생 텍스트의 export license notice
-
-결정: 위 packaging/update/attribution 설계를 별도 ADR로 승인하기 전에는 다운로드하거나 bundle하지 않는다.
+- 영문 전용 artifact의 Japanese/English data는 attribution과 ShareAlike 조건을 유지하면
+  local persistence, user editing, backup/export, redistribution이 가능하다. provider policy는
+  `PERMITTED` / `COPY_EXPORTABLE_FIELDS`이지만 license 의무가 사라진다는 뜻이 아니다.
+- Settings / Dictionary Sources에 source, release, acknowledgement, official/license link를 표시한다.
+  explicit `Use`로 추가된 reading/gloss/POS에는 source ID·license·release provenance를 보존하고
+  JSON backup에도 함께 내보낸다.
+- 비영어 gloss distribution은 권리 범위를 별도 확인하기 전에 등록하지 않는다.
+- 수동 update 절차는 정의했지만 자동 update 주기/manifest와 downloadable pack 설치·정리 UX는
+  Task 9의 미결정 사항이다.
 
 ## CC-CEDICT
 
@@ -96,8 +105,8 @@
 저장/재배포 결정:
 
 - descriptor의 local persistence와 redistribution은 CC BY-SA 4.0 조건 아래 `PERMITTED`, cache는 `PERMITTED`로 기록한다.
-- Room schema 3과 backup schema 2는 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 explicit `Use`가 English gloss를 새 sense로 추가한다.
-- 검색 결과와 pinyin은 transient UI reference로 표시한다. 현재 vocabulary에 generic reading field가 없으므로 pinyin을 notes나 다른 field로 저장하지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
+- 현재 Room schema 4와 backup schema 3은 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태와 entry-level reading provenance를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 explicit `Use`가 English gloss와 pinyin reading을 generic field로 추가할 수 있다.
+- 검색 결과의 pinyin은 generic reading field로 명시적 `Use` 때만 저장하며 entry-level provenance를 함께 보존한다. notes에 넣지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
 - user-authored sense에는 provenance가 없고 imported sense에는 provenance가 있다. 사용자가 imported text를 자유롭게 수정할 수 있지만 출처는 유지되고 수정 여부가 표시된다. JSON backup도 이 구분을 보존한다.
 - 검색 결과 도착이나 provider refresh는 editor/Room을 변경하지 않는다. 같은 source entry/sense를 반복 선택하면 accidental duplicate를 추가하지 않는다.
 - full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 ignored asset path에 둔다. 정확한 설치/update/rollback 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있다.

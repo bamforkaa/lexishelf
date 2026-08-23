@@ -9,6 +9,7 @@ import com.example.localvocabulary.core.common.UuidStableIdGenerator
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.MIGRATION_1_2
 import com.example.localvocabulary.core.database.MIGRATION_2_3
+import com.example.localvocabulary.core.database.MIGRATION_3_4
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import dagger.Module
@@ -28,7 +29,7 @@ object DatabaseModule {
             context,
             VocabularyDatabase::class.java,
             "vocabulary.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
 
     @Provides
     fun provideVocabularyDao(database: VocabularyDatabase): VocabularyDao = database.vocabularyDao()

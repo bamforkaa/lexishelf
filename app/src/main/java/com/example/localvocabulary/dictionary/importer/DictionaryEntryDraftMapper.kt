@@ -53,6 +53,11 @@ object DictionaryEntryDraftMapper {
             copiedFields += DictionaryContentField.HEADWORD
         }.orEmpty()
         val licenseName = entry.attribution.licenseName?.takeIf(String::isNotBlank)
+        val reading = entry.linguisticFeatures.reading?.text?.takeIf {
+            it.isNotBlank() && policy.permitsExportableVocabularyCopy(DictionaryContentField.READING)
+        }?.also {
+            copiedFields += DictionaryContentField.READING
+        }.orEmpty()
         val senses = if (licenseName == null) {
             emptyList()
         } else {
@@ -122,6 +127,24 @@ object DictionaryEntryDraftMapper {
             senses = senses.ifEmpty { listOf(emptySense()) },
             notes = "",
             tagIds = emptySet(),
+            reading = reading,
+            readingProvenance = if (reading.isNotEmpty() && licenseName != null) {
+                DictionaryProvenance(
+                    providerId = entry.providerId.value,
+                    sourceEntryId = entry.sourceEntryId,
+                    sourceSenseId = entry.senses.firstOrNull()?.sourceSenseId,
+                    sourceName = entry.attribution.sourceName,
+                    sourceUrl = entry.attribution.sourceUrl,
+                    licenseName = licenseName,
+                    licenseUrl = entry.attribution.licenseUrl,
+                    datasetVersion = entry.datasetVersion,
+                    importedFields = setOf(ImportedDictionaryField.READING),
+                    importedAtEpochMillis = importedAtEpochMillis,
+                    modifiedAfterImport = false,
+                )
+            } else {
+                null
+            },
         )
         if (senses.isEmpty()) {
             return DictionaryEntryDraftMappingResult.ReferenceOnly(
@@ -153,6 +176,7 @@ object DictionaryEntryDraftMapper {
         -> ImportedDictionaryField.MEANING
         DictionaryContentField.PART_OF_SPEECH -> ImportedDictionaryField.PART_OF_SPEECH
         DictionaryContentField.EXAMPLE -> ImportedDictionaryField.EXAMPLES
+        DictionaryContentField.READING -> ImportedDictionaryField.READING
         else -> error("Field $this is not stored at vocabulary sense level")
     }
 }

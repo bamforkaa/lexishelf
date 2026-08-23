@@ -72,6 +72,15 @@ class RoomVocabularyBackupRepositoryTest {
             tagIds = setOf(sharedTagId, japaneseTagId),
             createdAt = 100,
             modifiedAt = 200,
+            reading = "じしょ",
+            readingProvenance = provenanceWrite(modified = true).copy(
+                providerId = "jmdict",
+                sourceEntryId = "1358280",
+                sourceSenseId = "1358280:1",
+                sourceName = "JMdict",
+                datasetVersion = "2026-08-23",
+                importedFields = setOf("READING"),
+            ),
         )
         insertEntry(
             stableId = "entry-arabic",
@@ -101,8 +110,11 @@ class RoomVocabularyBackupRepositoryTest {
         )
         assertEquals(100L, japanese.entry.createdAtEpochMillis)
         assertEquals(200L, japanese.entry.modifiedAtEpochMillis)
+        assertEquals("じしょ", japanese.entry.reading)
         assertEquals("cc-cedict", senses.first().provenance?.providerId)
         assertEquals(setOf("MEANING"), senses.first().provenanceFields.map { it.field }.toSet())
+        assertEquals("jmdict", japanese.entryProvenance.single().providerId)
+        assertEquals("READING", japanese.entryProvenance.single().field)
         assertTrue(senses.first().provenance!!.modifiedAfterImport)
         assertEquals(null, senses.last().provenance)
         assertEquals(2, database.tagDao().getAll().size)
@@ -315,6 +327,8 @@ class RoomVocabularyBackupRepositoryTest {
         tagIds: Set<Long> = emptySet(),
         createdAt: Long = 10,
         modifiedAt: Long = 20,
+        reading: String = "",
+        readingProvenance: SenseDictionaryProvenanceWrite? = null,
     ): Long = database.vocabularyDao().saveEntry(
         entry = VocabularyEntryEntity(
             backupId = stableId,
@@ -323,9 +337,11 @@ class RoomVocabularyBackupRepositoryTest {
             notes = notes,
             createdAtEpochMillis = createdAt,
             modifiedAtEpochMillis = modifiedAt,
+            reading = reading,
         ),
         senses = senses,
         tagIds = tagIds,
+        readingProvenance = readingProvenance,
     )
 
     private fun decode(json: String): ValidatedBackup =

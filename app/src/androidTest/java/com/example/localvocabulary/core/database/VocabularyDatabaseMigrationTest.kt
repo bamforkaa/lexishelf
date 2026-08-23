@@ -360,10 +360,87 @@ class VocabularyDatabaseMigrationTest {
         migrated.close()
     }
 
+    @Test
+    fun migrate3To4AddsEmptyReadingAndPreservesCompleteAggregateAndProvenance() {
+        migrationHelper.createDatabase(READING_MIGRATION_DATABASE, 3).apply {
+            execSQL(
+                """
+                INSERT INTO vocabulary_entries
+                    (id, backup_id, headword, language_tag, notes,
+                     created_at_epoch_millis, modified_at_epoch_millis)
+                VALUES (1, 'entry-ja', '食べる', 'ja', 'user note', 100, 200)
+                """.trimIndent(),
+            )
+            execSQL(
+                "INSERT INTO senses VALUES(10, 1, 'to eat', 'Ichidan verb', 0)",
+            )
+            execSQL("INSERT INTO examples VALUES(100, 10, '寿司を食べる。', 0)")
+            execSQL("INSERT INTO tags VALUES(20, 'tag-ja', 'Japanese', 'japanese')")
+            execSQL("INSERT INTO entry_tag_cross_refs VALUES(1, 20)")
+            execSQL(
+                """
+                INSERT INTO sense_dictionary_provenance VALUES(
+                    10, 'jmdict', '1358280', '1358280:1', 'JMdict',
+                    'https://www.edrdg.org/jmdict/j_jmdict.html',
+                    'Creative Commons Attribution-ShareAlike 4.0 International',
+                    'https://creativecommons.org/licenses/by-sa/4.0/',
+                    '2026-08-23', 150, 0
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO sense_dictionary_provenance_fields VALUES(10, 'MEANING')")
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            READING_MIGRATION_DATABASE,
+            4,
+            true,
+            MIGRATION_3_4,
+        )
+
+        migrated.query(
+            "SELECT headword, language_tag, notes, reading FROM vocabulary_entries",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("食べる", cursor.getString(0))
+            assertEquals("ja", cursor.getString(1))
+            assertEquals("user note", cursor.getString(2))
+            assertEquals("", cursor.getString(3))
+        }
+        migrated.query("SELECT meaning, part_of_speech FROM senses WHERE id = 10").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("to eat", cursor.getString(0))
+            assertEquals("Ichidan verb", cursor.getString(1))
+        }
+        migrated.query("SELECT text FROM examples WHERE id = 100").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("寿司を食べる。", cursor.getString(0))
+        }
+        migrated.query("SELECT tag_id FROM entry_tag_cross_refs WHERE entry_id = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(20L, cursor.getLong(0))
+        }
+        migrated.query(
+            "SELECT provider_id, source_entry_id FROM sense_dictionary_provenance WHERE sense_id = 10",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("jmdict", cursor.getString(0))
+            assertEquals("1358280", cursor.getString(1))
+        }
+        migrated.query("SELECT COUNT(*) FROM entry_dictionary_provenance").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { assertEquals(0, it.count) }
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DATABASE = "migration-test"
         const val RELATION_MIGRATION_DATABASE = "relation-migration-test"
         const val PROVENANCE_MIGRATION_DATABASE = "provenance-migration-test"
+        const val READING_MIGRATION_DATABASE = "reading-migration-test"
     }
 }
 

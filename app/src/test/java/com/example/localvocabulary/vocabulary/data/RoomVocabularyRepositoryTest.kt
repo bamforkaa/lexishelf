@@ -6,6 +6,7 @@ import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
+import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
@@ -224,6 +225,10 @@ private class FakeVocabularyDao(
             ),
         )
     }
+
+    override suspend fun deleteEntryProvenance(entryId: Long) = Unit
+
+    override suspend fun insertEntryProvenance(provenance: EntryDictionaryProvenanceEntity) = Unit
 
     override suspend fun deleteEntryTags(entryId: Long) {
         savedTagIds.clear()

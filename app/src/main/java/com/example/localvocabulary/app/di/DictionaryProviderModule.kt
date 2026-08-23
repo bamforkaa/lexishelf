@@ -8,6 +8,10 @@ import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDi
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryIndexSource
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryLookup
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryProvider
+import com.example.localvocabulary.dictionary.provider.jmdict.JmDictDataSource
+import com.example.localvocabulary.dictionary.provider.jmdict.JmDictIndexSource
+import com.example.localvocabulary.dictionary.provider.jmdict.JmDictLookup
+import com.example.localvocabulary.dictionary.provider.jmdict.JmDictProvider
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexDataSource
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexSource
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexLookup
@@ -50,6 +54,15 @@ abstract class DictionaryProviderModule {
         fun provideKoreanBasicDictionaryProvider(
             provider: KoreanBasicDictionaryProvider,
         ): DictionaryProvider = provider
+
+        @Provides
+        @Singleton
+        internal fun provideJmDictLookup(indexSource: JmDictIndexSource): JmDictLookup =
+            JmDictDataSource(indexSource)
+
+        @Provides
+        @IntoSet
+        fun provideJmDictProvider(provider: JmDictProvider): DictionaryProvider = provider
 
         @Provides
         @Singleton

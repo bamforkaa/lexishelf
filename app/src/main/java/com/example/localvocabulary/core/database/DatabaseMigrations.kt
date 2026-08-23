@@ -63,3 +63,36 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE vocabulary_entries ADD COLUMN reading TEXT NOT NULL DEFAULT ''",
+        )
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS entry_dictionary_provenance (
+                entry_id INTEGER NOT NULL,
+                field TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                source_entry_id TEXT,
+                source_sense_id TEXT,
+                source_name TEXT NOT NULL,
+                source_url TEXT,
+                license_name TEXT NOT NULL,
+                license_url TEXT,
+                dataset_version TEXT,
+                imported_at_epoch_millis INTEGER NOT NULL,
+                modified_after_import INTEGER NOT NULL,
+                PRIMARY KEY(entry_id, field),
+                FOREIGN KEY(entry_id) REFERENCES vocabulary_entries(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_entry_dictionary_provenance_entry_id " +
+                "ON entry_dictionary_provenance(entry_id)",
+        )
+    }
+}

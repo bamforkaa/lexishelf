@@ -18,6 +18,8 @@ app/schemas/.tmp/
 app/src/main/assets/dictionary/cccedict/*.gz
 app/src/main/assets/dictionary/koreanbasic/*.db
 app/src/main/assets/dictionary/panlex/*.db
+app/src/main/assets/dictionary/jmdict/*.db
+JMdict*.gz
 panlex-*-csv.zip
 __pycache__/
 *.py[cod]

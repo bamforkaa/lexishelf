@@ -2,7 +2,7 @@
 
 ## 범위와 안전 원칙
 
-canonical backup은 앱의 vocabulary aggregate를 담는 UTF-8 JSON입니다. 단어, BCP 47 언어 태그, 순서가 있는 뜻/품사/예문, 메모, 태그와 다대다 관계, 생성·수정 시간을 포함합니다. schema v2는 사용자가 명시적으로 가져온 provider-derived sense의 source/license provenance도 함께 보존합니다. 직접 작성한 sense에는 provenance가 없습니다. 현재 domain model에는 favorite와 review metadata가 없어 backup에도 존재하지 않습니다.
+canonical backup은 앱의 vocabulary aggregate를 담는 UTF-8 JSON입니다. 단어, BCP 47 언어 태그, reading, 순서가 있는 뜻/품사/예문, 메모, 태그와 다대다 관계, 생성·수정 시간을 포함합니다. schema v3는 명시적으로 가져온 provider-derived reading과 sense의 source/license provenance도 함께 보존합니다. 직접 작성한 field에는 provenance가 없습니다. 현재 domain model에는 favorite와 review metadata가 없어 backup에도 존재하지 않습니다.
 
 DataStore 설정, API key, credential, secret, Android 설정, Room 내부 PK는 포함하지 않습니다. 앱에는 인터넷 또는 공용 저장소 권한이 없으며 Android Storage Access Framework(SAF)의 시스템 파일 선택기로 사용자가 읽고 쓸 문서를 직접 선택합니다.
 
@@ -17,14 +17,14 @@ Room의 auto-generated `Long` PK는 한 DB 안의 관계 연결에 적합하지�
 
 이 방식은 동일 백업을 반복 import할 때만 같은 항목을 확실히 찾으며, 내용이 비슷하다는 이유로 사용자의 다른 항목을 자동 덮어쓰지 않습니다.
 
-## Backup schema version 2
+## Backup schema version 3
 
-Room schema version과 backup schema version은 독립적입니다. 현재 Room은 version 3이고 canonical JSON은 `schemaVersion: 2`입니다. schema v1 import도 계속 지원하며 v1의 모든 sense는 user-authored semantics, 즉 provenance 없음으로 해석합니다.
+Room schema version과 backup schema version은 독립적입니다. 현재 Room은 version 4이고 canonical JSON은 `schemaVersion: 3`입니다. v3는 entry `reading`과 optional `readingProvenance`를 추가합니다. schema v1/v2 import도 계속 지원하며 reading은 빈 값, 기존 sense/provenance 의미는 그대로 해석합니다. reading provenance는 `READING`만 설명할 수 있고 reading text 없이 존재하면 DB transaction 전에 validation에서 거부됩니다.
 
 ```json
 {
   "format": "local-vocabulary-backup",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "exportedAtEpochMillis": 1787331600000,
   "tags": [
     {
@@ -88,7 +88,7 @@ Provider-derived sense의 `provenance`는 다음 구조입니다. `importedField
 
 1. 선택한 URI를 최대 25 MiB까지 읽고 malformed UTF-8을 거부합니다.
 2. JSON root object를 parsing합니다.
-3. `schemaVersion`을 먼저 확인합니다. 1과 2만 지원합니다.
+3. `schemaVersion`을 먼저 확인합니다. 1, 2, 3을 지원합니다.
 4. 해당 version DTO 전체를 strict decoding하고 필수/unknown field를 확인합니다. v1은 별도 순수 변환으로 provenance 없는 v2 import model이 됩니다.
 5. format, stable ID, 중복 ID/태그 이름, BCP 47 태그, 필수 text, timestamps, sense/example, provenance, tag reference를 검증하고 canonicalize합니다.
 6. 현재 DB와 비교해 entry/sense/example/tag, 충돌, 신규, 갱신, 건너뜀, 전체 교체 시 제거 수를 계산합니다.

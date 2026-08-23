@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
+import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
@@ -49,6 +50,7 @@ interface VocabularyDao {
             :query = '' OR
             vocabulary_entries.headword LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE OR
             vocabulary_entries.notes LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE OR
+            vocabulary_entries.reading LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE OR
             senses.meaning LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE OR
             examples.text LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
         )
@@ -106,6 +108,12 @@ interface VocabularyDao {
     @Insert
     suspend fun insertSenseProvenanceFields(fields: List<SenseDictionaryProvenanceFieldEntity>)
 
+    @Query("DELETE FROM entry_dictionary_provenance WHERE entry_id = :entryId")
+    suspend fun deleteEntryProvenance(entryId: Long)
+
+    @Insert
+    suspend fun insertEntryProvenance(provenance: EntryDictionaryProvenanceEntity)
+
     @Query("DELETE FROM entry_tag_cross_refs WHERE entry_id = :entryId")
     suspend fun deleteEntryTags(entryId: Long)
 
@@ -117,6 +125,7 @@ interface VocabularyDao {
         entry: VocabularyEntryEntity,
         senses: List<SenseWrite>,
         tagIds: Set<Long>,
+        readingProvenance: SenseDictionaryProvenanceWrite? = null,
     ): Long {
         val entryId = if (entry.id == 0L) {
             insertEntry(entry)
@@ -126,6 +135,25 @@ interface VocabularyDao {
         }
 
         deleteSenses(entryId)
+        deleteEntryProvenance(entryId)
+        readingProvenance?.let { provenance ->
+            insertEntryProvenance(
+                EntryDictionaryProvenanceEntity(
+                    entryId = entryId,
+                    field = "READING",
+                    providerId = provenance.providerId,
+                    sourceEntryId = provenance.sourceEntryId,
+                    sourceSenseId = provenance.sourceSenseId,
+                    sourceName = provenance.sourceName,
+                    sourceUrl = provenance.sourceUrl,
+                    licenseName = provenance.licenseName,
+                    licenseUrl = provenance.licenseUrl,
+                    datasetVersion = provenance.datasetVersion,
+                    importedAtEpochMillis = provenance.importedAtEpochMillis,
+                    modifiedAfterImport = provenance.modifiedAfterImport,
+                ),
+            )
+        }
         senses.forEachIndexed { senseIndex, sense ->
             val senseId = insertSense(
                 SenseEntity(

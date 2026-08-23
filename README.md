@@ -1,5 +1,11 @@
 # Local Vocabulary
 
+> Task 8: 공식 영문 전용 JMdict local provider(`jmdict`, `ja → en`)와 kanji/kana exact
+> lookup, 복수 writing/reading, POS, 제한이 적용된 ordered senses, sense별 명시적 Use를
+> 지원합니다. Reading은 Room schema v4와 JSON backup schema v3의 first-class editable
+> field입니다. 설치·업데이트·QA는 [JMdict dataset 문서](docs/jmdict-dataset.md), 결정은
+> [ADR-0008](docs/decisions/0008-jmdict-compact-local-index-and-reading.md)을 참고하세요.
+
 개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
 
 ## 현재 구현 상태
@@ -22,7 +28,7 @@
 
 구현하지 않음:
 
-- Cambridge, JMdict, Kaikki/Wiktionary 또는 그 밖의 사전 연동
+- Cambridge, Kaikki/Wiktionary 또는 그 밖의 사전 연동
 - CC-CEDICT pinyin/prefix/fuzzy 검색, 한국어기초사전 prefix/fuzzy 검색과 자동 dataset download/update
 - AI/LLM 정의, 기계번역, 로그인, 클라우드 동기화, 분석, 광고, 백엔드, 프록시
 - 복습 기능
@@ -36,6 +42,7 @@
 - `cc-cedict`: `zh-Hans → en`, `zh-Hant → en` exact headword lookup
 - `korean-basic-dictionary`: `ko`와 `en`, `ja`, `fr`, `es`, `ar`, `mn`, `vi`, `th`, `id`, `ru`, `zh` 사이의 양방향 translation exact lookup
 - `panlex`: `ko`와 `de`, `hi`, `pl`, `la` 사이의 양방향 direct translation exact lookup
+- `jmdict`: `ja → en` exact kanji/kana lookup
 
 CC-CEDICT GZip binary는 저장소에 포함되지 않습니다. 공식 release page가 자동 접근을 금지하므로 사용자가 브라우저에서 artifact를 받아 정해진 asset 경로에 두어야 합니다. 파일이 없으면 build는 성공하고 Word Editor도 정상 동작하며, suggestion 영역에만 dataset unavailable 상태를 표시합니다. 정확한 artifact와 수동 설치/update 절차는 [CC-CEDICT 데이터셋 문서](docs/cc-cedict-dataset.md)에 있습니다.
 
@@ -45,7 +52,7 @@ PanLex는 검증한 2019-09-01 공식 CSV snapshot에서 `deu-000`/`hin-000`/`po
 
 `Add word`는 선택 화면 없이 Word Editor를 바로 엽니다. 유효한 source language와 registry가 제공하는 result language pair가 있으면 headword를 기준으로 400ms 후 자동 검색하며, 빈 문자열과 동일 query/pair는 다시 검색하지 않습니다. 여러 provider의 결과와 오류는 provider별 suggestion card에만 표시되어 dataset/network 오류가 수동 편집이나 저장을 막지 않습니다.
 
-외부 사전 결과는 persistent `VocabularyEntry`와 별도인 임시 domain model입니다. 결과 도착만으로 편집 필드를 바꾸지 않고 사용자가 `Use`를 명시적으로 선택했을 때만 `DictionaryEntryDraftMapper`를 통과합니다. 허용된 gloss/번역은 새 sense로 추가되며 provider/source/license/dataset/import 시점과 수정 여부가 sense provenance로 Room과 JSON backup에 보존됩니다. 한국어기초사전 reverse lookup의 `Use`는 공식 한국어 표제어와 명시적 품사를 같은 generic pipeline으로 채웁니다. 기존 사용자 sense를 지우지 않고 같은 source entry/sense의 반복 선택은 중복 추가하지 않습니다. pinyin은 현재 저장 모델에 generic reading field가 없어 transient reference로만 표시하며 notes에 넣지 않습니다. source에 없는 필드는 추론하지 않습니다.
+외부 사전 결과는 persistent `VocabularyEntry`와 별도인 임시 domain model입니다. 결과 도착만으로 편집 필드를 바꾸지 않고 사용자가 `Use`를 명시적으로 선택했을 때만 `DictionaryEntryDraftMapper`를 통과합니다. 허용된 gloss/번역은 새 sense로 추가되며 provider/source/license/dataset/import 시점과 수정 여부가 sense provenance로 Room과 JSON backup에 보존됩니다. reading은 first-class field와 entry-level provenance로 별도 보존됩니다. 한국어기초사전 reverse lookup의 `Use`는 공식 한국어 표제어와 명시적 품사를 같은 generic pipeline으로 채웁니다. 기존 사용자 sense를 지우지 않고 같은 source entry/sense의 반복 선택은 중복 추가하지 않습니다. CC-CEDICT pinyin과 JMdict kana reading도 같은 generic reading 경계를 사용하며 notes에 넣지 않습니다. source에 없는 필드는 추론하지 않습니다.
 
 공급자별 라이선스 조사 상태와 구현 차단 조건은 [docs/dictionary-sources.md](docs/dictionary-sources.md)에 기록했습니다.
 
@@ -97,7 +104,7 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 
 가져오기는 파일 전체를 읽고 JSON/schema/데이터/참조를 검증한 뒤 미리보기를 표시합니다. 사용자가 확인하기 전에는 DB를 변경하지 않으며, 확인 후 반영도 하나의 Room transaction에서 수행합니다. 기본 정책은 stable ID가 같은 단어 aggregate만 갱신하고 새 단어를 추가하며 그 밖의 기존 데이터는 유지하는 병합입니다. 전체 교체는 사용자가 명시적으로 선택해야 합니다. 정확한 schema와 정책은 [docs/backup.md](docs/backup.md)에 있습니다.
 
-백업 schema v2에는 단어, 뜻/품사/예문, 메모, 태그/관계, 생성·수정 시간과 provider-derived sense의 provenance가 포함됩니다. 직접 작성한 sense에는 provenance가 없습니다. 앱 설정, API key, credential, secret은 포함되지 않으며 기존 schema v1 파일도 계속 가져올 수 있습니다. 현재 모델에는 favorite와 review metadata가 없어 해당 필드도 없습니다.
+백업 schema v3에는 단어, reading, 뜻/품사/예문, 메모, 태그/관계, 생성·수정 시간과 provider-derived entry/sense provenance가 포함됩니다. 직접 작성한 field에는 provenance가 없습니다. 앱 설정, API key, credential, secret은 포함되지 않으며 기존 schema v1/v2 파일도 계속 가져올 수 있습니다. 현재 모델에는 favorite와 review metadata가 없어 해당 필드도 없습니다.
 
 ## API 키와 비밀정보
 
@@ -112,4 +119,4 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 - CC-CEDICT raw GZip은 첫 검색 때 메모리 exact index로 변환되며 full artifact의 APK/latency/memory 비용은 artifact를 제공한 환경에서 별도 측정해야 합니다.
 - 한국어기초사전 index는 약 200MB이므로 APK 및 첫 asset 복사 비용이 큽니다. 현재는 개인 sideload용이며 후속 배포에서는 별도 language pack 전달을 검토해야 합니다.
 - PanLex source snapshot은 2019년 자료이고 현재 official distribution/API가 unavailable하므로 최신성에 한계가 있습니다. 생성 index도 raw 53MB여서 공개 배포 전 별도 language pack을 검토해야 합니다.
-- Room schema version은 3입니다. v1→v2는 기존 단어/태그에 backup stable ID를 부여하고, v2→v3는 기존 aggregate를 보존한 채 선택적인 sense provenance 테이블만 추가합니다. destructive migration은 사용하지 않습니다.
+- Room schema version은 4입니다. v1→v2는 backup stable ID, v2→v3는 sense provenance, v3→v4는 reading과 entry-field provenance를 기존 aggregate를 보존하며 추가합니다. destructive migration은 사용하지 않습니다.

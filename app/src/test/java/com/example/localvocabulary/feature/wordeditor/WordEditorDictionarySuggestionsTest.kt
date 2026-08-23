@@ -9,6 +9,7 @@ import com.example.localvocabulary.dictionary.domain.DictionaryCachePolicy
 import com.example.localvocabulary.dictionary.domain.DictionaryCapability
 import com.example.localvocabulary.dictionary.domain.DictionaryExample
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
+import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryPermission
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
@@ -16,6 +17,7 @@ import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescripto
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryReading
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.DictionarySearchPage
 import com.example.localvocabulary.dictionary.domain.DictionarySearchResult
@@ -147,6 +149,45 @@ class WordEditorDictionarySuggestionsTest {
     }
 
     @Test
+    fun `Japanese to Korean and Japanese to English providers coexist as distinct choices`() = runTest {
+        val korean = RecordingSuggestionProvider(
+            id = "korean-basic-dictionary",
+            displayName = "Korean Basic Dictionary",
+            languagePair = JAPANESE_TO_KOREAN,
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+            permission = DictionaryPermission.PERMITTED,
+        ) { success(it, meaning = "먹다") }
+        val jmdict = RecordingSuggestionProvider(
+            id = "jmdict",
+            displayName = "JMdict",
+            languagePair = JAPANESE_TO_ENGLISH,
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+            permission = DictionaryPermission.PERMITTED,
+        ) { success(it, meaning = "to eat") }
+        val viewModel = createViewModel(
+            providers = listOf(korean, jmdict),
+            settingsRepository = FixedSettingsRepository("ja"),
+        )
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            setOf(JAPANESE_TO_KOREAN, JAPANESE_TO_ENGLISH),
+            state.dictionaryLanguageOptions.map { it.languagePair }.toSet(),
+        )
+        val englishOption = state.dictionaryLanguageOptions
+            .single { it.languagePair == JAPANESE_TO_ENGLISH }
+        viewModel.onAction(WordEditorAction.DictionaryLanguagePairSelected(englishOption.key))
+        viewModel.onAction(WordEditorAction.HeadwordChanged("食べる"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+
+        assertTrue(korean.queries.isEmpty())
+        assertEquals(listOf(JAPANESE_TO_ENGLISH), jmdict.queries.map { it.languagePair })
+        assertEquals("JMdict", viewModel.uiState.value.dictionarySuggestionGroups.single().providerName)
+    }
+
+    @Test
     fun `one provider failure does not hide another provider result`() = runTest {
         val available = suggestionProvider(id = "available", displayName = "Available Dictionary")
         val unavailable = suggestionProvider(id = "unavailable", displayName = "Unavailable Dictionary") {
@@ -211,6 +252,12 @@ class WordEditorDictionarySuggestionsTest {
         assertEquals("provider meaning", state.senses.single().meaning)
         assertEquals("noun", state.senses.single().partOfSpeech)
         assertEquals("provider example", state.senses.single().examples.single().text)
+        assertEquals("provider reading", state.reading)
+        assertEquals("test.dictionary", state.readingProvenance?.providerId)
+        assertEquals(
+            setOf(com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.READING),
+            state.readingProvenance?.importedFields,
+        )
         assertEquals("test.dictionary", state.senses.single().provenance?.providerId)
         assertFalse(state.senses.single().provenance!!.modifiedAfterImport)
         assertSame(result, state.dictionaryReference)
@@ -299,6 +346,7 @@ class WordEditorDictionarySuggestionsTest {
 
         assertEquals("my meaning", viewModel.uiState.value.senses.single().meaning)
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        viewModel.onAction(WordEditorAction.ReadingChanged("my reading"))
 
         assertEquals(2, viewModel.uiState.value.senses.size)
         val userSense = viewModel.uiState.value.senses.first { it.key == -1L }
@@ -318,6 +366,8 @@ class WordEditorDictionarySuggestionsTest {
         val preservedUserSense = viewModel.uiState.value.senses.first { it.key == -1L }
         assertEquals("my meaning", preservedUserSense.meaning)
         assertEquals("my example", preservedUserSense.examples.single().text)
+        assertEquals("my reading", viewModel.uiState.value.reading)
+        assertTrue(viewModel.uiState.value.readingProvenance!!.modifiedAfterImport)
     }
 
     @Test
@@ -333,6 +383,7 @@ class WordEditorDictionarySuggestionsTest {
         advanceUntilIdle()
         val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
         assertEquals("saved meaning", viewModel.uiState.value.senses.single().meaning)
+        assertEquals("user reading", viewModel.uiState.value.reading)
 
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
 
@@ -343,6 +394,7 @@ class WordEditorDictionarySuggestionsTest {
         assertEquals("provider meaning", state.senses.last().meaning)
         assertEquals("test.dictionary", state.senses.last().provenance?.providerId)
         assertEquals("saved note", state.notes)
+        assertEquals("user reading", state.reading)
         assertEquals(setOf(9L), state.selectedTagIds)
     }
 
@@ -350,11 +402,12 @@ class WordEditorDictionarySuggestionsTest {
         repository: SuggestionVocabularyRepository = SuggestionVocabularyRepository(),
         providers: List<DictionaryProvider>,
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
+        settingsRepository: SettingsRepository = SuggestionSettingsRepository,
     ) = WordEditorViewModel(
         savedStateHandle = savedStateHandle,
         vocabularyRepository = repository,
         tagRepository = SuggestionTagRepository,
-        settingsRepository = SuggestionSettingsRepository,
+        settingsRepository = settingsRepository,
         dictionaryProviderRegistry = DefaultDictionaryProviderRegistry(providers),
         timeProvider = TimeProvider { 1_000L },
     )
@@ -382,6 +435,16 @@ class WordEditorDictionarySuggestionsTest {
             resultLanguage = Bcp47LanguageTag.requireValid("en"),
             resultKind = DictionaryResultKind.TRANSLATION,
         )
+        val JAPANESE_TO_KOREAN = DictionaryLanguagePair(
+            sourceLanguage = Bcp47LanguageTag.requireValid("ja"),
+            resultLanguage = Bcp47LanguageTag.requireValid("ko"),
+            resultKind = DictionaryResultKind.TRANSLATION,
+        )
+        val JAPANESE_TO_ENGLISH = DictionaryLanguagePair(
+            sourceLanguage = Bcp47LanguageTag.requireValid("ja"),
+            resultLanguage = Bcp47LanguageTag.requireValid("en"),
+            resultKind = DictionaryResultKind.TRANSLATION,
+        )
     }
 }
 
@@ -405,6 +468,7 @@ private class RecordingSuggestionProvider(
             DictionaryCapability.TRANSLATIONS,
             DictionaryCapability.EXAMPLE_SENTENCES,
             DictionaryCapability.PART_OF_SPEECH,
+            DictionaryCapability.READING,
         ),
         attribution = DictionaryAttribution(
             sourceName = displayName,
@@ -441,6 +505,9 @@ private class RecordingSuggestionProvider(
                     sourceEntryId = "${descriptor.id.value}:${query.text}",
                     headword = query.text,
                     sourceLanguage = query.languagePair.sourceLanguage,
+                    linguisticFeatures = DictionaryLinguisticFeatures(
+                        reading = DictionaryReading("provider reading"),
+                    ),
                     senses = listOf(
                         ExternalDictionarySense(
                             meanings = listOf(
@@ -496,6 +563,14 @@ private object SuggestionSettingsRepository : SettingsRepository {
     override suspend fun setDefaultLanguageTag(languageTag: String) = Unit
 }
 
+private class FixedSettingsRepository(defaultLanguageTag: String) : SettingsRepository {
+    override val settings: Flow<AppSettings> = flowOf(
+        AppSettings(defaultLanguageTag = defaultLanguageTag),
+    )
+
+    override suspend fun setDefaultLanguageTag(languageTag: String) = Unit
+}
+
 private fun savedEntry() = VocabularyEntry(
     id = 7,
     backupId = "saved-entry",
@@ -513,4 +588,5 @@ private fun savedEntry() = VocabularyEntry(
     tags = listOf(VocabularyTag(9, "saved-tag", "Saved")),
     createdAtEpochMillis = 100,
     modifiedAtEpochMillis = 200,
+    reading = "user reading",
 )

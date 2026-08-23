@@ -61,6 +61,9 @@ data class WordEditorUiState(
     val entryId: Long? = null,
     val headword: String = "",
     val languageTag: String = "en",
+    val reading: String = "",
+    val readingProvenance: DictionaryProvenance? = null,
+    val isReadingUserEdited: Boolean = false,
     val senses: List<EditableSense> = listOf(EditableSense(-1)),
     val notes: String = "",
     val availableTags: List<VocabularyTag> = emptyList(),
@@ -79,6 +82,7 @@ data class WordEditorUiState(
 sealed interface WordEditorAction {
     data class HeadwordChanged(val value: String) : WordEditorAction
     data class LanguageTagChanged(val value: String) : WordEditorAction
+    data class ReadingChanged(val value: String) : WordEditorAction
     data class DictionaryLanguagePairSelected(val key: String) : WordEditorAction
     data class DictionarySuggestionSelected(
         val entry: ExternalDictionaryEntry,
@@ -174,6 +178,13 @@ class WordEditorViewModel @Inject constructor(
                 }
                 refreshDictionaryLanguageOptions()
             }
+            is WordEditorAction.ReadingChanged -> updateForm {
+                copy(
+                    reading = action.value,
+                    readingProvenance = readingProvenance?.markModified(),
+                    isReadingUserEdited = true,
+                )
+            }
             is WordEditorAction.DictionaryLanguagePairSelected -> {
                 selectDictionaryLanguagePair(action.key)
             }
@@ -235,6 +246,9 @@ class WordEditorViewModel @Inject constructor(
                             isLoading = false,
                             headword = entry.headword,
                             languageTag = entry.languageTag,
+                            reading = entry.reading,
+                            readingProvenance = entry.readingProvenance,
+                            isReadingUserEdited = true,
                             senses = entry.senses.map { sense ->
                                 EditableSense(
                                     key = sense.id,
@@ -433,6 +447,8 @@ class WordEditorViewModel @Inject constructor(
                     ?.let(::toEditableSenses)
                     .orEmpty()
                 mutableUiState.update { state ->
+                    val acceptsReading = !state.isReadingUserEdited && state.reading.isBlank() &&
+                        mapping.seed.draft.reading.isNotBlank()
                     val uniqueSenses = seededSenses.filterNot { imported ->
                         val provenance = imported.provenance ?: return@filterNot false
                         state.senses.any { existing ->
@@ -445,6 +461,12 @@ class WordEditorViewModel @Inject constructor(
                     state.copy(
                         senses = (existingSenses + uniqueSenses)
                             .ifEmpty { state.senses },
+                        reading = if (acceptsReading) mapping.seed.draft.reading else state.reading,
+                        readingProvenance = if (acceptsReading) {
+                            mapping.seed.draft.readingProvenance
+                        } else {
+                            state.readingProvenance
+                        },
                         dictionaryReference = mapping.seed.transientEntry,
                     )
                 }
@@ -473,6 +495,8 @@ class WordEditorViewModel @Inject constructor(
                 },
                 notes = state.notes,
                 tagIds = state.selectedTagIds,
+                reading = state.reading,
+                readingProvenance = state.readingProvenance,
             ),
         )
         if (result is VocabularyValidationResult.Invalid) {

@@ -65,6 +65,26 @@ class RoomVocabularyBackupRepository @Inject constructor(
                     tagStableIds = relation.tags.map { it.backupId }.sorted(),
                     createdAtEpochMillis = relation.entry.createdAtEpochMillis,
                     modifiedAtEpochMillis = relation.entry.modifiedAtEpochMillis,
+                    reading = relation.entry.reading,
+                    readingProvenance = relation.entryProvenance
+                        .singleOrNull { it.field == "READING" }
+                        ?.let { provenance ->
+                            com.example.localvocabulary.vocabulary.domain.DictionaryProvenance(
+                                providerId = provenance.providerId,
+                                sourceEntryId = provenance.sourceEntryId,
+                                sourceSenseId = provenance.sourceSenseId,
+                                sourceName = provenance.sourceName,
+                                sourceUrl = provenance.sourceUrl,
+                                licenseName = provenance.licenseName,
+                                licenseUrl = provenance.licenseUrl,
+                                datasetVersion = provenance.datasetVersion,
+                                importedFields = setOf(
+                                    com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.READING,
+                                ),
+                                importedAtEpochMillis = provenance.importedAtEpochMillis,
+                                modifiedAfterImport = provenance.modifiedAfterImport,
+                            ).toBackupV2()
+                        },
                 )
             }
         VocabularyBackupV2(
@@ -127,6 +147,7 @@ class RoomVocabularyBackupRepository @Inject constructor(
                     notes = entry.notes,
                     createdAtEpochMillis = entry.createdAtEpochMillis,
                     modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
+                    reading = entry.reading,
                 ),
                 senses = entry.senses.map { sense ->
                     SenseWrite(
@@ -154,6 +175,21 @@ class RoomVocabularyBackupRepository @Inject constructor(
                 },
                 tagIds = entry.tagStableIds.mapTo(mutableSetOf()) { stableId ->
                     checkNotNull(localTagIds[stableId]) { "Validated tag reference is missing" }
+                },
+                readingProvenance = entry.readingProvenance?.toDomain()?.let { provenance ->
+                    SenseDictionaryProvenanceWrite(
+                        providerId = provenance.providerId,
+                        sourceEntryId = provenance.sourceEntryId,
+                        sourceSenseId = provenance.sourceSenseId,
+                        sourceName = provenance.sourceName,
+                        sourceUrl = provenance.sourceUrl,
+                        licenseName = provenance.licenseName,
+                        licenseUrl = provenance.licenseUrl,
+                        datasetVersion = provenance.datasetVersion,
+                        importedFields = setOf("READING"),
+                        importedAtEpochMillis = provenance.importedAtEpochMillis,
+                        modifiedAfterImport = provenance.modifiedAfterImport,
+                    )
                 },
             )
         }

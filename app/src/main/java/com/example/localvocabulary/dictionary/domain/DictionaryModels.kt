@@ -230,6 +230,7 @@ data class DictionaryWrittenForm(
 
 data class DictionaryLinguisticFeatures(
     val reading: DictionaryReading? = null,
+    val alternativeReadings: List<DictionaryReading> = emptyList(),
     val pronunciations: List<DictionaryPronunciation> = emptyList(),
     val transliterations: List<DictionaryTransliteration> = emptyList(),
     val inflections: List<DictionaryInflection> = emptyList(),
@@ -239,6 +240,8 @@ data class DictionaryLinguisticFeatures(
 data class DictionaryReading(
     val text: String,
     val scriptCode: String? = null,
+    val writtenFormRestrictions: Set<String> = emptySet(),
+    val appliesWithoutWrittenForm: Boolean = false,
 )
 
 data class DictionaryPronunciation(
@@ -268,6 +271,8 @@ data class ExternalDictionarySense(
     val grammaticalGender: String? = null,
     val examples: List<DictionaryExample> = emptyList(),
     val sourceSenseId: String? = null,
+    val writtenFormRestrictions: Set<String> = emptySet(),
+    val readingRestrictions: Set<String> = emptySet(),
 )
 
 data class DictionaryMeaning(

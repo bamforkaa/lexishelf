@@ -68,7 +68,13 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
 - UI에는 Room entity를 전달하지 않습니다.
 - 단순 repository 호출의 이름만 바꾸는 use-case 클래스는 두지 않았습니다. 입력 정규화와 규칙을 집행하는 validator만 domain에 둡니다.
 
-## Room schema version 3
+## Room schema version 4
+
+Task 8은 `vocabulary_entries.reading`과 provider-neutral
+`entry_dictionary_provenance`를 추가합니다. Entry-level reading provenance와 sense-level
+meaning/POS/example provenance를 분리하여 sense 삭제가 reading 출처를 없애지 않게 합니다.
+`MIGRATION_3_4`는 기존 aggregate를 건드리지 않고 빈 reading과 빈 entry provenance만
+추가합니다. JMdict 전용 Room 컬럼은 없습니다.
 
 | 테이블 | 책임 | 핵심 제약 |
 | --- | --- | --- |
@@ -110,7 +116,7 @@ Descriptor는 `ONLINE`/`LOCAL_DATASET`, capability set, attribution, license 식
 
 Failure는 unsupported source, unsupported result language/kind, missing credential, authentication, rate limit, network, provider unavailable, malformed data, no result, local dataset unavailable, unknown을 구분합니다. CC-CEDICT provider는 asset 부재와 malformed dataset을 구분하며 offline lookup에서는 network failure를 만들지 않습니다.
 
-`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
+`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`, `jmdict`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
 
 Headword 검색 request는 trim된 query와 exact language pair의 immutable 값입니다. 빈 query/pair는 실행하지 않고 `StateFlow.debounce(400ms)`, `distinctUntilChanged`, `collectLatest`를 적용합니다. provider들은 한 request 안에서 병렬 검색하지만 각 failure/exception은 해당 provider group에만 격리합니다. 새 결과는 suggestion state만 바꾸며 editor form은 건드리지 않습니다. 명시적인 `Use`도 사용자가 이미 sense/example을 입력했거나 기존 entry를 편집 중이면 그 값을 보존합니다.
 
@@ -118,7 +124,7 @@ Headword 검색 request는 trim된 query와 exact language pair의 immutable 값
 
 선택한 전략은 raw UTF-8 GZip asset + lazy process-local exact index입니다. 수동 설치한 `cedict_1_0_ts_utf-8_mdbg.txt.gz`를 `CcCedictAssetSource`가 열고 `CcCedictParser`가 v1 single bracket와 v2 double bracket pinyin 형식을 구분합니다. comment/blank line은 count하고 malformed line은 line number/raw text/reason을 가진 issue로 보고하며, 유효 record를 손상시키거나 전체 앱을 crash시키지 않습니다. 유효 record가 하나도 없으면 malformed dataset failure입니다.
 
-index는 원본 file order를 보존한 Simplified/Traditional map 두 개입니다. exact match 결과가 여러 개면 같은 순서로 반환하고 result limit 적용 여부를 `isTruncated`로 표시합니다. pinyin/prefix/fuzzy index는 만들지 않았습니다. parser record와 index type은 provider package의 `internal` type이며 presentation에는 common `ExternalDictionaryEntry`만 전달합니다. pinyin은 transient `DictionaryReading`, 다른 script form은 `DictionaryWrittenForm`, English slash sense/semicolon gloss 구조는 common sense/meaning으로 명시적으로 mapping합니다. vocabulary domain에는 아직 generic reading 저장 field가 없으므로 pinyin은 Room/backup/notes로 복사하지 않습니다. CC-CEDICT가 제공하지 않는 POS, example, etymology, audio는 비어 있으며 추론하지 않습니다.
+index는 원본 file order를 보존한 Simplified/Traditional map 두 개입니다. exact match 결과가 여러 개면 같은 순서로 반환하고 result limit 적용 여부를 `isTruncated`로 표시합니다. pinyin/prefix/fuzzy index는 만들지 않았습니다. parser record와 index type은 provider package의 `internal` type이며 presentation에는 common `ExternalDictionaryEntry`만 전달합니다. pinyin은 common `DictionaryReading`, 다른 script form은 `DictionaryWrittenForm`, English slash sense/semicolon gloss 구조는 common sense/meaning으로 명시적으로 mapping합니다. Task 8에서 추가된 provider-neutral reading field를 통해 사용자가 명시적으로 `Use`하면 pinyin도 Room/backup에 저장할 수 있고 provenance를 따로 유지합니다. refresh는 저장된 reading을 덮어쓰지 않습니다. CC-CEDICT가 제공하지 않는 POS, example, etymology, audio는 비어 있으며 추론하지 않습니다.
 
 asset은 user Room과 별도이며 앱 시작 시 import하지 않습니다. 첫 검색만 background dispatcher에서 전체 parse/index 비용을 내고 같은 process에서 재사용합니다. 향후 language pack은 `CcCedictDatasetSource` 구현만 교체할 수 있습니다. 전략 비교와 persistence 결정은 [ADR-0004](decisions/0004-cc-cedict-local-dataset.md), 설치/update 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있습니다.
 
@@ -142,7 +148,15 @@ PanLex provider도 user Room과 별도인 read-only SQLite lifecycle을 사용�
 
 ## 백업/복원 경계
 
-canonical backup은 Room schema와 독립된 `schemaVersion: 2` UTF-8 JSON입니다. v2는 sense provenance를 포함하고 user-authored sense는 해당 값이 null입니다. v1 DTO와 의미는 그대로 유지하며 decoder가 v1을 provenance 없는 current import model로 올립니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
+canonical backup은 Room schema와 독립된 `schemaVersion: 3` UTF-8 JSON입니다. v3는 reading과 entry-level reading provenance를 추가하며 v1/v2 import는 reading이 빈 기존 의미를 유지합니다. sense provenance와 user-authored null semantics도 그대로입니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
+
+## JMdict compact local index
+
+`JmDictDataSource`만 별도 read-only SQLite를 읽고 compressed XML-derived record는
+`provider.jmdict` 밖으로 노출되지 않습니다. common transient model은 alternative readings와
+writing/reading restriction set을 표현합니다. mapper는 `re_restr`/`re_nokanji`와
+`stagk`/`stagr`를 적용한 sense만 내보냅니다. inline UI는 sense별 Use를 제공하며 refresh는
+Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다.
 
 가져오기 흐름은 `파일 읽기 → JSON parsing → schema version 분기 → 전체/필드/관계 validation → preview → 사용자 확인 → Room transaction`입니다. `ValidatedBackup`만 repository import 경계에 전달할 수 있어 parse되지 않은 문서가 DB 단계로 들어가지 않습니다. 실제 반영은 outer `VocabularyDatabase.withTransaction` 안에서 실행되며 aggregate 저장의 nested Room transaction도 같은 transaction에 참여합니다. 예외가 발생하면 삭제·태그·단어·관계 변경을 모두 rollback합니다.
 

@@ -1,0 +1,5 @@
+JMdict
+Copyright the Electronic Dictionary Research and Development Group and contributors.
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International.
+https://www.edrdg.org/jmdict/j_jmdict.html
+https://creativecommons.org/licenses/by-sa/4.0/

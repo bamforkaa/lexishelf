@@ -46,4 +46,20 @@ internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = Vocabulary
     tags = tags.sortedBy { it.name.lowercase() }.map { VocabularyTag(it.id, it.backupId, it.name) },
     createdAtEpochMillis = entry.createdAtEpochMillis,
     modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
+    reading = entry.reading,
+    readingProvenance = entryProvenance.singleOrNull { it.field == "READING" }?.let { provenance ->
+        DictionaryProvenance(
+            providerId = provenance.providerId,
+            sourceEntryId = provenance.sourceEntryId,
+            sourceSenseId = provenance.sourceSenseId,
+            sourceName = provenance.sourceName,
+            sourceUrl = provenance.sourceUrl,
+            licenseName = provenance.licenseName,
+            licenseUrl = provenance.licenseUrl,
+            datasetVersion = provenance.datasetVersion,
+            importedFields = setOf(ImportedDictionaryField.READING),
+            importedAtEpochMillis = provenance.importedAtEpochMillis,
+            modifiedAfterImport = provenance.modifiedAfterImport,
+        )
+    },
 )

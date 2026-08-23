@@ -10,6 +10,8 @@ data class VocabularyEntry(
     val tags: List<VocabularyTag>,
     val createdAtEpochMillis: Long,
     val modifiedAtEpochMillis: Long,
+    val reading: String = "",
+    val readingProvenance: DictionaryProvenance? = null,
 )
 
 data class VocabularySense(
@@ -38,6 +40,8 @@ data class VocabularyEntryDraft(
     val senses: List<VocabularySenseDraft>,
     val notes: String,
     val tagIds: Set<Long>,
+    val reading: String = "",
+    val readingProvenance: DictionaryProvenance? = null,
 )
 
 data class VocabularySenseDraft(
@@ -51,6 +55,7 @@ enum class ImportedDictionaryField {
     MEANING,
     PART_OF_SPEECH,
     EXAMPLES,
+    READING,
 }
 
 data class DictionaryProvenance(
