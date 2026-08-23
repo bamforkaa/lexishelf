@@ -17,3 +17,7 @@ captures/
 app/schemas/.tmp/
 app/src/main/assets/dictionary/cccedict/*.gz
 app/src/main/assets/dictionary/koreanbasic/*.db
+app/src/main/assets/dictionary/panlex/*.db
+panlex-*-csv.zip
+__pycache__/
+*.py[cod]

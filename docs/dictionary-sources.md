@@ -154,6 +154,50 @@ API 대신 local dataset을 선택한 이유:
 - 생성 SQLite와 원본 ZIP은 Git에 포함하지 않는다. 설치/update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)에 있다.
 - 공식 중국어 data에 script 구분이 없으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 BCP 47 `zh`를 사용한다.
 
+## PanLex
+
+공식 출처:
+
+- [PanLex](https://panlex.org/)
+- [PanLex data license](https://panlex.org/license)
+- [PanLex data model](https://dev.panlex.org/data-model/)
+- [PanLex database design](https://dev.panlex.org/database-design/)
+- [PanLex translation evaluation](https://dev.panlex.org/translation-evaluation/)
+
+확인된 사실:
+
+- PanLex Database CSV/JSON snapshots, PanLex Lite와 Swadesh 자료는 CC0 1.0 Universal로 제공된다. copy/modify/distribute와 commercial use가 허용되며 PanLex site 또는 2014 LREC paper citation을 권장한다.
+- expression은 하나의 language variety에 속하고 denotation은 expression을 source-owned meaning에 연결한다. 이번 구현은 동일 meaning의 Korean/foreign co-denotation만 direct relation으로 사용한다.
+- distance-1 translation quality는 source group별 최대 quality를 합산하는 방식으로 설명된다. converter ranking은 이 개념을 따르고 deterministic tie-break만 추가한다.
+- 2026-08-23 현재 공식 snapshot page는 artifact 목록을 제공하지 않고 과거 API/database host는 DNS에서 사용할 수 없었다. 공식 URL의 archived 2019-09-01 CSV response를 digest와 embedded CC0 license까지 확인했지만 최신 자료라고 표현하지 않는다.
+
+선택한 구현과 metadata:
+
+| 항목 | 값 |
+| --- | --- |
+| provider ID | `panlex` |
+| access | `LOCAL_DATASET` |
+| source/result | `de|hi|pl|la ↔ ko` translation exact lookup |
+| reviewed PanLex UID | `deu-000`, `hin-000`, `pol-000`, `lat-000`, `kor-000` |
+| source release | `2019-09-01` official CSV snapshot |
+| generated artifact | `panlex_korean_fallback.db` |
+| indexed relations | 307,530 unique expression pairs |
+| license | CC0 1.0 Universal |
+
+저장/재배포 결정:
+
+- CC0 grant에 따라 local persistence, redistribution과 cache를 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다.
+- 명시적 `Use`로 선택한 translation에 PanLex expression/meaning/source ID, release, source/license를 sense provenance로 저장하고 JSON backup에도 유지한다.
+- 전체 PanLex dataset은 user Room이나 backup에 넣지 않는다. 검색 result는 transient이며 refresh가 저장된 사용자 data를 바꾸지 않는다.
+- 다른 언어를 거치는 pivot translation, definition/POS/example 추론은 하지 않는다.
+- source snapshot, coverage, converter와 update 절차는 [panlex-dataset.md](panlex-dataset.md), 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md)에 기록했다.
+
+미결정 사항:
+
+- 현재 official distribution/API 복구 여부와 새 release의 안정 download/checksum manifest
+- public release에서 53MB raw asset을 base APK에 둘지 별도 language pack으로 전달할지
+- 여러 source attestation의 상세 attribution을 UI에 노출할 필요
+
 ## 구현 전 공통 승인 체크리스트
 
 - 공식 source URL과 선택한 artifact/version

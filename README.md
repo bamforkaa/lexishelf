@@ -1,6 +1,6 @@
 # Local Vocabulary
 
-개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT와 한국어기초사전 local dataset을 오프라인 검색해 참고할 수 있습니다.
+개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
 
 ## 현재 구현 상태
 
@@ -13,6 +13,7 @@
 - 단어 목록, 상세, 추가·수정, 태그 관리, 기본 언어 설정 화면
 - Word Editor headword 기반의 registry 공통 inline suggestion, CC-CEDICT 중국어 exact lookup
 - 한국어기초사전의 한국어↔11개 외국어 양방향 exact/reverse lookup
+- PanLex filtered index의 German/Hindi/Polish/Latin↔한국어 양방향 exact fallback
 - 400ms debounce, provider별 결과/오류 표시, 명시적 autofill과 sense 단위 provenance
 - Storage Access Framework 기반 UTF-8 JSON 백업/복원, import 미리보기와 명시적 충돌 정책
 - Hilt 의존성 주입, Navigation Compose, DataStore 설정
@@ -30,14 +31,17 @@
 
 ## 언어와 사전 공급자
 
-수동 입력은 유효한 BCP 47 언어 태그(예: `en`, `ko`, `ja`, `zh-Hant`)를 사용하므로 특정 언어 목록으로 제한하지 않습니다. 이는 각 언어의 사전 지원을 의미하지 않습니다. 실제 provider는 다음 두 개이며 둘 다 `LOCAL_DATASET`이므로 앱에는 `INTERNET` permission이 없습니다.
+수동 입력은 유효한 BCP 47 언어 태그(예: `en`, `ko`, `ja`, `zh-Hant`)를 사용하므로 특정 언어 목록으로 제한하지 않습니다. 이는 각 언어의 사전 지원을 의미하지 않습니다. 실제 provider는 다음 세 개이며 모두 `LOCAL_DATASET`이므로 앱에는 `INTERNET` permission이 없습니다.
 
 - `cc-cedict`: `zh-Hans → en`, `zh-Hant → en` exact headword lookup
 - `korean-basic-dictionary`: `ko`와 `en`, `ja`, `fr`, `es`, `ar`, `mn`, `vi`, `th`, `id`, `ru`, `zh` 사이의 양방향 translation exact lookup
+- `panlex`: `ko`와 `de`, `hi`, `pl`, `la` 사이의 양방향 direct translation exact lookup
 
 CC-CEDICT GZip binary는 저장소에 포함되지 않습니다. 공식 release page가 자동 접근을 금지하므로 사용자가 브라우저에서 artifact를 받아 정해진 asset 경로에 두어야 합니다. 파일이 없으면 build는 성공하고 Word Editor도 정상 동작하며, suggestion 영역에만 dataset unavailable 상태를 표시합니다. 정확한 artifact와 수동 설치/update 절차는 [CC-CEDICT 데이터셋 문서](docs/cc-cedict-dataset.md)에 있습니다.
 
 한국어기초사전은 공식 전체 JSON을 개발 시 읽기 전용 SQLite exact/reverse index로 변환합니다. 생성 DB는 저장소에 포함되지 않으며 없을 때도 다른 provider와 수동 입력은 정상 동작합니다. 2026-08-19 자료의 설치·변환·업데이트 절차와 attribution은 [한국어기초사전 데이터셋 문서](docs/korean-basic-dictionary-dataset.md)에 있습니다. 공식 중국어 번역은 script를 구분하지 않으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 `zh`로 선언합니다.
+
+PanLex는 검증한 2019-09-01 공식 CSV snapshot에서 `deu-000`/`hin-000`/`pol-000`/`lat-000`과 `kor-000`의 동일 meaning 직접 관계만 53,211,136-byte SQLite로 필터합니다. pivot translation이나 provider에 없는 linguistic field는 만들지 않습니다. snapshot은 오래되었고 현재 공식 distribution host가 unavailable한 제한을 명시적으로 유지합니다. source, checksum, CC0, 40개 QA sample과 생성 절차는 [PanLex 데이터셋 문서](docs/panlex-dataset.md)에 있습니다.
 
 `Add word`는 선택 화면 없이 Word Editor를 바로 엽니다. 유효한 source language와 registry가 제공하는 result language pair가 있으면 headword를 기준으로 400ms 후 자동 검색하며, 빈 문자열과 동일 query/pair는 다시 검색하지 않습니다. 여러 provider의 결과와 오류는 provider별 suggestion card에만 표시되어 dataset/network 오류가 수동 편집이나 저장을 막지 않습니다.
 
@@ -53,7 +57,7 @@ CC-CEDICT GZip binary는 저장소에 포함되지 않습니다. 공식 release 
 - Gradle Version Catalog와 Gradle Wrapper
 - JUnit 4, AndroidX Test, Room testing, Compose UI test
 
-프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [docs/architecture.md](docs/architecture.md), [백업 형식 문서](docs/backup.md), [provider 경계 ADR](docs/decisions/0003-dictionary-provider-boundary.md), [CC-CEDICT integration ADR](docs/decisions/0004-cc-cedict-local-dataset.md), [provenance/autofill ADR](docs/decisions/0005-dictionary-import-provenance.md), [한국어기초사전 역색인 ADR](docs/decisions/0006-korean-basic-dictionary-local-reverse-index.md)을 참고하세요.
+프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [docs/architecture.md](docs/architecture.md), [백업 형식 문서](docs/backup.md), [provider 경계 ADR](docs/decisions/0003-dictionary-provider-boundary.md), [CC-CEDICT integration ADR](docs/decisions/0004-cc-cedict-local-dataset.md), [provenance/autofill ADR](docs/decisions/0005-dictionary-import-provenance.md), [한국어기초사전 역색인 ADR](docs/decisions/0006-korean-basic-dictionary-local-reverse-index.md), [PanLex filtered fallback ADR](docs/decisions/0007-panlex-filtered-local-fallback.md)을 참고하세요.
 
 ## 개발 환경 설정
 
@@ -104,7 +108,8 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 - 복습, 즐겨찾기, 발음/reading/transliteration 필드는 후속 마일스톤입니다.
 - 프로세스가 강제 종료되면 저장 전 편집 초안이 복원되지 않을 수 있습니다. 저장된 데이터는 영향을 받지 않습니다.
 - 외부 사전 데이터는 라이선스·저장·편집·재배포 조건이 확인되기 전까지 다운로드하거나 저장하지 않습니다.
-- clean clone에는 CC-CEDICT binary와 한국어기초사전 SQLite index가 없어 수동 설치 전 해당 dictionary lookup을 할 수 없습니다.
+- clean clone에는 CC-CEDICT binary, 한국어기초사전 SQLite index와 PanLex SQLite index가 없어 수동 설치 전 해당 dictionary lookup을 할 수 없습니다.
 - CC-CEDICT raw GZip은 첫 검색 때 메모리 exact index로 변환되며 full artifact의 APK/latency/memory 비용은 artifact를 제공한 환경에서 별도 측정해야 합니다.
 - 한국어기초사전 index는 약 200MB이므로 APK 및 첫 asset 복사 비용이 큽니다. 현재는 개인 sideload용이며 후속 배포에서는 별도 language pack 전달을 검토해야 합니다.
+- PanLex source snapshot은 2019년 자료이고 현재 official distribution/API가 unavailable하므로 최신성에 한계가 있습니다. 생성 index도 raw 53MB여서 공개 배포 전 별도 language pack을 검토해야 합니다.
 - Room schema version은 3입니다. v1→v2는 기존 단어/태그에 backup stable ID를 부여하고, v2→v3는 기존 aggregate를 보존한 채 선택적인 sense provenance 테이블만 추가합니다. destructive migration은 사용하지 않습니다.

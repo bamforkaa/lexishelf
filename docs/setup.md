@@ -78,6 +78,21 @@ python .\tools\build_krdict_index.py `
 
 생성 DB는 약 200MB이며 `.gitignore` 대상입니다. 누락되어도 build/test와 수동 저장, CC-CEDICT 검색은 정상이고 한국어기초사전 suggestion group만 dataset unavailable을 표시합니다. 공식 source, license, 현재 release의 기대 count와 update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)를 따르세요.
 
+## 선택 사항: PanLex Korean fallback index
+
+PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별도 SQLite asset을 사용합니다. 현재 공식 distribution/API가 unavailable하므로 확인하지 않은 mirror나 third-party 변환본을 사용하지 마세요. 검증한 2019-09-01 공식 CSV snapshot의 archived official response, 정확한 SHA-256/SHA-1 digest와 노후화 제한은 [panlex-dataset.md](panlex-dataset.md)에 기록했습니다.
+
+원본 ZIP을 저장소 밖에 준비한 뒤 Python 3 표준 라이브러리 변환기를 실행합니다.
+
+```powershell
+python -X utf8 .\tools\build_panlex_index.py `
+  C:\path\to\panlex-20190901-csv.zip `
+  .\app\src\main\assets\dictionary\panlex\panlex_korean_fallback.db `
+  --languages de,hi,pl,la
+```
+
+생성 DB는 53,211,136 bytes이며 `.gitignore` 대상입니다. 누락되어도 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 reviewed language-variety allowlist와 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
+
 ## 누락 항목 설치 및 설정
 
 ### 1. Android Studio 안정 채널 확인
@@ -220,3 +235,24 @@ Task 5.2의 CC-CEDICT asset 포함 APK 18,588,003 bytes와 비교하면 provider
 - 공식 export에서 `LexicalEntry.val`이 관련 관용구에 재사용되어 최초 단독 PK 변환이 unique constraint로 실패했습니다. user Room이 아니라 provider index의 internal integer PK로 분리하고 provenance는 공식 ID와 표제어를 조합하도록 수정했습니다.
 - 공식 `Lemma`가 object뿐 아니라 활용형 variant를 포함한 array로도 나타나 최초 full conversion이 2,139개를 누락했습니다. 명시적 `writtenForm`을 두 형태에서 읽는 fixture regression을 추가한 뒤 전체 56,555개를 재생성했습니다.
 - 첫 compile은 sandbox 내부 Wrapper download가 `Permission denied: getsockopt`로 실패했습니다. 승인된 Gradle cache/network 접근으로 재실행해 성공했으며 시스템 설정은 변경하지 않았습니다.
+
+## 2026-08-23 PanLex fallback provider 검증
+
+검증한 official 2019-09-01 CSV snapshot을 저장소 밖 임시 디렉터리에서 읽어 `de/hi/pl/la ↔ ko` direct relation SQLite를 생성했습니다. full conversion은 1,753.8초였고 결과는 307,530 unique expression relations / 53,211,136 bytes였습니다. PC read-only SQLite exact query 500회는 median 0.060ms / p95 0.112ms였으며 `integrity_check`는 `ok`였습니다. Android 첫 asset copy latency와 기기 query latency는 계측 테스트를 실행하지 않아 측정하지 않았습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `python -X utf8 -m unittest discover -s tools\tests -v` | 성공, converter fixture 7개(기존 2 + PanLex 5) 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 14 suites / 85 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
+| `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 116,588,051 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,265,338 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 `emulator-5554`가 `Medium_Phone_Manual`이어서 수동 QA data를 보호함 |
+
+Task 6 기준 APK 93,170,569 bytes에서 23,417,482 bytes 증가했습니다. 53,211,136-byte PanLex SQLite asset은 APK 안에서 23,301,486 bytes로 deflate되었습니다. Android datasource의 네 언어 양방향 exact/normalization/ranking/truncation/malformed fixture는 AndroidTest APK에 컴파일됐지만 test-only AVD에서 실행된 것으로 표현하지 않습니다.
+
+중간 결함도 기록합니다.
+
+- converter fixture의 첫 성공 경로는 Windows에서 `VACUUM` connection이 열린 채 atomic replace를 시도해 file lock으로 실패했습니다. connection을 명시적으로 닫도록 수정하고 partial cleanup까지 회귀 테스트했습니다.
+- Unicode fixture는 normalized lookup key뿐 아니라 display source text도 NFC로 바뀐다고 잘못 기대했습니다. 공식 expression 표기는 보존하고 normalized key만 NFC라는 경계를 검증하도록 테스트를 수정했습니다.
+- 첫 AndroidTest APK compile은 fixture의 mixed SQL bind array가 intersection type으로 추론되어 실패했습니다. test-only array type을 `Any`로 명시한 뒤 재실행해 성공했습니다.

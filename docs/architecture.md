@@ -34,6 +34,7 @@ com.example.localvocabulary/
     ├── importer/           licensed result → transient editor seed guard/mapping
     ├── provider/cccedict/  GZip asset reader, v1/v2 parser, exact index, common mapping
     ├── provider/koreanbasic/ read-only SQLite exact/reverse lookup, common mapping
+    ├── provider/panlex/    filtered read-only SQLite direct relation lookup, common mapping
     └── registry/           provider discovery and exact language-pair filtering
 ```
 
@@ -53,6 +54,7 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
                              |                          |
                provider-grouped UiState     CC raw GZip -> parser -> exact index
                              |               Korean JSON-derived read-only SQLite
+                             |               PanLex CSV-derived filtered read-only SQLite
                              |
                explicit Use action -> DictionaryEntryDraftMapper
                              |
@@ -90,7 +92,7 @@ Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용�
 
 Provider 원문을 export 가능한 draft로 복사하려면 app-level `DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS`와 field별 local persistence/redistribution `PERMITTED`가 모두 필요합니다. 법적 permission과 현재 앱의 compliance 준비 상태를 분리하기 위한 이중 gate입니다. `REFERENCE_ONLY`, `UNKNOWN` 또는 `PROHIBITED` 결과는 원문을 transient entry에만 유지하고 manual draft에는 provider content를 넣지 않습니다. 사용자는 inline suggestion/reference를 보면서 자신의 headword, meaning, example, notes, tags를 작성해 정상 저장할 수 있습니다.
 
-CC-CEDICT와 한국어기초사전은 각각 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. explicit `Use`는 허용된 gloss/번역과 명시적 POS를 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 기존 sense는 지우지 않고 같은 stable source를 반복 선택하면 추가하지 않습니다. imported sense를 편집하면 provenance를 유지하고 `modifiedAfterImport`만 true로 바꿉니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
+CC-CEDICT와 한국어기초사전은 각각 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록, PanLex는 확인한 CC0 grant 아래 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. explicit `Use`는 허용된 gloss/번역과 명시적 POS를 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 기존 sense는 지우지 않고 같은 stable source를 반복 선택하면 추가하지 않습니다. imported sense를 편집하면 provenance를 유지하고 `modifiedAfterImport`만 true로 바꿉니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
 
 ## BCP 47 언어 식별
 
@@ -108,7 +110,7 @@ Descriptor는 `ONLINE`/`LOCAL_DATASET`, capability set, attribution, license 식
 
 Failure는 unsupported source, unsupported result language/kind, missing credential, authentication, rate limit, network, provider unavailable, malformed data, no result, local dataset unavailable, unknown을 구분합니다. CC-CEDICT provider는 asset 부재와 malformed dataset을 구분하며 offline lookup에서는 network failure를 만들지 않습니다.
 
-`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`와 `korean-basic-dictionary`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
+`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
 
 Headword 검색 request는 trim된 query와 exact language pair의 immutable 값입니다. 빈 query/pair는 실행하지 않고 `StateFlow.debounce(400ms)`, `distinctUntilChanged`, `collectLatest`를 적용합니다. provider들은 한 request 안에서 병렬 검색하지만 각 failure/exception은 해당 provider group에만 격리합니다. 새 결과는 suggestion state만 바꾸며 editor form은 건드리지 않습니다. 명시적인 `Use`도 사용자가 이미 sense/example을 입력했거나 기존 entry를 편집 중이면 그 값을 보존합니다.
 
@@ -130,6 +132,14 @@ asset은 user Room과 별도이며 앱 시작 시 import하지 않습니다. 첫
 
 211,701,760-byte asset은 첫 provider 검색 때 release별 `noBackupFilesDir`로 한 번 복사되고 read-only SQLite로 열린 뒤 disk index를 조회합니다. 누락/손상은 해당 provider group의 오류로만 변환됩니다. CC BY-SA 2.0 KR text는 generic provenance와 backup에 attribution을 동반하며 audio/image/video/pronunciation media는 index와 앱에서 제외합니다. 결정 근거는 [ADR-0006](decisions/0006-korean-basic-dictionary-local-reverse-index.md), 재현 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)에 있습니다.
 
+## PanLex filtered direct-relation index
+
+PanLex provider도 user Room과 별도인 read-only SQLite lifecycle을 사용합니다. `tools/build_panlex_index.py`는 검토한 BCP 47→PanLex variety mapping의 expression과 `kor-000` expression을 고르고, 같은 source-owned meaning에 함께 denotation된 distance-1 relation만 생성합니다. 다른 언어를 거치는 pivot이나 graph inference는 만들지 않습니다.
+
+같은 expression pair의 여러 attestation은 source group별 최대 quality를 합산하고 대표 `meaning_id`/`source_id`, source/group count를 보존합니다. runtime query는 NFC/trim/whitespace/root-case exact key와 indexed `LIMIT + 1`만 사용해 결과 제한과 truncation을 계산합니다. PanLex-specific relation/SQLite 타입은 `provider.panlex` 내부에서 common `ExternalDictionaryEntry`로 매핑됩니다.
+
+현재 descriptor는 기존 한국어기초사전 범위와 겹치지 않는 `de|hi|pl|la ↔ ko`만 선언합니다. 생성 index는 307,530 unique expression relations/53,211,136 bytes입니다. missing/malformed dataset은 PanLex suggestion group에만 표시되고 editor manual save를 막지 않습니다. CC0 source/license/release와 PanLex expression/meaning/source ID는 `Use` 후 generic sense provenance와 backup에 보존되며 dataset refresh는 user sense를 갱신하지 않습니다. 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md), 재현/coverage/update 절차는 [panlex-dataset.md](panlex-dataset.md)에 있습니다.
+
 ## 백업/복원 경계
 
 canonical backup은 Room schema와 독립된 `schemaVersion: 2` UTF-8 JSON입니다. v2는 sense provenance를 포함하고 user-authored sense는 해당 값이 null입니다. v1 DTO와 의미는 그대로 유지하며 decoder가 v1을 provenance 없는 current import model로 올립니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
@@ -140,8 +150,8 @@ canonical backup은 Room schema와 독립된 `schemaVersion: 2` UTF-8 JSON입니
 
 ## 테스트 전략
 
-- JVM: BCP 47/입력 규칙, Room relation/provenance mapping, JSON v1→v2 parse/validation, repository timestamp/aggregate behavior, ViewModel state transition, provider contract/registry/editor seed policy, CC-CEDICT parser/index/autofill, 한국어기초사전 양방향 mapping/언어/license/autofill, editor debounce/latest-query/provider grouping/error isolation/user-edit protection
-- Python fixture: 공식 JSON shape parsing, lexical ID 재사용, Unicode normalization, forward/reverse SQLite row와 metadata
-- Android instrumented: in-memory Room의 aggregate/search/tag cascade와 provenance export/import round trip/rollback/conflict policy, v1→v2 및 v2→v3 migration, 작은 별도 SQLite fixture의 한국어기초사전 forward/reverse query와 malformed schema 처리
+- JVM: BCP 47/입력 규칙, Room relation/provenance mapping, JSON v1→v2 parse/validation, repository timestamp/aggregate behavior, ViewModel state transition, provider contract/registry/editor seed policy, CC-CEDICT parser/index/autofill, 한국어기초사전 양방향 mapping/언어/license/autofill, PanLex mapping/ranking/provenance/registry coexistence, editor debounce/latest-query/provider grouping/error isolation/user-edit protection
+- Python fixture: 한국어기초사전 공식 JSON shape/lexical ID/forward-reverse SQLite, PanLex direct relation/variety allowlist/source-group ranking/Unicode/metadata/atomic failure cleanup
+- Android instrumented: in-memory Room의 aggregate/search/tag cascade와 provenance export/import round trip/rollback/conflict policy, v1→v2 및 v2→v3 migration, 작은 별도 SQLite fixture의 한국어기초사전 및 PanLex 양방향 exact query와 malformed schema 처리
 - Compose instrumented: 편집 validation, provider별 inline suggestion, compact attribution, imported source indicator 같은 핵심 UI 계약
 - CC-CEDICT tests는 출처와 CC BY-SA 4.0 notice가 있는 작은 UTF-8 fixture만 사용하며 full dataset이나 network에 의존하지 않음

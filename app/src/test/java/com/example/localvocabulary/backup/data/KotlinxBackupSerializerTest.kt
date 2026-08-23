@@ -58,7 +58,7 @@ class KotlinxBackupSerializerTest {
     }
 
     @Test
-    fun `mixed CC CEDICT Korean Basic Dictionary and user senses round trip`() {
+    fun `mixed CC CEDICT Korean Basic Dictionary PanLex and user senses round trip`() {
         val ccCedict = provenance()
         val koreanBasic = provenance().copy(
             providerId = "korean-basic-dictionary",
@@ -70,12 +70,23 @@ class KotlinxBackupSerializerTest {
             licenseUrl = "https://creativecommons.org/licenses/by-sa/2.0/kr/",
             datasetVersion = "2026-08-19",
         )
+        val panLex = provenance().copy(
+            providerId = "panlex",
+            sourceEntryId = "ex:11->ex:22",
+            sourceSenseId = "mn:33:src:44",
+            sourceName = "PanLex",
+            sourceUrl = "https://panlex.org/",
+            licenseName = "CC0 1.0 Universal",
+            licenseUrl = "https://creativecommons.org/publicdomain/zero/1.0/",
+            datasetVersion = "2019-09-01",
+        )
         val backup = backup(
             entries = listOf(
                 entry(
                     senses = listOf(
                         BackupSenseV2("hello", "", emptyList(), ccCedict),
                         BackupSenseV2("먹다", "동사", emptyList(), koreanBasic),
+                        BackupSenseV2("물", "", emptyList(), panLex),
                         BackupSenseV2("내가 쓴 뜻", "", emptyList()),
                     ),
                 ),
@@ -87,7 +98,8 @@ class KotlinxBackupSerializerTest {
 
         assertEquals(ccCedict, senses[0].provenance)
         assertEquals(koreanBasic, senses[1].provenance)
-        assertNull(senses[2].provenance)
+        assertEquals(panLex, senses[2].provenance)
+        assertNull(senses[3].provenance)
     }
 
     @Test

@@ -1,0 +1,8 @@
+The generated PanLex index is intentionally not committed.
+
+Generate panlex_korean_fallback.db from the reviewed official PanLex CSV snapshot by
+following docs/panlex-dataset.md. The generated index contains only direct
+same-meaning relations for explicitly selected PanLex language varieties.
+
+PanLex Database snapshots are dedicated to the public domain under CC0 1.0
+Universal. PanLex recommends citing https://panlex.org/ or its 2014 LREC paper.

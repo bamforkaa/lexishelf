@@ -8,6 +8,10 @@ import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDi
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryIndexSource
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryLookup
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryProvider
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexDataSource
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexSource
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexLookup
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexProvider
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
 import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
 import dagger.Module
@@ -46,6 +50,16 @@ abstract class DictionaryProviderModule {
         fun provideKoreanBasicDictionaryProvider(
             provider: KoreanBasicDictionaryProvider,
         ): DictionaryProvider = provider
+
+        @Provides
+        @Singleton
+        internal fun providePanLexLookup(
+            indexSource: PanLexIndexSource,
+        ): PanLexLookup = PanLexDataSource(indexSource)
+
+        @Provides
+        @IntoSet
+        fun providePanLexProvider(provider: PanLexProvider): DictionaryProvider = provider
 
         @Provides
         @Singleton
