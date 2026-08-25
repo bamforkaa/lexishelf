@@ -10,15 +10,17 @@ internal fun List<KoreanBasicDictionaryRecord>.toExternalEntries(
     queryText: String,
     descriptor: DictionaryProviderDescriptor,
     languagePair: DictionaryLanguagePair,
+    datasetVersion: String? = descriptor.dataset?.releaseId,
 ): List<ExternalDictionaryEntry> = if (languagePair.sourceLanguage == KOREAN_LANGUAGE) {
-    toForwardEntries(descriptor, languagePair)
+    toForwardEntries(descriptor, languagePair, datasetVersion)
 } else {
-    toReverseEntries(queryText.trim(), descriptor, languagePair)
+    toReverseEntries(queryText.trim(), descriptor, languagePair, datasetVersion)
 }
 
 private fun List<KoreanBasicDictionaryRecord>.toForwardEntries(
     descriptor: DictionaryProviderDescriptor,
     languagePair: DictionaryLanguagePair,
+    datasetVersion: String?,
 ): List<ExternalDictionaryEntry> = groupBy(KoreanBasicDictionaryRecord::stableSourceEntryId)
     .values
     .map { entryRecords ->
@@ -26,7 +28,7 @@ private fun List<KoreanBasicDictionaryRecord>.toForwardEntries(
         ExternalDictionaryEntry(
             providerId = descriptor.id,
             sourceEntryId = first.stableSourceEntryId,
-            datasetVersion = descriptor.dataset?.releaseId,
+            datasetVersion = datasetVersion,
             headword = first.koreanHeadword,
             sourceLanguage = languagePair.sourceLanguage,
             senses = entryRecords
@@ -56,6 +58,7 @@ private fun List<KoreanBasicDictionaryRecord>.toReverseEntries(
     queryText: String,
     descriptor: DictionaryProviderDescriptor,
     languagePair: DictionaryLanguagePair,
+    datasetVersion: String?,
 ): List<ExternalDictionaryEntry> = groupBy { record ->
     record.stableSourceEntryId to record.officialSenseId
 }.values.map { senseRecords ->
@@ -63,7 +66,7 @@ private fun List<KoreanBasicDictionaryRecord>.toReverseEntries(
     ExternalDictionaryEntry(
         providerId = descriptor.id,
         sourceEntryId = first.stableSourceEntryId,
-        datasetVersion = descriptor.dataset?.releaseId,
+        datasetVersion = datasetVersion,
         headword = queryText,
         sourceLanguage = languagePair.sourceLanguage,
         senses = listOf(

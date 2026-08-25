@@ -19,12 +19,17 @@ internal class JmDictDataSource(
     private val loadMutex = Mutex()
     private val json = Json { ignoreUnknownKeys = false }
 
-    @Volatile private var cachedLoad: IndexLoad? = null
+    @Volatile private var cachedLoad: IdentifiedLoad? = null
 
     override suspend fun exactLookup(query: String, resultLimit: Int?): JmDictLookupResult =
         withContext(ioDispatcher) {
             when (val load = loadIndex()) {
-                is IndexLoad.Ready -> query(load.database, normalizeExactKey(query), resultLimit)
+                is IndexLoad.Ready -> query(
+                    load.database,
+                    normalizeExactKey(query),
+                    resultLimit,
+                    load.datasetVersion,
+                )
                 IndexLoad.Unavailable -> JmDictLookupResult.DatasetUnavailable
                 is IndexLoad.Invalid -> JmDictLookupResult.MalformedDataset(load.detail)
             }
@@ -38,16 +43,22 @@ internal class JmDictDataSource(
         }
     }
 
-    private suspend fun loadIndex(): IndexLoad = cachedLoad ?: loadMutex.withLock {
-        cachedLoad ?: openAndValidate().also { cachedLoad = it }
+    private suspend fun loadIndex(): IndexLoad {
+        val identity = indexSource.activeIdentity()
+        return cachedLoad?.takeIf { it.identity == identity }?.load ?: loadMutex.withLock {
+            cachedLoad?.takeIf { it.identity == identity }?.load ?: run {
+                (cachedLoad?.load as? IndexLoad.Ready)?.database?.close()
+                openAndValidate().also { cachedLoad = IdentifiedLoad(identity, it) }
+            }
+        }
     }
 
     private fun openAndValidate(): IndexLoad = when (val opened = indexSource.open()) {
         JmDictIndexOpenResult.Missing -> IndexLoad.Unavailable
         is JmDictIndexOpenResult.Failed -> IndexLoad.Invalid(opened.detail)
         is JmDictIndexOpenResult.Opened -> try {
-            validate(opened.database)
-            IndexLoad.Ready(opened.database)
+            validate(opened.database, opened.datasetVersion)
+            IndexLoad.Ready(opened.database, opened.datasetVersion)
         } catch (error: SQLiteException) {
             opened.database.close()
             IndexLoad.Invalid(error.message)
@@ -57,7 +68,7 @@ internal class JmDictDataSource(
         }
     }
 
-    private fun validate(database: SQLiteDatabase) {
+    private fun validate(database: SQLiteDatabase, expectedDatasetVersion: String) {
         val schema = database.rawQuery("PRAGMA user_version", null).use { cursor ->
             check(cursor.moveToFirst()) { "JMdict index has no schema version" }
             cursor.getInt(0)
@@ -70,13 +81,14 @@ internal class JmDictDataSource(
             check(cursor.moveToFirst()) { "JMdict index has no release metadata" }
             cursor.getString(0)
         }
-        check(release == JMDICT_RELEASE_ID) { "Unexpected JMdict release: $release" }
+        check(release == expectedDatasetVersion) { "Unexpected JMdict release: $release" }
     }
 
     private fun query(
         database: SQLiteDatabase,
         normalizedQuery: String,
         resultLimit: Int?,
+        datasetVersion: String,
     ): JmDictLookupResult = try {
         val unique = linkedMapOf<String, JmDictMatch>()
         database.rawQuery(LOOKUP_QUERY, arrayOf(normalizedQuery)).use { cursor ->
@@ -95,7 +107,9 @@ internal class JmDictDataSource(
                 )
             }
         }
-        if (unique.isEmpty()) JmDictLookupResult.NoMatch else JmDictLookupResult.Matches(unique.values.toList())
+        if (unique.isEmpty()) JmDictLookupResult.NoMatch else {
+            JmDictLookupResult.Matches(unique.values.toList(), datasetVersion)
+        }
     } catch (error: SQLiteException) {
         JmDictLookupResult.MalformedDataset(error.message)
     } catch (error: SerializationException) {
@@ -103,10 +117,12 @@ internal class JmDictDataSource(
     }
 
     private sealed interface IndexLoad {
-        data class Ready(val database: SQLiteDatabase) : IndexLoad
+        data class Ready(val database: SQLiteDatabase, val datasetVersion: String) : IndexLoad
         data object Unavailable : IndexLoad
         data class Invalid(val detail: String?) : IndexLoad
     }
+
+    private data class IdentifiedLoad(val identity: String?, val load: IndexLoad)
 
     private companion object {
         val WHITESPACE = Regex("\\s+")

@@ -32,7 +32,7 @@ com.example.localvocabulary/
 └── dictionary/
     ├── domain/             provider contract, capability/failure/source models
     ├── importer/           licensed result → transient editor seed guard/mapping
-    ├── provider/cccedict/  GZip asset reader, v1/v2 parser, exact index, common mapping
+    ├── provider/cccedict/  active-pack GZip reader, v1/v2 parser, exact index, common mapping
     ├── provider/koreanbasic/ read-only SQLite exact/reverse lookup, common mapping
     ├── provider/panlex/    filtered read-only SQLite direct relation lookup, common mapping
     └── registry/           provider discovery and exact language-pair filtering
@@ -94,11 +94,11 @@ Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용�
 
 ## 사용자 편집 데이터 보호
 
-`VocabularyEntry`와 `ExternalDictionaryEntry`는 타입과 패키지가 분리되어 있습니다. provider DTO는 provider package 안에서 common external model로 mapping해야 하며 domain/UI로 직접 노출하지 않습니다. 검색 결과 표시에는 persistence permission을 적용하지 않습니다. 사용자가 결과의 `Use`를 선택하면 `DictionaryEntryDraftMapper`가 user-editable `VocabularyEntryDraft`와 별도의 source reference/transient entry를 만듭니다.
+`VocabularyEntry`와 `ExternalDictionaryEntry`는 타입과 패키지가 분리되어 있습니다. provider DTO는 provider package 안에서 common external model로 mapping해야 하며 domain/UI로 직접 노출하지 않습니다. 검색 결과 표시에는 persistence permission을 적용하지 않습니다. 사용자가 selectable result/sense row를 누르면 `DictionaryEntryDraftMapper`가 user-editable `VocabularyEntryDraft`와 별도의 source reference/transient entry를 만듭니다.
 
 Provider 원문을 export 가능한 draft로 복사하려면 app-level `DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS`와 field별 local persistence/redistribution `PERMITTED`가 모두 필요합니다. 법적 permission과 현재 앱의 compliance 준비 상태를 분리하기 위한 이중 gate입니다. `REFERENCE_ONLY`, `UNKNOWN` 또는 `PROHIBITED` 결과는 원문을 transient entry에만 유지하고 manual draft에는 provider content를 넣지 않습니다. 사용자는 inline suggestion/reference를 보면서 자신의 headword, meaning, example, notes, tags를 작성해 정상 저장할 수 있습니다.
 
-CC-CEDICT와 한국어기초사전은 각각 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록, PanLex는 확인한 CC0 grant 아래 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. explicit `Use`는 허용된 gloss/번역과 명시적 POS를 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 기존 sense는 지우지 않고 같은 stable source를 반복 선택하면 추가하지 않습니다. imported sense를 편집하면 provenance를 유지하고 `modifiedAfterImport`만 true로 바꿉니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
+CC-CEDICT와 한국어기초사전은 각각 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록, PanLex는 확인한 CC0 grant 아래 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. 명시적 row tap은 허용된 gloss/번역과 명시적 POS를 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 기존 sense는 지우지 않고 같은 stable source를 반복 선택하면 추가하지 않습니다. imported sense를 편집하면 provenance를 유지하고 `modifiedAfterImport`만 true로 바꿉니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
 
 ## BCP 47 언어 식별
 
@@ -118,15 +118,15 @@ Failure는 unsupported source, unsupported result language/kind, missing credent
 
 `DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`, `jmdict`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
 
-Headword 검색 request는 trim된 query와 exact language pair의 immutable 값입니다. 빈 query/pair는 실행하지 않고 `StateFlow.debounce(400ms)`, `distinctUntilChanged`, `collectLatest`를 적용합니다. provider들은 한 request 안에서 병렬 검색하지만 각 failure/exception은 해당 provider group에만 격리합니다. 새 결과는 suggestion state만 바꾸며 editor form은 건드리지 않습니다. 명시적인 `Use`도 사용자가 이미 sense/example을 입력했거나 기존 entry를 편집 중이면 그 값을 보존합니다.
+Headword 검색 request는 trim된 query와 exact language pair의 immutable 값입니다. 빈 query/pair는 실행하지 않고 `StateFlow.debounce(400ms)`, `distinctUntilChanged`, `collectLatest`를 적용합니다. provider들은 한 request 안에서 병렬 검색하지만 각 failure/exception은 해당 provider group에만 격리합니다. 새 결과는 suggestion state만 바꾸며 editor form은 건드리지 않습니다. 명시적인 row tap도 사용자가 이미 sense/example을 입력했거나 기존 entry를 편집 중이면 그 값을 보존합니다.
 
 ## CC-CEDICT dataset과 index
 
-선택한 전략은 raw UTF-8 GZip asset + lazy process-local exact index입니다. 수동 설치한 `cedict_1_0_ts_utf-8_mdbg.txt.gz`를 `CcCedictAssetSource`가 열고 `CcCedictParser`가 v1 single bracket와 v2 double bracket pinyin 형식을 구분합니다. comment/blank line은 count하고 malformed line은 line number/raw text/reason을 가진 issue로 보고하며, 유효 record를 손상시키거나 전체 앱을 crash시키지 않습니다. 유효 record가 하나도 없으면 malformed dataset failure입니다.
+선택한 전략은 installable pack의 raw UTF-8 GZip + lazy process-local exact index입니다. `CcCedictPackSource`가 `DictionaryPackResolver`의 active payload를 열고 `CcCedictParser`가 v1 single bracket와 v2 double bracket pinyin 형식을 구분합니다. comment/blank line은 count하고 malformed line은 line number/raw text/reason을 가진 issue로 보고하며, 유효 record를 손상시키거나 전체 앱을 crash시키지 않습니다. 유효 record가 하나도 없으면 malformed dataset failure입니다.
 
-index는 원본 file order를 보존한 Simplified/Traditional map 두 개입니다. exact match 결과가 여러 개면 같은 순서로 반환하고 result limit 적용 여부를 `isTruncated`로 표시합니다. pinyin/prefix/fuzzy index는 만들지 않았습니다. parser record와 index type은 provider package의 `internal` type이며 presentation에는 common `ExternalDictionaryEntry`만 전달합니다. pinyin은 common `DictionaryReading`, 다른 script form은 `DictionaryWrittenForm`, English slash sense/semicolon gloss 구조는 common sense/meaning으로 명시적으로 mapping합니다. Task 8에서 추가된 provider-neutral reading field를 통해 사용자가 명시적으로 `Use`하면 pinyin도 Room/backup에 저장할 수 있고 provenance를 따로 유지합니다. refresh는 저장된 reading을 덮어쓰지 않습니다. CC-CEDICT가 제공하지 않는 POS, example, etymology, audio는 비어 있으며 추론하지 않습니다.
+index는 원본 file order를 보존한 Simplified/Traditional map 두 개입니다. exact match 결과가 여러 개면 같은 순서로 반환하고 result limit 적용 여부를 `isTruncated`로 표시합니다. pinyin/prefix/fuzzy index는 만들지 않았습니다. parser record와 index type은 provider package의 `internal` type이며 presentation에는 common `ExternalDictionaryEntry`만 전달합니다. pinyin은 common `DictionaryReading`, 다른 script form은 `DictionaryWrittenForm`, English slash sense/semicolon gloss 구조는 common sense/meaning으로 명시적으로 mapping합니다. Task 8에서 추가된 provider-neutral reading field를 통해 사용자가 suggestion row를 명시적으로 누르면 pinyin도 Room/backup에 저장할 수 있고 provenance를 따로 유지합니다. refresh는 저장된 reading을 덮어쓰지 않습니다. CC-CEDICT가 제공하지 않는 POS, example, etymology, audio는 비어 있으며 추론하지 않습니다.
 
-asset은 user Room과 별도이며 앱 시작 시 import하지 않습니다. 첫 검색만 background dispatcher에서 전체 parse/index 비용을 내고 같은 process에서 재사용합니다. 향후 language pack은 `CcCedictDatasetSource` 구현만 교체할 수 있습니다. 전략 비교와 persistence 결정은 [ADR-0004](decisions/0004-cc-cedict-local-dataset.md), 설치/update 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있습니다.
+pack은 user Room과 별도입니다. 일반/release 앱은 사용자가 SAF로 설치한 pack만 사용합니다. Manual QA용 debug opt-in은 configured root의 pack을 debug APK에 포함하고 첫 실행에 동일한 production 검증·atomic activation 경로로 설치하지만 user Room에는 접근하지 않습니다. 같은 payload hash는 다시 설치하지 않습니다. 첫 검색만 background dispatcher에서 전체 parse/index 비용을 내고 active pack identity가 같은 동안 재사용합니다. 설치/update/delete로 identity가 바뀌면 cache를 다시 엽니다. 전략 비교와 persistence 결정은 [ADR-0004](decisions/0004-cc-cedict-local-dataset.md), 공통 lifecycle은 [ADR-0009](decisions/0009-installable-dictionary-packs.md)에 있습니다.
 
 ## 한국어기초사전 dataset과 reverse index
 
@@ -136,7 +136,7 @@ asset은 user Room과 별도이며 앱 시작 시 import하지 않습니다. 첫
 
 공식 전체 export의 lexical ID가 관련 관용구에 재사용되므로 dictionary DB 관계에는 internal integer PK를 쓰고 common provenance source entry ID에는 `공식 ID:표제어`, source sense ID에는 공식 sense ID를 사용합니다. provider-specific row와 SQLite type은 `provider.koreanbasic` 밖으로 나오지 않고 `ExternalDictionaryEntry`/`ExternalDictionarySense`로 매핑됩니다.
 
-211,701,760-byte asset은 첫 provider 검색 때 release별 `noBackupFilesDir`로 한 번 복사되고 read-only SQLite로 열린 뒤 disk index를 조회합니다. 누락/손상은 해당 provider group의 오류로만 변환됩니다. CC BY-SA 2.0 KR text는 generic provenance와 backup에 attribution을 동반하며 audio/image/video/pronunciation media는 index와 앱에서 제외합니다. 결정 근거는 [ADR-0006](decisions/0006-korean-basic-dictionary-local-reverse-index.md), 재현 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)에 있습니다.
+211,701,760-byte SQLite는 base APK에 복사하지 않고 active pack 경로에서 read-only로 엽니다. 누락/손상은 해당 provider group의 오류로만 변환됩니다. CC BY-SA 2.0 KR text는 generic provenance와 backup에 attribution을 동반하며 audio/image/video/pronunciation media는 index와 앱에서 제외합니다.
 
 ## PanLex filtered direct-relation index
 
@@ -153,9 +153,9 @@ canonical backup은 Room schema와 독립된 `schemaVersion: 3` UTF-8 JSON입니
 ## JMdict compact local index
 
 `JmDictDataSource`만 별도 read-only SQLite를 읽고 compressed XML-derived record는
-`provider.jmdict` 밖으로 노출되지 않습니다. common transient model은 alternative readings와
+`provider.jmdict` 밖으로 노출되지 않습니다. DB는 `DictionaryPackResolver`의 active pack에서 열며 common transient model은 alternative readings와
 writing/reading restriction set을 표현합니다. mapper는 `re_restr`/`re_nokanji`와
-`stagk`/`stagr`를 적용한 sense만 내보냅니다. inline UI는 sense별 Use를 제공하며 refresh는
+`stagk`/`stagr`를 적용한 sense만 내보냅니다. inline UI는 sense row 자체를 선택하며 refresh는
 Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다.
 
 가져오기 흐름은 `파일 읽기 → JSON parsing → schema version 분기 → 전체/필드/관계 validation → preview → 사용자 확인 → Room transaction`입니다. `ValidatedBackup`만 repository import 경계에 전달할 수 있어 parse되지 않은 문서가 DB 단계로 들어가지 않습니다. 실제 반영은 outer `VocabularyDatabase.withTransaction` 안에서 실행되며 aggregate 저장의 nested Room transaction도 같은 transaction에 참여합니다. 예외가 발생하면 삭제·태그·단어·관계 변경을 모두 rollback합니다.
@@ -169,3 +169,11 @@ Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmd
 - Android instrumented: in-memory Room의 aggregate/search/tag cascade와 provenance export/import round trip/rollback/conflict policy, v1→v2 및 v2→v3 migration, 작은 별도 SQLite fixture의 한국어기초사전 및 PanLex 양방향 exact query와 malformed schema 처리
 - Compose instrumented: 편집 validation, provider별 inline suggestion, compact attribution, imported source indicator 같은 핵심 UI 계약
 - CC-CEDICT tests는 출처와 CC BY-SA 4.0 notice가 있는 작은 UTF-8 fixture만 사용하며 full dataset이나 network에 의존하지 않음
+
+## Dictionary pack과 editor orchestration
+
+`dictionary.pack`은 generic manifest codec, installer/repository/resolver를 소유합니다. 네 provider의 source는 stable provider ID로 active pack file을 얻고 provider-specific parser/SQLite mapping은 기존 package 안에 남습니다. SAF URI/ZIP/checksum/파일 교체는 data boundary에서만 처리하고 Settings Composable은 action을 보낼 뿐 I/O를 하지 않습니다. pack 삭제/update는 `VocabularyDatabase`를 주입받지 않습니다.
+
+Word Editor option은 provider ID가 아니라 result language preference(`ko`, `en`, 나머지)에 따라 정렬합니다. 선택한 pair를 지원하는 여러 provider는 registry에서 함께 검색하며 provider별 group을 유지합니다. query limit은 provider당 20, UI materialization은 provider당 최대 25 sense row입니다. 모든 group은 header와 selectable sense/result row로 한 번 flatten됩니다. provider header를 제외한 selectable row가 4개 이하면 자연 높이 `Column`, 5개 이상이면 352dp로 제한한 단일 `LazyColumn`을 사용하므로 provider별 nested list는 없습니다. 결과 도착은 draft를 바꾸지 않으며 row tap만 기존 generic mapper를 호출합니다.
+
+`ExternalDictionaryReferenceProvider`는 content provider와 별도입니다. NAVER 구현은 검증된 BCP 47 base language mapping과 headword로 URI만 만들고 ViewModel effect 뒤 user tap에서 `ACTION_VIEW`를 보냅니다. network client, HTML parser, downloader, Room/backup mapping dependency가 없습니다.

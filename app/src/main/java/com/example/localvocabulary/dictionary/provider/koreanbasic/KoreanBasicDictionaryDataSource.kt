@@ -18,7 +18,7 @@ internal class KoreanBasicDictionaryDataSource(
     private val loadMutex = Mutex()
 
     @Volatile
-    private var cachedLoad: IndexLoad? = null
+    private var cachedLoad: IdentifiedLoad? = null
 
     override suspend fun exactLookup(
         query: String,
@@ -31,6 +31,7 @@ internal class KoreanBasicDictionaryDataSource(
                 query = normalizeExactKey(query),
                 sourceLanguageTag = sourceLanguageTag,
                 resultLanguageTag = resultLanguageTag,
+                datasetVersion = load.datasetVersion,
             )
             IndexLoad.Unavailable -> KoreanBasicDictionaryLookupResult.DatasetUnavailable
             is IndexLoad.Invalid -> KoreanBasicDictionaryLookupResult.MalformedDataset(load.detail)
@@ -46,16 +47,22 @@ internal class KoreanBasicDictionaryDataSource(
             }
         }
 
-    private suspend fun loadIndex(): IndexLoad = cachedLoad ?: loadMutex.withLock {
-        cachedLoad ?: openAndValidateIndex().also { cachedLoad = it }
+    private suspend fun loadIndex(): IndexLoad {
+        val identity = indexSource.activeIdentity()
+        return cachedLoad?.takeIf { it.identity == identity }?.load ?: loadMutex.withLock {
+            cachedLoad?.takeIf { it.identity == identity }?.load ?: run {
+                (cachedLoad?.load as? IndexLoad.Ready)?.database?.close()
+                openAndValidateIndex().also { cachedLoad = IdentifiedLoad(identity, it) }
+            }
+        }
     }
 
     private fun openAndValidateIndex(): IndexLoad = when (val opened = indexSource.open()) {
         KoreanBasicDictionaryIndexOpenResult.Missing -> IndexLoad.Unavailable
         is KoreanBasicDictionaryIndexOpenResult.Failed -> IndexLoad.Invalid(opened.detail)
         is KoreanBasicDictionaryIndexOpenResult.Opened -> try {
-            validateIndex(opened.database)
-            IndexLoad.Ready(opened.database)
+            validateIndex(opened.database, opened.datasetVersion)
+            IndexLoad.Ready(opened.database, opened.datasetVersion)
         } catch (error: SQLiteException) {
             opened.database.close()
             IndexLoad.Invalid(error.message)
@@ -65,7 +72,7 @@ internal class KoreanBasicDictionaryDataSource(
         }
     }
 
-    private fun validateIndex(database: SQLiteDatabase) {
+    private fun validateIndex(database: SQLiteDatabase, expectedDatasetVersion: String) {
         val schemaVersion = database.rawQuery("PRAGMA user_version", null).use { cursor ->
             check(cursor.moveToFirst()) { "Dictionary index has no schema version" }
             cursor.getInt(0)
@@ -80,7 +87,7 @@ internal class KoreanBasicDictionaryDataSource(
             check(cursor.moveToFirst()) { "Dictionary index has no release metadata" }
             cursor.getString(0)
         }
-        check(releaseId == KOREAN_BASIC_DICTIONARY_RELEASE_ID) {
+        check(releaseId == expectedDatasetVersion) {
             "Unexpected Korean Basic Dictionary release: $releaseId"
         }
     }
@@ -90,6 +97,7 @@ internal class KoreanBasicDictionaryDataSource(
         query: String,
         sourceLanguageTag: String,
         resultLanguageTag: String,
+        datasetVersion: String,
     ): KoreanBasicDictionaryLookupResult = try {
         val records = if (sourceLanguageTag == KOREAN_LANGUAGE_TAG) {
             database.queryForward(query, resultLanguageTag)
@@ -99,7 +107,7 @@ internal class KoreanBasicDictionaryDataSource(
         if (records.isEmpty()) {
             KoreanBasicDictionaryLookupResult.NoMatch
         } else {
-            KoreanBasicDictionaryLookupResult.Matches(records)
+            KoreanBasicDictionaryLookupResult.Matches(records, datasetVersion)
         }
     } catch (error: SQLiteException) {
         KoreanBasicDictionaryLookupResult.MalformedDataset(error.message)
@@ -139,10 +147,12 @@ internal class KoreanBasicDictionaryDataSource(
     }
 
     private sealed interface IndexLoad {
-        data class Ready(val database: SQLiteDatabase) : IndexLoad
+        data class Ready(val database: SQLiteDatabase, val datasetVersion: String) : IndexLoad
         data object Unavailable : IndexLoad
         data class Invalid(val detail: String?) : IndexLoad
     }
+
+    private data class IdentifiedLoad(val identity: String?, val load: IndexLoad)
 
     private companion object {
         const val KOREAN_LANGUAGE_TAG = "ko"

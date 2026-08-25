@@ -14,6 +14,9 @@ import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMapper
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMappingResult
 import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
+import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReference
+import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReferenceProvider
+import com.example.localvocabulary.dictionary.reference.NaverDictionaryLinkProvider
 import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
@@ -74,6 +77,8 @@ data class WordEditorUiState(
     val dictionarySuggestionGroups: List<DictionarySuggestionGroup> = emptyList(),
     val dictionarySuggestionMessage: String? = null,
     val dictionaryReference: ExternalDictionaryEntry? = null,
+    val externalDictionaryReference: ExternalDictionaryReference? = null,
+    val selectedSuggestionKeys: Set<String> = emptySet(),
     val validationError: VocabularyValidationError? = null,
     val loadErrorMessage: String? = null,
     val saveErrorMessage: String? = null,
@@ -87,6 +92,7 @@ sealed interface WordEditorAction {
     data class DictionarySuggestionSelected(
         val entry: ExternalDictionaryEntry,
     ) : WordEditorAction
+    data object OpenExternalDictionaryReference : WordEditorAction
     data class NotesChanged(val value: String) : WordEditorAction
     data object AddSense : WordEditorAction
     data class RemoveSense(val senseKey: Long) : WordEditorAction
@@ -105,6 +111,7 @@ sealed interface WordEditorAction {
 
 sealed interface WordEditorEffect {
     data class Saved(val entryId: Long) : WordEditorEffect
+    data class OpenExternalDictionaryReference(val uri: String) : WordEditorEffect
 }
 
 @OptIn(FlowPreview::class)
@@ -116,6 +123,8 @@ class WordEditorViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     private val dictionaryProviderRegistry: DictionaryProviderRegistry,
     private val timeProvider: TimeProvider,
+    private val externalReferenceProvider: ExternalDictionaryReferenceProvider =
+        NaverDictionaryLinkProvider(),
 ) : ViewModel() {
     private val requestedEntryId: Long? = savedStateHandle["entryId"]
     private val mutableUiState = MutableStateFlow(WordEditorUiState(entryId = requestedEntryId))
@@ -170,6 +179,7 @@ class WordEditorViewModel @Inject constructor(
                 updateForm {
                     copy(headword = action.value, dictionaryReference = null)
                 }
+                refreshExternalDictionaryReference()
                 scheduleDictionarySuggestions()
             }
             is WordEditorAction.LanguageTagChanged -> {
@@ -177,6 +187,7 @@ class WordEditorViewModel @Inject constructor(
                     copy(languageTag = action.value, dictionaryReference = null)
                 }
                 refreshDictionaryLanguageOptions()
+                refreshExternalDictionaryReference()
             }
             is WordEditorAction.ReadingChanged -> updateForm {
                 copy(
@@ -191,6 +202,7 @@ class WordEditorViewModel @Inject constructor(
             is WordEditorAction.DictionarySuggestionSelected -> {
                 selectDictionarySuggestion(action.entry)
             }
+            WordEditorAction.OpenExternalDictionaryReference -> openExternalDictionaryReference()
             is WordEditorAction.NotesChanged -> updateForm { copy(notes = action.value) }
             WordEditorAction.AddSense -> updateSenses {
                 copy(
@@ -265,6 +277,7 @@ class WordEditorViewModel @Inject constructor(
                     }
                 }
                 if (entry != null) refreshDictionaryLanguageOptions()
+                refreshExternalDictionaryReference()
             }
             .onFailure { error ->
                 mutableUiState.update {
@@ -285,9 +298,7 @@ class WordEditorViewModel @Inject constructor(
                 .flatMap(DictionaryProviderDescriptor::supportedLanguagePairs)
                 .filter { it.sourceLanguage == source }
                 .distinct()
-                .sortedWith(
-                    compareBy({ it.resultLanguage.value }, { it.resultKind.name }),
-                )
+                .sortedWith(DictionaryResultLanguagePreference.comparator)
                 .map { pair ->
                     DictionaryLanguagePairOption(
                         key = pair.stableKey(),
@@ -435,6 +446,7 @@ class WordEditorViewModel @Inject constructor(
     }
 
     private fun selectDictionarySuggestion(entry: ExternalDictionaryEntry) {
+        val suggestionKey = entry.suggestionKey()
         when (
             val mapping = DictionaryEntryDraftMapper.map(
                 entry = entry,
@@ -468,12 +480,30 @@ class WordEditorViewModel @Inject constructor(
                             state.readingProvenance
                         },
                         dictionaryReference = mapping.seed.transientEntry,
+                        selectedSuggestionKeys = state.selectedSuggestionKeys + suggestionKey,
                     )
                 }
             }
             is DictionaryEntryDraftMappingResult.ReferenceOnly -> mutableUiState.update {
-                it.copy(dictionaryReference = mapping.transientEntry)
+                it.copy(
+                    dictionaryReference = mapping.transientEntry,
+                    selectedSuggestionKeys = it.selectedSuggestionKeys + suggestionKey,
+                )
             }
+        }
+    }
+
+    private fun refreshExternalDictionaryReference() {
+        val state = mutableUiState.value
+        val language = Bcp47LanguageTag.parse(state.languageTag)
+        val reference = language?.let { externalReferenceProvider.resolve(it, state.headword) }
+        mutableUiState.update { it.copy(externalDictionaryReference = reference) }
+    }
+
+    private fun openExternalDictionaryReference() {
+        val uri = mutableUiState.value.externalDictionaryReference?.uri ?: return
+        viewModelScope.launch {
+            mutableEffects.emit(WordEditorEffect.OpenExternalDictionaryReference(uri))
         }
     }
 

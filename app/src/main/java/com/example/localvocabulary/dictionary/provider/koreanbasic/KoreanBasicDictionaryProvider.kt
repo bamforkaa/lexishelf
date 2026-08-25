@@ -56,6 +56,7 @@ class KoreanBasicDictionaryProvider @Inject internal constructor(
                     queryText = query.text,
                     descriptor = descriptor,
                     languagePair = query.languagePair,
+                    datasetVersion = result.datasetVersion,
                 )
                 val entries = query.resultLimit?.let(allEntries::take) ?: allEntries
                 DictionarySearchResult.Success(

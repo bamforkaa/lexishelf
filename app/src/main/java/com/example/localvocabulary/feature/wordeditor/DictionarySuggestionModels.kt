@@ -17,6 +17,19 @@ data class DictionarySuggestionGroup(
     val message: String? = null,
 )
 
+internal object DictionaryResultLanguagePreference {
+    private val preferredLanguages = listOf("ko", "en")
+
+    val comparator: Comparator<DictionaryLanguagePair> = compareBy(
+        { pair ->
+            val baseLanguage = pair.resultLanguage.value.substringBefore('-')
+            preferredLanguages.indexOf(baseLanguage).takeIf { it >= 0 } ?: preferredLanguages.size
+        },
+        { it.resultLanguage.value },
+        { it.resultKind.name },
+    )
+}
+
 internal data class DictionarySuggestionRequest(
     val query: String = "",
     val languagePair: DictionaryLanguagePair? = null,
@@ -29,4 +42,11 @@ internal fun DictionaryLanguagePair.stableKey(): String = listOf(
     sourceLanguage.value,
     resultLanguage.value,
     resultKind.name,
+).joinToString("|")
+
+internal fun ExternalDictionaryEntry.suggestionKey(): String = listOf(
+    providerId.value,
+    sourceEntryId.orEmpty(),
+    senses.singleOrNull()?.sourceSenseId.orEmpty(),
+    headword,
 ).joinToString("|")

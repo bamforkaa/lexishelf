@@ -1,5 +1,8 @@
 # PanLex Korean fallback dataset
 
+> Task 9부터 생성 DB는 APK asset이 아니라 `panlex/generated/`에서 generic pack으로
+> 만듭니다. 현재 root/install 절차는 [dictionary-packs.md](dictionary-packs.md)가 우선합니다.
+
 ## 역할과 현재 범위
 
 PanLex는 기존 한국어기초사전이 지원하지 않는 언어에 대한 보조 lexical translation source입니다. 현재 앱은 다음 exact translation pair만 선언합니다.
@@ -59,13 +62,11 @@ SHA-1 Base32 값은 Web Archive CDX가 해당 capture에 기록한 digest와 일
 
 ## 생성 방법
 
-원본 ZIP을 저장소 밖에 준비한 뒤 Python 3 표준 라이브러리 변환기를 명시적으로 실행합니다.
+원본 ZIP을 `<dataset-root>/panlex/source/panlex-20190901-csv.zip`에 준비한 뒤 Python 3 표준 라이브러리 변환기와 pack builder를 실행합니다.
 
 ```powershell
-python -X utf8 .\tools\build_panlex_index.py `
-  C:\path\to\panlex-20190901-csv.zip `
-  .\app\src\main\assets\dictionary\panlex\panlex_korean_fallback.db `
-  --languages de,hi,pl,la
+python -X utf8 -m tools.build_panlex_index --languages de,hi,pl,la
+python -m tools.build_dictionary_packs --pack panlex
 ```
 
 변환기는 다음을 실패 조건으로 검사합니다.
@@ -76,7 +77,7 @@ python -X utf8 .\tools\build_panlex_index.py `
 - 정수 ID와 source quality/group field의 형식
 - 최종 DB 생성 후 임시 파일을 닫고 atomic replace
 
-원본 ZIP, stage DB와 생성 DB는 Git에 포함하지 않습니다. Gradle이나 앱은 데이터를 자동 download하지 않습니다. asset이 없으면 build와 수동 단어 저장은 정상이고 PanLex suggestion group만 `LocalDatasetUnavailable`입니다.
+원본 ZIP, stage DB와 생성 DB는 Git에 포함하지 않습니다. Gradle이나 앱은 데이터를 자동 download하지 않습니다. pack이 없으면 build와 수동 단어 저장은 정상이고 PanLex suggestion group만 `LocalDatasetUnavailable`입니다.
 
 ## 직접 관계 정책과 ranking
 
@@ -146,7 +147,7 @@ PanLex를 기존 11개 언어의 중복 provider로 등록할지 판단하기 �
 
 ## runtime과 update/rollback
 
-앱은 asset을 `noBackupFilesDir/dictionary/panlex/2019-09-01/`에 한 번 복사해 read-only로 엽니다. schema, release와 선택 언어 metadata가 다르면 fallback data를 사용하지 않고 provider-local malformed error를 반환합니다. dictionary DB는 사용자 Room에 import되지 않으며 JSON backup에도 dataset 전체가 들어가지 않습니다.
+설정 화면에서 generic `.dictpack`을 설치하면 production pack validator가 검증한 SQLite를 `noBackupFilesDir/dictionary-packs/panlex/panlex.ko-fallback` 아래에서 read-only로 엽니다. schema, release와 선택 언어 metadata가 다르면 fallback data를 사용하지 않고 provider-local malformed error를 반환합니다. dictionary DB는 사용자 Room에 import되지 않으며 JSON backup에도 dataset 전체가 들어가지 않습니다.
 
 새 release update 절차:
 
@@ -155,7 +156,7 @@ PanLex를 기존 11개 언어의 중복 provider로 등록할지 판단하기 �
 3. 필요한 language-variety UID를 각 언어별로 다시 review한다.
 4. converter fixture와 full conversion을 실행한다.
 5. coverage, QA sample, ranking, DB/APK 크기와 Android latency를 비교한다.
-6. `PANLEX_RELEASE_ID`, count, docs와 asset path를 함께 갱신한다.
-7. old/new asset을 별도로 검증한 뒤 새 파일만 배포한다. 실패하면 기존 release descriptor/asset을 유지한다.
+6. `PANLEX_RELEASE_ID`, count, docs와 pack manifest metadata를 함께 갱신한다.
+7. old/new pack을 별도로 검증한 뒤 새 파일만 배포한다. 실패하면 기존 active version을 유지한다.
 
-provider refresh는 저장된 vocabulary를 자동 갱신하지 않습니다. 사용자가 `Use`한 번역만 기존 generic provenance pipeline을 통해 user-owned editable sense가 되며 이후 provider dataset update와 lifecycle이 분리됩니다.
+provider refresh는 저장된 vocabulary를 자동 갱신하지 않습니다. 사용자가 명시적으로 누른 suggestion row만 기존 generic provenance pipeline을 통해 user-owned editable sense가 되며 이후 provider dataset update와 lifecycle이 분리됩니다.

@@ -109,7 +109,7 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 - 검색 결과의 pinyin은 generic reading field로 명시적 `Use` 때만 저장하며 entry-level provenance를 함께 보존한다. notes에 넣지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
 - user-authored sense에는 provenance가 없고 imported sense에는 provenance가 있다. 사용자가 imported text를 자유롭게 수정할 수 있지만 출처는 유지되고 수정 여부가 표시된다. JSON backup도 이 구분을 보존한다.
 - 검색 결과 도착이나 provider refresh는 editor/Room을 변경하지 않는다. 같은 source entry/sense를 반복 선택하면 accidental duplicate를 추가하지 않는다.
-- full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 ignored asset path에 둔다. 정확한 설치/update/rollback 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)에 있다.
+- full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 configured dataset root에 두고 generic `.dictpack`으로 만든다. 정확한 install/update/rollback 절차는 [dictionary-packs.md](dictionary-packs.md)에 있다.
 
 공식 project wiki home의 오래된 CC BY-SA 3.0 표기와 현재 download/release page의 4.0 표기가 일치하지 않는 점은 숨기지 않는다. 이번 구현이 선택한 2026 release의 distribution pages가 명시하는 4.0을 적용했고, future artifact update 때 license를 다시 확인한다.
 
@@ -160,7 +160,7 @@ API 대신 local dataset을 선택한 이유:
 - explicit `Use`로 가져온 한국어/외국어 translation과 명시적 POS에는 provider/source entry/source sense/license/release/import/수정 provenance가 함께 저장되고 JSON backup에도 유지된다.
 - 공식 전체 export의 ID가 관련 관용구에서 재사용되므로 source entry reference는 공식 ID와 표제어를 함께 사용하고 공식 sense ID도 별도로 보존한다.
 - provider refresh나 새 release는 저장된 user-authored/provider-derived sense를 자동 수정하지 않는다.
-- 생성 SQLite와 원본 ZIP은 Git에 포함하지 않는다. 설치/update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)에 있다.
+- 생성 SQLite와 원본 ZIP은 Git/base APK에 포함하지 않고 generic pack으로 설치한다. 생성 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md), 설치 lifecycle은 [dictionary-packs.md](dictionary-packs.md)에 있다.
 - 공식 중국어 data에 script 구분이 없으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 BCP 47 `zh`를 사용한다.
 
 ## PanLex
@@ -204,7 +204,7 @@ API 대신 local dataset을 선택한 이유:
 미결정 사항:
 
 - 현재 official distribution/API 복구 여부와 새 release의 안정 download/checksum manifest
-- public release에서 53MB raw asset을 base APK에 둘지 별도 language pack으로 전달할지
+- public release용 signed pack catalog와 remote delivery 정책
 - 여러 source attestation의 상세 attribution을 UI에 노출할 필요
 
 ## 구현 전 공통 승인 체크리스트
@@ -217,3 +217,12 @@ API 대신 local dataset을 선택한 이유:
 - source entry ID 및 provenance 보존 방식
 - 테스트 fixture의 재배포 허용 여부와 sanitization
 - 사용자 편집 내용이 provider refresh로 덮어써지지 않는 테스트
+
+## NAVER Dictionary external reference (data provider 아님)
+
+- 공식 시작점: [NAVER Dictionary](https://dict.naver.com/)
+- 2026-08-23에 현재 공식 service destination을 확인한 언어만 중앙 mapping에 넣었습니다: `en`, `ja`, `zh`, `fr`, `de`, `es`, `ru`, `ar`, `hi`, `pl`, `mn`, `la`.
+- `zh-Hans`/`zh-Hant`는 external navigation에만 base `zh` destination을 사용합니다. 이는 provider dataset의 script identity를 합치는 규칙이 아닙니다.
+- URI는 해당 공식 base와 `#/search?query=<encoded-headword>` 조합으로 provider 구현 한 곳에서 만듭니다. destination이 바뀌면 이 mapping과 고정 테스트를 함께 재검증합니다.
+- 앱은 NAVER page/API/audio를 fetch, scrape, parse, prefetch, cache, import 또는 재배포하지 않습니다. 사용자가 화면 링크를 누를 때만 Android `ACTION_VIEW`를 보내며 Manifest에는 `INTERNET` permission이 없습니다.
+- NAVER는 자동 provenance source가 아닙니다. 외부 페이지를 보고 사용자가 직접 쓴 뜻/reading/note는 user-authored content입니다.

@@ -1,8 +1,8 @@
 # ADR-0004: CC-CEDICT raw GZip asset과 reference-only import
 
-- 상태: Superseded in part by ADR-0005
+- 상태: Superseded by ADR-0005 and ADR-0009
 - 날짜: 2026-08-23
-- 후속 변경: reference-only import 결정은 [ADR-0005](0005-dictionary-import-provenance.md)에서 provenance 기반 autofill로 대체됨
+- 후속 변경: reference-only import 결정은 [ADR-0005](0005-dictionary-import-provenance.md)에서 provenance 기반 autofill로, Android asset 전달 방식은 [ADR-0009](0009-installable-dictionary-packs.md)에서 canonical development root와 installable pack으로 대체됨
 
 ## Context
 
@@ -26,7 +26,7 @@ CC BY-SA 4.0은 조건을 지키는 복사·재배포를 허용하지만 attribu
 
 ## Decision
 
-- Strategy A를 사용한다. 브라우저로 수동 확보한 공식 `cedict_1_0_ts_utf-8_mdbg.txt.gz`를 Android asset에 두고 첫 검색 시 background에서 parse하여 process-local Simplified/Traditional exact index를 만든다.
+- 당시 Strategy A를 사용하여 공식 `cedict_1_0_ts_utf-8_mdbg.txt.gz`를 Android asset으로 전달했다. 현재는 `<dataset-root>/cc-cedict/source/`의 같은 GZip을 `.dictpack`으로 만들고 active pack에서 읽으며 parser/index 전략만 유지한다.
 - dataset binary는 자동 다운로드하지 않고 저장소에도 포함하지 않는다. descriptor는 검증한 release timestamp, entry count, artifact, format, source와 license를 보존한다. 파일이 없으면 provider는 `LocalDatasetUnavailable`을 반환한다.
 - parser와 provider-specific record/index는 `dictionary.provider.cccedict` 밖으로 노출하지 않는다. 공통 경계에는 `ExternalDictionaryEntry`만 전달한다.
 - CC-CEDICT legal permission은 local persistence와 redistribution `PERMITTED`로 표현하되 `DictionaryVocabularyImportMode.REFERENCE_ONLY`를 사용한다. 이는 라이선스가 저장을 금지한다는 뜻이 아니라 현재 app schema가 의무를 안전하게 전달할 준비가 안 됐다는 뜻이다.

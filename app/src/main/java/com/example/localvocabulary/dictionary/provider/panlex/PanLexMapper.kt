@@ -9,10 +9,11 @@ import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
 internal fun PanLexRelationRecord.toExternalEntry(
     descriptor: DictionaryProviderDescriptor,
     languagePair: DictionaryLanguagePair,
+    datasetVersion: String? = descriptor.dataset?.releaseId,
 ): ExternalDictionaryEntry = ExternalDictionaryEntry(
     providerId = descriptor.id,
     sourceEntryId = "ex:$sourceExpressionId->ex:$targetExpressionId",
-    datasetVersion = descriptor.dataset?.releaseId,
+    datasetVersion = datasetVersion,
     headword = sourceText,
     sourceLanguage = languagePair.sourceLanguage,
     senses = listOf(

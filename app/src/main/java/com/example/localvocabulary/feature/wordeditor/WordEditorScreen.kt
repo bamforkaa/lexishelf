@@ -116,6 +116,16 @@ fun WordEditorScreen(
                             modifier = Modifier.testTag("reading_provenance"),
                         )
                     }
+                    state.externalDictionaryReference?.let { reference ->
+                        TextButton(
+                            onClick = {
+                                onAction(WordEditorAction.OpenExternalDictionaryReference)
+                            },
+                            modifier = Modifier.testTag("external_dictionary_reference"),
+                        ) {
+                            Text("${reference.destinationName}에서 확인 ↗")
+                        }
+                    }
                 }
             }
 

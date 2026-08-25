@@ -58,10 +58,10 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 
 ## 선택 사항: CC-CEDICT local dataset
 
-CC-CEDICT provider에는 SDK 도구, network permission 또는 API key가 필요하지 않습니다. 다만 full GZip binary는 저장소에 포함되지 않으므로 실제 lookup을 하려면 브라우저에서 공식 release를 수동으로 받아 다음 asset 경로에 두어야 합니다.
+CC-CEDICT provider에는 SDK 도구, network permission 또는 API key가 필요하지 않습니다. 다만 full GZip binary는 저장소에 포함되지 않으므로 실제 lookup을 하려면 브라우저에서 공식 release를 수동으로 받아 canonical dataset root에 두어야 합니다.
 
 ```text
-app/src/main/assets/dictionary/cccedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+<dataset-root>/cc-cedict/source/cedict_1_0_ts_utf-8_mdbg.txt.gz
 ```
 
 MDBG는 automated/scripted access를 금지하므로 project script가 다운로드하지 않습니다. 기대 release, attribution, 파일 복사와 update 절차는 [cc-cedict-dataset.md](cc-cedict-dataset.md)를 따르세요. 파일이 없어도 build/test는 가능하며 앱은 검색 시 dataset unavailable을 표시합니다.
@@ -71,27 +71,26 @@ MDBG는 automated/scripted access를 금지하므로 project script가 다운로
 한국어기초사전 provider도 API key, network permission 또는 Android SDK 추가 도구가 필요하지 않습니다. 공식 [사전 전체 내려받기](https://krdict.korean.go.kr/download/downloadPopup)에서 JSON ZIP을 브라우저로 받은 뒤 Python 3 표준 라이브러리 변환기를 실행합니다.
 
 ```powershell
-python .\tools\build_krdict_index.py `
-  C:\path\to\korean-basic-dictionary-json.zip `
-  .\app\src\main\assets\dictionary\koreanbasic\korean_basic_dictionary.db
+Copy-Item C:\path\to\korean-basic-dictionary-json.zip `
+  D:\lang-Database\korean-basic\source\korean-basic-dictionary-json.zip
+python -m tools.build_krdict_index
 ```
 
-생성 DB는 약 200MB이며 `.gitignore` 대상입니다. 누락되어도 build/test와 수동 저장, CC-CEDICT 검색은 정상이고 한국어기초사전 suggestion group만 dataset unavailable을 표시합니다. 공식 source, license, 현재 release의 기대 count와 update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)를 따르세요.
+생성 DB는 `<dataset-root>/korean-basic/generated/korean_basic_dictionary.db`에 생기며 약 200MB입니다. 누락되어도 pack 미포함 build/test와 수동 저장, 다른 provider는 정상이고 한국어기초사전 suggestion group만 dataset unavailable을 표시합니다. 공식 source, license, 현재 release의 기대 count와 update 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md)를 따르세요.
 
 ## 선택 사항: PanLex Korean fallback index
 
-PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별도 SQLite asset을 사용합니다. 현재 공식 distribution/API가 unavailable하므로 확인하지 않은 mirror나 third-party 변환본을 사용하지 마세요. 검증한 2019-09-01 공식 CSV snapshot의 archived official response, 정확한 SHA-256/SHA-1 digest와 노후화 제한은 [panlex-dataset.md](panlex-dataset.md)에 기록했습니다.
+PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별도 read-only SQLite pack payload를 사용합니다. 현재 공식 distribution/API가 unavailable하므로 확인하지 않은 mirror나 third-party 변환본을 사용하지 마세요. 검증한 2019-09-01 공식 CSV snapshot의 archived official response, 정확한 SHA-256/SHA-1 digest와 노후화 제한은 [panlex-dataset.md](panlex-dataset.md)에 기록했습니다.
 
 원본 ZIP을 저장소 밖에 준비한 뒤 Python 3 표준 라이브러리 변환기를 실행합니다.
 
 ```powershell
-python -X utf8 .\tools\build_panlex_index.py `
-  C:\path\to\panlex-20190901-csv.zip `
-  .\app\src\main\assets\dictionary\panlex\panlex_korean_fallback.db `
-  --languages de,hi,pl,la
+Copy-Item C:\path\to\panlex-20190901-csv.zip `
+  D:\lang-Database\panlex\source\panlex-20190901-csv.zip
+python -m tools.build_panlex_index --languages de,hi,pl,la
 ```
 
-생성 DB는 53,211,136 bytes이며 `.gitignore` 대상입니다. 누락되어도 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 reviewed language-variety allowlist와 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
+생성 DB는 `<dataset-root>/panlex/generated/panlex_korean_fallback.db`에 생기며 현재 검증본은 53,211,136 bytes입니다. 누락되어도 pack 미포함 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 reviewed language-variety allowlist와 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
 
 ## 선택 사항: JMdict local index
 
@@ -99,13 +98,12 @@ Android build는 JMdict를 다운로드하지 않습니다. 공식 `JMdict_e.gz`
 release를 확인하고 다음을 실행합니다.
 
 ```powershell
-python -X utf8 .\tools\build_jmdict_index.py `
-  C:\path\to\JMdict_e.gz `
-  .\app\src\main\assets\dictionary\jmdict\jmdict.db
+Copy-Item C:\path\to\JMdict_e.gz D:\lang-Database\jmdict\source\JMdict_e.gz
+python -m tools.build_jmdict_index
 ```
 
-정확한 Task 8 artifact와 checksum은 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다. DB가
-없어도 build와 manual vocabulary는 정상이며 JMdict suggestion group만 dataset unavailable입니다.
+정확한 artifact와 checksum은 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다. 생성 DB는
+`<dataset-root>/jmdict/generated/jmdict.db`이며, 없어도 pack 미포함 build와 manual vocabulary는 정상이고 JMdict suggestion group만 dataset unavailable입니다.
 
 ## 누락 항목 설치 및 설정
 
@@ -169,6 +167,51 @@ python -X utf8 .\tools\build_jmdict_index.py `
 5. 프로젝트 루트에 자신의 SDK 경로를 담은 `local.properties`를 만듭니다.
 6. 전역 Gradle이나 전역 Kotlin CLI를 설치하지 말고 `gradlew.bat`/`gradlew`를 사용합니다.
 7. 위 검사 명령을 실행합니다.
+
+## 대용량 dictionary dataset root와 pack
+
+Android SDK 경로와 dictionary dataset 경로는 별개입니다. converter는 다음 우선순위로 개발 PC root를 결정합니다.
+
+1. 현재 process의 `LANG_DATABASE_DIR`
+2. gitignored `local.properties`의 `dictionaryDataDir`
+3. 저장소 내부 gitignored `.local/dictionary-data`
+
+Windows에서 `D:\lang-Database`를 지속적으로 사용할 때는 project root의 gitignored `local.properties`에 다음 값을 추가하는 방법을 권장합니다.
+
+```properties
+dictionaryDataDir=D\:\\lang-Database
+bundleDictionaryPacksInDebug=true
+```
+
+두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. `installDebug` 전에 Python pack builder가 실행되며, 첫 앱 실행에서 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
+
+현재 PowerShell session에서만 우선 적용하려면 환경 변수를 사용합니다.
+
+```powershell
+$env:LANG_DATABASE_DIR = 'D:\lang-Database'
+```
+
+그다음 converter/pack builder를 실행합니다. 각 도구는 실제로 선택한 root를 `Dictionary dataset root:` 다음 줄에 출력합니다.
+
+```powershell
+python -m tools.build_jmdict_index
+python -m tools.build_krdict_index
+python -m tools.build_panlex_index
+python -m tools.build_dictionary_packs
+```
+
+경로에 공백이 있어도 지원하며 clean clone에서 D:가 없어도 일반 Gradle build/test는 실패하지 않습니다. 설정 변경은 파일 이동 명령이 아니므로 기존 source/generated/packs를 자동 이동하지 않습니다. 기존 dataset directory를 새 root 아래의 동일한 dataset layout으로 직접 이동하거나, 새 root의 `source/`에 원본을 준비하고 converter와 pack builder를 다시 실행해야 합니다. 이번 버전에는 자동 migration이 없습니다.
+
+생성한 `.dictpack`은 설정 화면의 `로컬 pack 설치`로 고릅니다. 앱은 Storage Access Framework를 사용하므로 storage permission이 필요하지 않습니다. Android runtime 저장 경로는 `noBackupFilesDir/dictionary-packs`이며 Windows root와 무관합니다. 자세한 layout/manifest/update/rollback은 [dictionary-packs.md](dictionary-packs.md)에 있습니다.
+
+Manual QA에서는 Test AVD를 끄고 `Medium_Phone_Manual`만 연결한 뒤 다음처럼 네 pack을 Downloads에 staging할 수 있습니다.
+
+```powershell
+python -m tools.build_dictionary_packs
+python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual
+```
+
+`bundleDictionaryPacksInDebug=false`인 경우 staging은 설치가 아닙니다. 앱의 설정 → `로컬 pack 설치`에서 `Download/LocalVocabularyPacks`의 파일을 선택해야 합니다. `true`인 Manual QA 구성에서는 `installDebug`가 pack 포함 APK를 설치하고 첫 실행이 `AndroidDictionaryPackRepository`의 manifest/size/SHA-256/payload 검증과 atomic activation을 수행합니다.
 
 ## 이번 작업에서 실제 실행한 검증
 
@@ -285,3 +328,20 @@ Task 6 기준 APK 93,170,569 bytes에서 23,417,482 bytes 증가했습니다. 53
 | `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 37개 통과 |
 
 full asset 계측 test의 강제 첫 복사는 531ms, 첫 open + `食べる` exact query는 19ms였습니다. 중간에 추가한 Compose test가 동일 POS node 두 개를 단일 node로 기대해 37개 중 1개가 실패했습니다. production UI는 두 sense의 POS를 정상 표시하고 있었으며, test expectation을 2개로 바로잡은 뒤 해당 화면 test 5개와 전체 37개를 순서대로 재실행해 통과했습니다.
+
+## 2026-08-23 Task 9 dictionary pack 검증
+
+Task 8의 dataset 포함 debug APK 144,462,083 bytes에서 모든 dictionary payload를 분리했습니다. 최종 base APK는 18,466,693 bytes, AndroidTest APK는 1,289,772 bytes입니다. Room schema는 v4, JSON backup schema는 v3로 유지했습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `python -m unittest discover -s tools/tests -v` | 성공, dataset root/converter test 14개 통과 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 18 suites / 102 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공, errors 0 / dependency·version warning 6개 |
+| `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 18,466,693 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,289,772 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 47개 발견, 45개 실행·통과, optional staged-pack test 2개 건너뜀 |
+
+`/data/local/tmp/local-vocabulary-packs`에 실제 생성 pack을 staging하고 opt-in 계측 test를 별도로 실행했습니다. 한 pack 설치와 네 pack 동시 설치가 모두 성공했으며 측정값은 CC-CEDICT 229ms, JMdict 1,130ms, 한국어기초사전 5,023ms, PanLex 1,756ms였습니다. 설치 직후 JMdict 첫 exact query는 20ms였습니다. 이 값은 해당 Test AVD의 단일 계측값이며 일반 기기의 benchmark로 간주하지 않습니다.
+
+중간 실패 두 건은 production 결함이 아니었습니다. pack repository test가 test-only 내부 설치 후 명시적 refresh를 누락했고, Compose test가 sense별로 두 번 표시되는 headword를 한 node로 기대했습니다. 두 test expectation/setup만 바로잡은 뒤 관련 test 11개와 전체 계측 suite를 재실행해 통과했습니다. pack이 0개인 기본 상태에서도 전체 editor 및 수동 저장 흐름은 정상이며, 실제 pack 1개/4개 상태는 opt-in integration test에서 검증했습니다.

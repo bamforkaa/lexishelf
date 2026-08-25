@@ -15,7 +15,7 @@ internal class CcCedictDataSource(
     private val loadMutex = Mutex()
 
     @Volatile
-    private var cachedLoad: CcCedictLoadResult? = null
+    private var cachedLoad: IdentifiedLoad? = null
 
     suspend fun exactLookup(
         query: String,
@@ -32,6 +32,7 @@ internal class CcCedictDataSource(
                         records = resultLimit?.let(matches::take) ?: matches,
                         totalMatchCount = matches.size,
                         skippedMalformedLineCount = load.skippedMalformedLineCount,
+                        datasetVersion = load.datasetVersion,
                     )
                 }
             }
@@ -51,8 +52,12 @@ internal class CcCedictDataSource(
         }
     }
 
-    private suspend fun loadIndex(): CcCedictLoadResult = cachedLoad ?: loadMutex.withLock {
-        cachedLoad ?: readIndex().also { cachedLoad = it }
+    private suspend fun loadIndex(): CcCedictLoadResult {
+        val identity = datasetSource.activeIdentity()
+        return cachedLoad?.takeIf { it.identity == identity }?.load ?: loadMutex.withLock {
+            cachedLoad?.takeIf { it.identity == identity }?.load
+                ?: readIndex().also { cachedLoad = IdentifiedLoad(identity, it) }
+        }
     }
 
     private fun readIndex(): CcCedictLoadResult = when (val opened = datasetSource.open()) {
@@ -68,6 +73,7 @@ internal class CcCedictDataSource(
                 CcCedictLoadResult.Ready(
                     index = CcCedictIndex(report.records),
                     skippedMalformedLineCount = report.issues.size,
+                    datasetVersion = datasetSource.datasetVersion() ?: CcCedictProvider.RELEASE_ID,
                 )
             }
         } catch (error: IOException) {
@@ -76,10 +82,16 @@ internal class CcCedictDataSource(
     }
 }
 
+private data class IdentifiedLoad(
+    val identity: String?,
+    val load: CcCedictLoadResult,
+)
+
 private sealed interface CcCedictLoadResult {
     data class Ready(
         val index: CcCedictIndex,
         val skippedMalformedLineCount: Int,
+        val datasetVersion: String?,
     ) : CcCedictLoadResult
 
     data object Unavailable : CcCedictLoadResult

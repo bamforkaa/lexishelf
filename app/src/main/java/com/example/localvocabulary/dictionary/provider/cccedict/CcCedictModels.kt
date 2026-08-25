@@ -39,6 +39,10 @@ internal sealed interface CcCedictDatasetOpenResult {
 
 internal fun interface CcCedictDatasetSource {
     fun open(): CcCedictDatasetOpenResult
+
+    fun activeIdentity(): String? = null
+
+    fun datasetVersion(): String? = null
 }
 
 internal enum class CcCedictHeadwordForm {
@@ -51,6 +55,7 @@ internal sealed interface CcCedictLookupResult {
         val records: List<CcCedictRecord>,
         val totalMatchCount: Int,
         val skippedMalformedLineCount: Int,
+        val datasetVersion: String? = CcCedictProvider.RELEASE_ID,
     ) : CcCedictLookupResult
 
     data object NoMatch : CcCedictLookupResult

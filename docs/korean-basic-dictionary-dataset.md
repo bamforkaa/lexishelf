@@ -1,5 +1,8 @@
 # 한국어기초사전 로컬 데이터셋
 
+> Task 9부터 생성 DB는 APK asset이 아니라 `korean-basic/generated/`에서 generic pack으로
+> 만듭니다. 현재 root/install 절차는 [dictionary-packs.md](dictionary-packs.md)가 우선합니다.
+
 이 provider는 국립국어원의 공식 한국어기초사전 전체 내려받기 JSON을 개발자가 명시적으로 전처리한 읽기 전용 SQLite 인덱스로 사용합니다. 앱은 데이터셋을 자동으로 내려받지 않으며 API key, network permission, 실시간 네트워크가 필요하지 않습니다.
 
 ## 선택한 공식 자료
@@ -7,7 +10,7 @@
 - 공식 사전: [한국어기초사전](https://krdict.korean.go.kr/)
 - 전체 데이터: [사전 전체 내려받기](https://krdict.korean.go.kr/download/downloadPopup)의 JSON ZIP
 - 현재 확인 release: `2026-08-19`
-- 앱 asset: `app/src/main/assets/dictionary/koreanbasic/korean_basic_dictionary.db`
+- pack payload: `<dataset-root>/korean-basic/generated/korean_basic_dictionary.db`
 - 텍스트 license: [Creative Commons Attribution-ShareAlike 2.0 Korea](https://creativecommons.org/licenses/by-sa/2.0/kr/)
 - 표시 문구: `한국어기초사전 - 국립국어원 제공, CC BY-SA 2.0 KR.`
 
@@ -16,13 +19,12 @@
 ## 생성 절차
 
 1. 브라우저에서 공식 전체 내려받기 화면을 열고 JSON을 선택합니다.
-2. ZIP을 저장소 밖의 작업 디렉터리에 둡니다. 원본 ZIP과 생성 DB는 Git에 commit하지 않습니다.
-3. 저장소 루트에서 Python 표준 라이브러리만 사용하는 변환기를 실행합니다.
+2. ZIP을 `<dataset-root>/korean-basic/source/korean-basic-dictionary-json.zip`에 둡니다. 원본 ZIP과 생성 DB는 Git에 commit하지 않습니다.
+3. 저장소 루트에서 Python 표준 라이브러리만 사용하는 변환기와 pack builder를 실행합니다.
 
 ```powershell
-python .\tools\build_krdict_index.py `
-  C:\path\to\korean-basic-dictionary-json.zip `
-  .\app\src\main\assets\dictionary\koreanbasic\korean_basic_dictionary.db
+python -m tools.build_krdict_index
+python -m tools.build_dictionary_packs --pack korean-basic
 ```
 
 4. 변환기 테스트와 Android 검사를 실행합니다.
@@ -48,7 +50,7 @@ python -m unittest discover -s tools/tests -v
 
 ## 런타임 동작
 
-인덱스는 사용자 vocabulary Room DB와 완전히 별개입니다. 첫 검색 시 asset을 `noBackupFilesDir` 아래의 release별 디렉터리로 한 번 복사하고 read-only로 엽니다. 이후 exact Korean headword index 또는 언어별 reverse index를 디스크에서 조회하며 전체 데이터를 메모리에 올리지 않습니다. asset이 없거나 schema/release가 맞지 않으면 해당 provider만 `LocalDatasetUnavailable` 또는 malformed-data 오류를 표시하고 수동 단어 입력은 계속 동작합니다.
+인덱스는 사용자 vocabulary Room DB와 완전히 별개입니다. generic `.dictpack`을 설정 화면에서 설치하면 production pack validator가 검증한 SQLite를 `noBackupFilesDir/dictionary-packs/korean-basic-dictionary/korean-basic.multilingual` 아래에서 read-only로 엽니다. 이후 exact Korean headword index 또는 언어별 reverse index를 디스크에서 조회하며 전체 데이터를 메모리에 올리지 않습니다. active pack이 없거나 schema/release가 맞지 않으면 해당 provider만 `LocalDatasetUnavailable` 또는 malformed-data 오류를 표시하고 수동 단어 입력은 계속 동작합니다.
 
 지원 pair는 `ko`와 `en`, `ja`, `fr`, `es`, `ar`, `mn`, `vi`, `th`, `id`, `ru`, `zh` 사이의 양방향 translation exact lookup입니다. 공식 중국어 데이터가 Hans/Hant를 구분하지 않으므로 임의로 `zh-Hans` 또는 `zh-Hant`를 부여하지 않습니다. prefix/fuzzy 검색은 지원하지 않습니다.
 

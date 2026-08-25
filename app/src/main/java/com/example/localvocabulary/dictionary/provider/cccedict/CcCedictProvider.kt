@@ -59,7 +59,7 @@ class CcCedictProvider @Inject internal constructor(
             is CcCedictLookupResult.Matches -> DictionarySearchResult.Success(
                 DictionarySearchPage(
                     entries = result.records.map { record ->
-                        record.toExternalEntry(descriptor, query.languagePair)
+                        record.toExternalEntry(descriptor, query.languagePair, result.datasetVersion)
                     },
                     isTruncated = result.records.size < result.totalMatchCount,
                 ),

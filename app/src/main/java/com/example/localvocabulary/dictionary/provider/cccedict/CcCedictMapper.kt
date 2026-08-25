@@ -12,6 +12,7 @@ import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
 internal fun CcCedictRecord.toExternalEntry(
     descriptor: DictionaryProviderDescriptor,
     languagePair: DictionaryLanguagePair,
+    datasetVersion: String? = descriptor.dataset?.releaseId,
 ): ExternalDictionaryEntry {
     val simplifiedQuery = languagePair.sourceLanguage == CC_CEDICT_SIMPLIFIED_CHINESE
     val headword = if (simplifiedQuery) simplified else traditional
@@ -25,7 +26,7 @@ internal fun CcCedictRecord.toExternalEntry(
     return ExternalDictionaryEntry(
         providerId = descriptor.id,
         sourceEntryId = stableSourceId,
-        datasetVersion = descriptor.dataset?.releaseId,
+        datasetVersion = datasetVersion,
         headword = headword,
         sourceLanguage = languagePair.sourceLanguage,
         headwordScriptCode = if (simplifiedQuery) "Hans" else "Hant",

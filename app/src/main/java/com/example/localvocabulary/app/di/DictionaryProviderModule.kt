@@ -1,7 +1,7 @@
 package com.example.localvocabulary.app.di
 
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
-import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictAssetSource
+import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictPackSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictDataSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictProvider
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryDataSource
@@ -18,6 +18,13 @@ import com.example.localvocabulary.dictionary.provider.panlex.PanLexLookup
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexProvider
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
 import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
+import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReferenceProvider
+import com.example.localvocabulary.dictionary.reference.NaverDictionaryLinkProvider
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackPayloadValidator
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackRepository
+import com.example.localvocabulary.dictionary.pack.DictionaryPackPayloadValidator
+import com.example.localvocabulary.dictionary.pack.DictionaryPackRepository
+import com.example.localvocabulary.dictionary.pack.DictionaryPackResolver
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,9 +42,32 @@ abstract class DictionaryProviderModule {
     companion object {
         @Provides
         @Singleton
+        fun provideDictionaryPackPayloadValidator(
+            validator: AndroidDictionaryPackPayloadValidator,
+        ): DictionaryPackPayloadValidator = validator
+
+        @Provides
+        @Singleton
+        fun provideDictionaryPackRepository(
+            repository: AndroidDictionaryPackRepository,
+        ): DictionaryPackRepository = repository
+
+        @Provides
+        @Singleton
+        fun provideDictionaryPackResolver(
+            repository: AndroidDictionaryPackRepository,
+        ): DictionaryPackResolver = repository
+
+        @Provides
+        @Singleton
+        fun provideExternalDictionaryReferenceProvider(): ExternalDictionaryReferenceProvider =
+            NaverDictionaryLinkProvider()
+
+        @Provides
+        @Singleton
         internal fun provideCcCedictDataSource(
-            assetSource: CcCedictAssetSource,
-        ): CcCedictDataSource = CcCedictDataSource(assetSource)
+            packSource: CcCedictPackSource,
+        ): CcCedictDataSource = CcCedictDataSource(packSource)
 
         @Provides
         @IntoSet

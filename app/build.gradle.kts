@@ -1,4 +1,92 @@
+import java.util.Properties
+import javax.inject.Inject
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+abstract class StageDictionaryPackAssets @Inject constructor(
+    private val fileSystemOperations: FileSystemOperations,
+) : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val packFiles: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun stage() {
+        val inputs = packFiles.files.filter { it.isFile && it.extension == "dictpack" }
+        check(inputs.size == EXPECTED_PACK_COUNT) {
+            "Expected $EXPECTED_PACK_COUNT debug dictionary packs, found ${inputs.size}: " +
+                inputs.joinToString { it.absolutePath }
+        }
+        fileSystemOperations.sync {
+            from(inputs) {
+                into("bundled-dictionary-packs")
+            }
+            duplicatesStrategy = DuplicatesStrategy.FAIL
+            into(outputDirectory)
+        }
+    }
+
+    private companion object {
+        const val EXPECTED_PACK_COUNT = 4
+    }
+}
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
+}
+val bundleDictionaryPacksInDebug =
+    localProperties.getProperty("bundleDictionaryPacksInDebug")?.toBooleanStrictOrNull() == true
+val dictionaryDatasetRoot = System.getenv("LANG_DATABASE_DIR")
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+    ?: localProperties.getProperty("dictionaryDataDir")?.trim()?.takeIf(String::isNotEmpty)
+    ?: rootProject.file(".local/dictionary-data").absolutePath
+val debugDictionaryPackAssets = layout.buildDirectory.dir("generated/debugDictionaryPackAssets")
+val dictionaryDatasets = listOf("cc-cedict", "korean-basic", "panlex", "jmdict")
+
+val buildDebugDictionaryPacks by tasks.registering(Exec::class) {
+    onlyIf { bundleDictionaryPacksInDebug }
+    group = "dictionary packs"
+    description = "Builds local dictionary packs for the developer debug APK."
+    workingDir(rootProject.projectDir)
+    commandLine(
+        if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "python"
+        } else {
+            "python3"
+        },
+        "-m",
+        "tools.build_dictionary_packs",
+    )
+}
+
+val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAssets::class) {
+    group = "dictionary packs"
+    description = "Stages configured local dictionary packs as debug-only APK assets."
+    if (bundleDictionaryPacksInDebug) {
+        dependsOn(buildDebugDictionaryPacks)
+        dictionaryDatasets.forEach { dataset ->
+            packFiles.from(
+                rootProject.fileTree("$dictionaryDatasetRoot/$dataset/packs") {
+                    include("*.dictpack")
+                },
+            )
+        }
+    }
+    outputDirectory.set(debugDictionaryPackAssets)
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -36,11 +124,24 @@ android {
     }
 
     sourceSets {
+        // Runtime datasets are installed as dictionary packs, never bundled in the base APK.
+        getByName("main").assets.setSrcDirs(listOf("src/main/pack-metadata"))
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        if (bundleDictionaryPacksInDebug) {
+            variant.sources.assets?.addGeneratedSourceDirectory(
+                stageDebugDictionaryPackAssets,
+                StageDictionaryPackAssets::outputDirectory,
+            )
+        }
     }
 }
 

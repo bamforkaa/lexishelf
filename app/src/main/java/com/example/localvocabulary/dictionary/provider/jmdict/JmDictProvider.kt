@@ -43,7 +43,11 @@ class JmDictProvider @Inject internal constructor(
         }
         return when (val result = lookup.exactLookup(query.text, query.resultLimit)) {
             is JmDictLookupResult.Matches -> DictionarySearchResult.Success(
-                DictionarySearchPage(entries = result.records.map { it.toExternalEntry(descriptor) }),
+                DictionarySearchPage(
+                    entries = result.records.map {
+                        it.toExternalEntry(descriptor, result.datasetVersion)
+                    },
+                ),
             )
             JmDictLookupResult.NoMatch -> DictionarySearchResult.Failure(DictionaryProviderError.NoResult)
             JmDictLookupResult.DatasetUnavailable -> DictionarySearchResult.Failure(

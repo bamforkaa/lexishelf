@@ -579,17 +579,29 @@ def build_index(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("snapshot", type=Path)
-    parser.add_argument("output_database", type=Path)
+    parser.add_argument("snapshot", type=Path, nargs="?")
+    parser.add_argument("output_database", type=Path, nargs="?")
     parser.add_argument(
         "--languages",
         default=",".join(DEFAULT_LANGUAGE_TAGS),
         help="Comma-separated reviewed BCP 47 language tags",
     )
     args = parser.parse_args()
+    if (args.snapshot is None) != (args.output_database is None):
+        parser.error("provide both snapshot and output_database, or neither")
+    from tools.dataset_paths import dataset_paths, dataset_root_summary
+
+    paths = dataset_paths("panlex")
+    print(dataset_root_summary(paths.root))
+    if args.snapshot is None:
+        snapshot = paths.source / "panlex-20190901-csv.zip"
+        output_database = paths.generated / "panlex_korean_fallback.db"
+    else:
+        snapshot = args.snapshot
+        output_database = args.output_database
     stats = build_index(
-        args.snapshot.resolve(),
-        args.output_database.resolve(),
+        snapshot.resolve(),
+        output_database.resolve(),
         args.languages.split(","),
     )
     report = {

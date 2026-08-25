@@ -12,6 +12,7 @@ import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
 
 internal fun JmDictMatch.toExternalEntry(
     descriptor: DictionaryProviderDescriptor,
+    datasetVersion: String = descriptor.dataset?.releaseId.orEmpty(),
 ): ExternalDictionaryEntry {
     val matchedReading = entry.readings.getOrNull(matchedElementOrder)
         .takeIf { matchKind == JmDictMatchKind.READING }
@@ -67,7 +68,7 @@ internal fun JmDictMatch.toExternalEntry(
     return ExternalDictionaryEntry(
         providerId = descriptor.id,
         sourceEntryId = entry.entrySequence,
-        datasetVersion = descriptor.dataset?.releaseId,
+        datasetVersion = datasetVersion,
         headword = displayWriting,
         sourceLanguage = JAPANESE,
         alternateWrittenForms = entry.writtenForms

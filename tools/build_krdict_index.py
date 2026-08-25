@@ -369,10 +369,22 @@ def build_index(input_zip: Path, output_database: Path) -> BuildStats:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_zip", type=Path)
-    parser.add_argument("output_database", type=Path)
+    parser.add_argument("input_zip", type=Path, nargs="?")
+    parser.add_argument("output_database", type=Path, nargs="?")
     args = parser.parse_args()
-    stats = build_index(args.input_zip.resolve(), args.output_database.resolve())
+    if (args.input_zip is None) != (args.output_database is None):
+        parser.error("provide both input_zip and output_database, or neither")
+    from tools.dataset_paths import dataset_paths, dataset_root_summary
+
+    paths = dataset_paths("korean-basic")
+    print(dataset_root_summary(paths.root))
+    if args.input_zip is None:
+        input_zip = paths.source / "korean-basic-dictionary-json.zip"
+        output_database = paths.generated / "korean_basic_dictionary.db"
+    else:
+        input_zip = args.input_zip
+        output_database = args.output_database
+    stats = build_index(input_zip.resolve(), output_database.resolve())
     print(json.dumps(stats.__dict__, ensure_ascii=False, indent=2))
 
 

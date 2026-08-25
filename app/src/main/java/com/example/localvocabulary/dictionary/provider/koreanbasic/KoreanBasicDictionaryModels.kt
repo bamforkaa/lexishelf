@@ -14,7 +14,10 @@ internal data class KoreanBasicDictionaryRecord(
 }
 
 internal sealed interface KoreanBasicDictionaryLookupResult {
-    data class Matches(val records: List<KoreanBasicDictionaryRecord>) :
+    data class Matches(
+        val records: List<KoreanBasicDictionaryRecord>,
+        val datasetVersion: String = KOREAN_BASIC_DICTIONARY_RELEASE_ID,
+    ) :
         KoreanBasicDictionaryLookupResult
 
     data object NoMatch : KoreanBasicDictionaryLookupResult

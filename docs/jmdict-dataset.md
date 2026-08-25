@@ -1,5 +1,8 @@
 # JMdict local dataset
 
+> Task 9부터 생성 DB는 APK asset이 아니라 `jmdict/generated/`에서 generic pack으로
+> 만듭니다. 현재 root/install 절차는 [dictionary-packs.md](dictionary-packs.md)가 우선합니다.
+
 ## Official artifact and licence
 
 Task 8 uses the English-only legacy XML `JMdict_e.gz` from the
@@ -33,15 +36,16 @@ correctly validating browser/client. Gradle and the app never download it.
 
 ## Build and install the index
 
+Place `JMdict_e.gz` at `<dataset-root>/jmdict/source/JMdict_e.gz`, then run:
+
 ```powershell
-python -X utf8 .\tools\build_jmdict_index.py `
-  C:\path\to\JMdict_e.gz `
-  .\app\src\main\assets\dictionary\jmdict\jmdict.db
+python -X utf8 -m tools.build_jmdict_index
+python -m tools.build_dictionary_packs --pack jmdict
 ```
 
 Verify the converter's release, checksum and counts. Raw XML and generated DB are ignored by Git.
 A clean clone still builds and manual vocabulary works, but JMdict suggestions report
-`LocalDatasetUnavailable` until the DB exists at that exact asset path. Conversion uses a
+`LocalDatasetUnavailable` until the generated pack is installed. Conversion uses a
 temporary DB and atomic replacement, so malformed XML cannot replace an existing output.
 
 ## Index and mapping
@@ -50,15 +54,16 @@ The read-only SQLite contains metadata, minified UTF-8 provider-private entry pa
 stable `ent_seq`, and NFC/trimmed exact kanji/kana lookup keys. Payloads preserve writing/reading
 order, `ke_inf`/`ke_pri`, `re_nokanji`/`re_restr`/`re_inf`/`re_pri`, ordered senses,
 `stagk`/`stagr`, inherited POS, cross references, antonyms, fields, miscellaneous labels, sense
-notes, loan sources, dialects, ordered glosses and gloss attributes. It is copied once to
-`noBackupFilesDir/dictionary/jmdict/2026-08-23/` and opened read-only; it is never imported into
-user Room or JSON backup.
+notes, loan sources, dialects, ordered glosses and gloss attributes. After the generic pack is
+installed through Settings, the validated DB is opened read-only from
+`noBackupFilesDir/dictionary-packs/jmdict/jmdict.ja-en/`; it is never imported into user Room or
+JSON backup.
 
 An experimental per-entry zlib payload produced a smaller 72,970,240-byte DB but occupied
 58,783,843 bytes inside the APK because independently compressed blobs defeated APK-wide
 deflate. The selected UTF-8 payload produces a larger 113,729,536-byte copied DB but only
-27,720,199 APK bytes. For the bundled personal-use build, download/install size wins; Task 9
-must address the larger installed pack and first-copy cost explicitly.
+27,720,199 APK bytes in the old bundled build. Task 9 removed this payload from the base APK and
+distributes it as a separately installed pack.
 
 Exact writing and reading matches are supported. No prefix, fuzzy, conjugation or morphological
 normalization is performed. Homographs stay independent. A result whose exact matched source
@@ -114,10 +119,6 @@ Full-index restriction coverage: 2,752 entries with `re_restr`, 6,446 with `re_n
 
 For each official update: recheck licence/format, record checksum and sizes, run fixture/full
 conversion, verify `PRAGMA integrity_check`, counts, restriction coverage and QA keys, compare
-DB/APK/Android performance, then update release constants, NOTICE and docs together. Test old and
-new assets separately. Rollback restores descriptor and asset as a pair; saved user entries are
-never refreshed.
-
-Task 9 can move this 113,729,536-byte SQLite from the base APK into a downloadable language pack.
-Expected work is a pack manifest/version/checksum, atomic installation/rollback, availability UI
-and old cached-pack cleanup. The provider boundary and Room/backup schemas need not change.
+DB/pack/Android performance, then update release constants, manifest metadata, NOTICE and docs
+together. Test old and new packs separately. Failed installation retains the active pack and a
+successful update keeps one rollback version; saved user entries are never refreshed.

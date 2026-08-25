@@ -175,6 +175,11 @@ class WordEditorDictionarySuggestionsTest {
             setOf(JAPANESE_TO_KOREAN, JAPANESE_TO_ENGLISH),
             state.dictionaryLanguageOptions.map { it.languagePair }.toSet(),
         )
+        assertEquals(
+            listOf(JAPANESE_TO_KOREAN, JAPANESE_TO_ENGLISH),
+            state.dictionaryLanguageOptions.map { it.languagePair },
+        )
+        assertEquals(JAPANESE_TO_KOREAN.stableKey(), state.selectedDictionaryLanguageOptionKey)
         val englishOption = state.dictionaryLanguageOptions
             .single { it.languagePair == JAPANESE_TO_ENGLISH }
         viewModel.onAction(WordEditorAction.DictionaryLanguagePairSelected(englishOption.key))
@@ -185,6 +190,40 @@ class WordEditorDictionarySuggestionsTest {
         assertTrue(korean.queries.isEmpty())
         assertEquals(listOf(JAPANESE_TO_ENGLISH), jmdict.queries.map { it.languagePair })
         assertEquals("JMdict", viewModel.uiState.value.dictionarySuggestionGroups.single().providerName)
+    }
+
+    @Test
+    fun `English remains selected when Korean result provider is absent`() = runTest {
+        val jmdict = RecordingSuggestionProvider(
+            id = "jmdict",
+            displayName = "JMdict",
+            languagePair = JAPANESE_TO_ENGLISH,
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+            permission = DictionaryPermission.PERMITTED,
+        ) { success(it, meaning = "to eat") }
+        val viewModel = createViewModel(
+            providers = listOf(jmdict),
+            settingsRepository = FixedSettingsRepository("ja"),
+        )
+        runCurrent()
+
+        assertEquals(
+            listOf(JAPANESE_TO_ENGLISH),
+            viewModel.uiState.value.dictionaryLanguageOptions.map { it.languagePair },
+        )
+        assertEquals(JAPANESE_TO_ENGLISH.stableKey(), viewModel.uiState.value.selectedDictionaryLanguageOptionKey)
+    }
+
+    @Test
+    fun `provider query uses bounded common result limit`() = runTest {
+        val provider = suggestionProvider()
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+
+        assertEquals(20, provider.queries.single().resultLimit)
     }
 
     @Test

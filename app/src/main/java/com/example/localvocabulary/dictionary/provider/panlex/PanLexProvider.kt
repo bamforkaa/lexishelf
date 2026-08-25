@@ -55,7 +55,9 @@ class PanLexProvider @Inject internal constructor(
         ) {
             is PanLexLookupResult.Matches -> DictionarySearchResult.Success(
                 DictionarySearchPage(
-                    entries = result.records.map { it.toExternalEntry(descriptor, query.languagePair) },
+                    entries = result.records.map {
+                        it.toExternalEntry(descriptor, query.languagePair, result.datasetVersion)
+                    },
                     isTruncated = result.isTruncated,
                 ),
             )

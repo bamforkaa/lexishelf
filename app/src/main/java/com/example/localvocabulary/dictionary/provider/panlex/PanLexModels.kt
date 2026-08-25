@@ -16,6 +16,7 @@ internal sealed interface PanLexLookupResult {
     data class Matches(
         val records: List<PanLexRelationRecord>,
         val isTruncated: Boolean,
+        val datasetVersion: String = PANLEX_RELEASE_ID,
     ) : PanLexLookupResult
 
     data object NoMatch : PanLexLookupResult

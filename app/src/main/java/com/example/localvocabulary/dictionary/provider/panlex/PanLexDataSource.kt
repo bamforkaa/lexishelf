@@ -18,7 +18,7 @@ internal class PanLexDataSource(
     private val loadMutex = Mutex()
 
     @Volatile
-    private var cachedLoad: IndexLoad? = null
+    private var cachedLoad: IdentifiedLoad? = null
 
     override suspend fun exactLookup(
         query: String,
@@ -33,6 +33,7 @@ internal class PanLexDataSource(
                 sourceLanguageTag = sourceLanguageTag,
                 resultLanguageTag = resultLanguageTag,
                 resultLimit = resultLimit,
+                datasetVersion = load.datasetVersion,
             )
             IndexLoad.Unavailable -> PanLexLookupResult.DatasetUnavailable
             is IndexLoad.Invalid -> PanLexLookupResult.MalformedDataset(load.detail)
@@ -47,16 +48,22 @@ internal class PanLexDataSource(
         }
     }
 
-    private suspend fun loadIndex(): IndexLoad = cachedLoad ?: loadMutex.withLock {
-        cachedLoad ?: openAndValidateIndex().also { cachedLoad = it }
+    private suspend fun loadIndex(): IndexLoad {
+        val identity = indexSource.activeIdentity()
+        return cachedLoad?.takeIf { it.identity == identity }?.load ?: loadMutex.withLock {
+            cachedLoad?.takeIf { it.identity == identity }?.load ?: run {
+                (cachedLoad?.load as? IndexLoad.Ready)?.database?.close()
+                openAndValidateIndex().also { cachedLoad = IdentifiedLoad(identity, it) }
+            }
+        }
     }
 
     private fun openAndValidateIndex(): IndexLoad = when (val opened = indexSource.open()) {
         PanLexIndexOpenResult.Missing -> IndexLoad.Unavailable
         is PanLexIndexOpenResult.Failed -> IndexLoad.Invalid(opened.detail)
         is PanLexIndexOpenResult.Opened -> try {
-            validateIndex(opened.database)
-            IndexLoad.Ready(opened.database)
+            validateIndex(opened.database, opened.datasetVersion)
+            IndexLoad.Ready(opened.database, opened.datasetVersion)
         } catch (error: SQLiteException) {
             opened.database.close()
             IndexLoad.Invalid(error.message)
@@ -66,7 +73,7 @@ internal class PanLexDataSource(
         }
     }
 
-    private fun validateIndex(database: SQLiteDatabase) {
+    private fun validateIndex(database: SQLiteDatabase, expectedDatasetVersion: String) {
         val schemaVersion = database.rawQuery("PRAGMA user_version", null).use { cursor ->
             check(cursor.moveToFirst()) { "PanLex index has no schema version" }
             cursor.getInt(0)
@@ -75,7 +82,7 @@ internal class PanLexDataSource(
             "Unsupported PanLex index schema: $schemaVersion"
         }
         val releaseId = database.metadata("release_id")
-        check(releaseId == PANLEX_RELEASE_ID) {
+        check(releaseId == expectedDatasetVersion) {
             "Unexpected PanLex release: $releaseId"
         }
         check(database.metadata("supported_language_tags") == PANLEX_FOREIGN_LANGUAGE_TAGS) {
@@ -97,6 +104,7 @@ internal class PanLexDataSource(
         sourceLanguageTag: String,
         resultLanguageTag: String,
         resultLimit: Int,
+        datasetVersion: String,
     ): PanLexLookupResult = try {
         val rows = if (sourceLanguageTag == KOREAN_LANGUAGE_TAG) {
             database.queryKoreanToForeign(normalizedQuery, resultLanguageTag, resultLimit + 1)
@@ -109,6 +117,7 @@ internal class PanLexDataSource(
             PanLexLookupResult.Matches(
                 records = rows.take(resultLimit),
                 isTruncated = rows.size > resultLimit,
+                datasetVersion = datasetVersion,
             )
         }
     } catch (error: SQLiteException) {
@@ -157,10 +166,12 @@ internal class PanLexDataSource(
         }
 
     private sealed interface IndexLoad {
-        data class Ready(val database: SQLiteDatabase) : IndexLoad
+        data class Ready(val database: SQLiteDatabase, val datasetVersion: String) : IndexLoad
         data object Unavailable : IndexLoad
         data class Invalid(val detail: String?) : IndexLoad
     }
+
+    private data class IdentifiedLoad(val identity: String?, val load: IndexLoad)
 
     private companion object {
         const val KOREAN_LANGUAGE_TAG = "ko"

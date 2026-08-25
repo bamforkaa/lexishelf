@@ -4,7 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import java.io.File
+import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackPayloadValidator
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackRepository
+import com.example.localvocabulary.dictionary.pack.DictionaryPackManifestCodec
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -13,27 +16,26 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class JmDictFullAssetIntegrationTest {
+class JmDictInstalledPackIntegrationTest {
     @Test
-    fun bundledOfficialAssetCopiesAndFindsKanjiAndKana() {
+    fun installedOfficialPackFindsKanjiAndKana() {
         runBlocking {
             val context = ApplicationProvider.getApplicationContext<Context>()
+            val repository = AndroidDictionaryPackRepository(
+                context,
+                AndroidDictionaryPackPayloadValidator(),
+                DictionaryPackManifestCodec(),
+            )
             assumeTrue(
-                "Full JMdict asset is optional",
-                JMDICT_ARTIFACT_NAME in context.assets.list(JMDICT_ASSET_DIRECTORY).orEmpty(),
+                "Full JMdict pack is optional",
+                repository.activePack(DictionaryProviderId(JmDictProvider.STABLE_PROVIDER_ID)) != null,
             )
-            val installedDirectory = File(
-                context.noBackupFilesDir,
-                "dictionary/jmdict/$JMDICT_RELEASE_ID",
-            )
-            installedDirectory.deleteRecursively()
-
-            val source = JmDictIndexSource(context)
+            val source = JmDictIndexSource(repository)
             lateinit var opened: JmDictIndexOpenResult
-            val firstCopyMillis = measureTimeMillis { opened = source.open() }
+            val firstOpenMillis = measureTimeMillis { opened = source.open() }
             (opened as JmDictIndexOpenResult.Opened).database.close()
 
-            val lookup = JmDictDataSource(JmDictIndexSource(context))
+            val lookup = JmDictDataSource(JmDictIndexSource(repository))
             lateinit var kanji: JmDictLookupResult
             val firstQueryMillis = measureTimeMillis {
                 kanji = lookup.exactLookup("食べる", 20)
@@ -45,7 +47,7 @@ class JmDictFullAssetIntegrationTest {
             assertEquals("1358280", reading.records.single().entry.entrySequence)
             Log.i(
                 "JmDictBenchmark",
-                "release=$JMDICT_RELEASE_ID firstCopyMs=$firstCopyMillis " +
+                "release=$JMDICT_RELEASE_ID firstOpenMs=$firstOpenMillis " +
                     "firstOpenAndQueryMs=$firstQueryMillis",
             )
         }

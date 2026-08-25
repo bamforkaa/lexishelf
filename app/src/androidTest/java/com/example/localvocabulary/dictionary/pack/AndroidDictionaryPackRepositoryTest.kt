@@ -1,0 +1,167 @@
+package com.example.localvocabulary.dictionary.pack
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.localvocabulary.core.database.VocabularyDatabase
+import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class AndroidDictionaryPackRepositoryTest {
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val codec = DictionaryPackManifestCodec()
+    private val repository = AndroidDictionaryPackRepository(
+        context,
+        DictionaryPackPayloadValidator { _, _ -> Result.success(Unit) },
+        codec,
+    )
+    private val installedPackIds = mutableSetOf<String>()
+
+    @After
+    fun removeTestPacks() = runTest {
+        installedPackIds.forEach { repository.delete(it) }
+    }
+
+    @Test
+    fun validChecksumInstallsAtomicallyAndInvalidUpdatePreservesActiveVersion() {
+        val first = manifest("test-pack-atomic", "test-provider-atomic", "1", "old".encodeToByteArray())
+        installedPackIds += first.packId
+        assertTrue(repository.install(pack(first, "old".encodeToByteArray())) is DictionaryPackInstallResult.Installed)
+        val resolved = repository.activePack(DictionaryProviderId(first.providerId))!!
+        assertEquals("1", resolved.manifest.datasetVersion)
+        assertEquals("old", resolved.payloadFile.readText())
+
+        val invalid = manifest(first.packId, first.providerId, "2", "new".encodeToByteArray())
+            .copy(payload = first.payload.copy(fileName = "fixture.db", sha256 = "0".repeat(64), sizeBytes = 3))
+        assertTrue(repository.install(pack(invalid, "new".encodeToByteArray())) is DictionaryPackInstallResult.Rejected)
+        assertEquals("1", repository.activePack(DictionaryProviderId(first.providerId))!!.manifest.datasetVersion)
+        assertFalse(packRoot().listFiles().orEmpty().any { it.name.startsWith(".incoming-") })
+    }
+
+    @Test
+    fun updateSupportsRollbackAndCleansObsoleteThirdVersion() = runTest {
+        val packId = "test-pack-rollback"
+        val providerId = "test-provider-rollback"
+        installedPackIds += packId
+        for (version in listOf("1", "2")) {
+            val payload = version.encodeToByteArray()
+            val manifest = manifest(packId, providerId, version, payload)
+            assertTrue(repository.install(pack(manifest, payload)) is DictionaryPackInstallResult.Installed)
+        }
+        repository.refresh()
+        assertEquals("2", repository.activePack(DictionaryProviderId(providerId))!!.manifest.datasetVersion)
+        assertTrue(repository.installedPacks.value.single { it.manifest.packId == packId }.canRollback)
+        assertTrue(repository.rollback(packId))
+        assertEquals("1", repository.activePack(DictionaryProviderId(providerId))!!.manifest.datasetVersion)
+
+        val thirdPayload = "3".encodeToByteArray()
+        val third = manifest(packId, providerId, "3", thirdPayload)
+        repository.install(pack(third, thirdPayload))
+        val versions = File(packRoot(), "$providerId/$packId/versions").listFiles().orEmpty()
+        assertEquals(2, versions.count(File::isDirectory))
+    }
+
+    @Test
+    fun incompletePackIsRejectedAndMultipleProvidersCoexist() {
+        val first = manifest("test-pack-one", "test-provider-one", "1", byteArrayOf(1))
+        val second = manifest("test-pack-two", "test-provider-two", "1", byteArrayOf(2))
+        installedPackIds += setOf(first.packId, second.packId)
+        assertTrue(repository.install(pack(first, byteArrayOf(1))) is DictionaryPackInstallResult.Installed)
+        assertTrue(repository.install(pack(second, byteArrayOf(2))) is DictionaryPackInstallResult.Installed)
+        assertNotNull(repository.activePack(DictionaryProviderId(first.providerId)))
+        assertNotNull(repository.activePack(DictionaryProviderId(second.providerId)))
+
+        val incomplete = ByteArrayOutputStream().also { output ->
+            ZipOutputStream(output).use { zip ->
+                zip.putNextEntry(ZipEntry(DICTIONARY_PACK_MANIFEST_FILE))
+                zip.write(codec.encode(first.copy(packId = "test-incomplete")).encodeToByteArray())
+                zip.closeEntry()
+            }
+        }.toByteArray()
+        assertTrue(repository.install(ByteArrayInputStream(incomplete)) is DictionaryPackInstallResult.Rejected)
+    }
+
+    @Test
+    fun deletingPackDoesNotDeleteUserVocabulary() = runTest {
+        val database = Room.inMemoryDatabaseBuilder(context, VocabularyDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val entryId = database.vocabularyDao().insertEntry(
+                VocabularyEntryEntity(
+                    backupId = "pack-delete-regression",
+                    headword = "owned",
+                    languageTag = "en",
+                    notes = "user data",
+                    createdAtEpochMillis = 1,
+                    modifiedAtEpochMillis = 1,
+                ),
+            )
+            val payload = byteArrayOf(7)
+            val manifest = manifest("test-pack-delete", "test-provider-delete", "1", payload)
+            installedPackIds += manifest.packId
+            repository.install(pack(manifest, payload))
+            repository.refresh()
+
+            assertTrue(repository.delete(manifest.packId))
+            assertNull(repository.activePack(DictionaryProviderId(manifest.providerId)))
+            assertEquals("owned", database.vocabularyDao().findEntryEntity(entryId)?.headword)
+        } finally {
+            database.close()
+        }
+    }
+
+    private fun manifest(
+        packId: String,
+        providerId: String,
+        version: String,
+        payload: ByteArray,
+    ) = DictionaryPackManifest(
+        format = DICTIONARY_PACK_FORMAT,
+        manifestSchemaVersion = DICTIONARY_PACK_MANIFEST_SCHEMA_VERSION,
+        packId = packId,
+        providerId = providerId,
+        datasetVersion = version,
+        datasetSchemaVersion = 1,
+        supportedLanguagePairs = listOf(DictionaryPackLanguagePair("ja", "en", "TRANSLATION")),
+        payload = DictionaryPackPayload("fixture.db", payload.size.toLong(), sha256(payload)),
+        license = DictionaryPackLicense("test-license", "test attribution"),
+        createdAt = "2026-08-23T00:00:00Z",
+    )
+
+    private fun pack(manifest: DictionaryPackManifest, payload: ByteArray): ByteArrayInputStream {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry(DICTIONARY_PACK_MANIFEST_FILE))
+            zip.write(codec.encode(manifest).encodeToByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry(manifest.payload.fileName))
+            zip.write(payload)
+            zip.closeEntry()
+        }
+        return ByteArrayInputStream(output.toByteArray())
+    }
+
+    private fun sha256(payload: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(payload)
+        .joinToString("") { "%02x".format(it) }
+
+    private fun packRoot() = File(context.noBackupFilesDir, "dictionary-packs")
+}

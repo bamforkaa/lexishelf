@@ -1,8 +1,11 @@
 package com.example.localvocabulary.app
 
+import android.content.ActivityNotFoundException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
@@ -10,9 +13,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.ui.platform.LocalContext
+import com.example.localvocabulary.dictionary.reference.ExternalDictionaryIntentFactory
 import com.example.localvocabulary.feature.backup.BackupScreen
 import com.example.localvocabulary.feature.backup.BackupViewModel
 import com.example.localvocabulary.feature.settings.SettingsScreen
+import com.example.localvocabulary.feature.settings.SettingsAction
 import com.example.localvocabulary.feature.settings.SettingsViewModel
 import com.example.localvocabulary.feature.tags.TagManagementScreen
 import com.example.localvocabulary.feature.tags.TagManagementViewModel
@@ -110,10 +116,18 @@ fun AppNavigation() {
         composable(Routes.SETTINGS) {
             val viewModel = hiltViewModel<SettingsViewModel>()
             val state by viewModel.uiState.collectAsStateWithLifecycle()
+            val packPicker = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument(),
+            ) { uri ->
+                uri?.let { viewModel.onAction(SettingsAction.InstallDictionaryPack(it.toString())) }
+            }
             SettingsScreen(
                 state = state,
                 onAction = viewModel::onAction,
                 onBack = { navController.popBackStack() },
+                onChooseDictionaryPack = {
+                    packPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                },
             )
         }
 
@@ -134,11 +148,23 @@ private fun WordEditorDestination(
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
 ) {
+    val context = LocalContext.current
     val viewModel = hiltViewModel<WordEditorViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
-            if (effect is WordEditorEffect.Saved) onSaved(effect.entryId)
+            when (effect) {
+                is WordEditorEffect.Saved -> onSaved(effect.entryId)
+                is WordEditorEffect.OpenExternalDictionaryReference -> {
+                    ExternalDictionaryIntentFactory.create(effect.uri)?.let { intent ->
+                        try {
+                            context.startActivity(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            // No browser is available; the editor remains usable.
+                        }
+                    }
+                }
+            }
         }
     }
     WordEditorScreen(

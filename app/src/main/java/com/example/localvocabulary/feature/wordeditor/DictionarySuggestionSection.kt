@@ -5,15 +5,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -53,24 +55,35 @@ internal fun DictionarySuggestionSection(
         if (state.isDictionarySearchInProgress) {
             CircularProgressIndicator(modifier = Modifier.testTag("dictionary_suggestions_loading"))
         }
-        state.dictionarySuggestionGroups.forEach { group ->
-            Card(modifier = Modifier.fillMaxWidth()) {
+        val rows = state.dictionarySuggestionGroups.toRows()
+        if (rows.isNotEmpty()) {
+            val selectableRowCount = rows.count { it is DictionarySuggestionRow.Entry }
+            if (selectableRowCount <= MAX_VISIBLE_SELECTABLE_ROWS) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dictionary_suggestion_content"),
+                    verticalArrangement = Arrangement.spacedBy(SUGGESTION_ROW_SPACING),
                 ) {
-                    val license = group.entries.firstOrNull()
-                        ?.attribution?.licenseShortName
-                    Text(
-                        listOfNotNull(group.providerName, license).joinToString(" · "),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    group.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    group.entries.forEachIndexed { index, entry ->
-                        if (index > 0) HorizontalDivider()
-                        DictionarySuggestionEntry(entry = entry) { selected ->
-                            onAction(WordEditorAction.DictionarySuggestionSelected(selected))
+                    rows.forEach { row ->
+                        key(row.key) {
+                            DictionarySuggestionRowContent(row, state, onAction)
                         }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(BOUNDED_SUGGESTION_HEIGHT)
+                        .testTag("dictionary_suggestion_list"),
+                    verticalArrangement = Arrangement.spacedBy(SUGGESTION_ROW_SPACING),
+                ) {
+                    items(
+                        items = rows,
+                        key = DictionarySuggestionRow::key,
+                    ) { row ->
+                        DictionarySuggestionRowContent(row, state, onAction)
                     }
                 }
             }
@@ -82,49 +95,115 @@ internal fun DictionarySuggestionSection(
 }
 
 @Composable
-private fun DictionarySuggestionEntry(
-    entry: ExternalDictionaryEntry,
-    onUse: (ExternalDictionaryEntry) -> Unit,
+private fun DictionarySuggestionRowContent(
+    row: DictionarySuggestionRow,
+    state: WordEditorUiState,
+    onAction: (WordEditorAction) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(entry.headword, style = MaterialTheme.typography.titleMedium)
-        if (entry.alternateWrittenForms.isNotEmpty()) {
-            Text(entry.alternateWrittenForms.joinToString { "${it.text} (${it.language.value})" })
+    when (row) {
+        is DictionarySuggestionRow.ProviderHeader -> {
+            Text(
+                row.label,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        val readings = listOfNotNull(entry.linguisticFeatures.reading) +
-            entry.linguisticFeatures.alternativeReadings
-        if (readings.isNotEmpty()) Text(readings.joinToString { it.text })
-        entry.senses.forEachIndexed { senseIndex, sense ->
-            Text(sense.meanings.joinToString(separator = "; ") { it.text })
-            sense.partOfSpeech?.takeIf(String::isNotBlank)?.let { Text(it) }
-            if (sense.writtenFormRestrictions.isNotEmpty() || sense.readingRestrictions.isNotEmpty()) {
-                Text(
-                    listOfNotNull(
-                        sense.writtenFormRestrictions.takeIf { it.isNotEmpty() }
-                            ?.joinToString(prefix = "writing: "),
-                        sense.readingRestrictions.takeIf { it.isNotEmpty() }
-                            ?.joinToString(prefix = "reading: "),
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            TextButton(
-                onClick = { onUse(entry.copy(senses = listOf(sense))) },
-                modifier = Modifier.testTag(
-                    if (senseIndex == 0) "dictionary_suggestion_use" else {
-                        "dictionary_suggestion_use_$senseIndex"
-                    },
-                ),
-            ) { Text("Use this sense") }
+        is DictionarySuggestionRow.Message -> {
+            Text(row.text, style = MaterialTheme.typography.bodySmall)
         }
-        if (entry.senses.isEmpty()) {
-            TextButton(
-                onClick = { onUse(entry) },
-                modifier = Modifier.testTag("dictionary_suggestion_use"),
-            ) { Text("사용") }
+        is DictionarySuggestionRow.Entry -> {
+            DictionarySuggestionEntryRow(
+                entry = row.entry,
+                isSelected = row.entry.suggestionKey() in state.selectedSuggestionKeys,
+                onClick = {
+                    onAction(WordEditorAction.DictionarySuggestionSelected(row.entry))
+                },
+            )
         }
     }
 }
+
+@Composable
+private fun DictionarySuggestionEntryRow(
+    entry: ExternalDictionaryEntry,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("dictionary_suggestion_row"),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                if (isSelected) "✓ ${entry.headword}" else entry.headword,
+                style = MaterialTheme.typography.titleSmall,
+            )
+            val readings = listOfNotNull(entry.linguisticFeatures.reading) +
+                entry.linguisticFeatures.alternativeReadings
+            if (readings.isNotEmpty()) {
+                Text(readings.joinToString { it.text }, style = MaterialTheme.typography.bodySmall)
+            }
+            entry.senses.singleOrNull()?.let { sense ->
+                Text(sense.meanings.joinToString(separator = "; ") { it.text })
+                sense.partOfSpeech?.takeIf(String::isNotBlank)?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            if (isSelected) {
+                Text("가져옴", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+private sealed interface DictionarySuggestionRow {
+    val key: String
+
+    data class ProviderHeader(override val key: String, val label: String) : DictionarySuggestionRow
+    data class Message(override val key: String, val text: String) : DictionarySuggestionRow
+    data class Entry(override val key: String, val entry: ExternalDictionaryEntry) :
+        DictionarySuggestionRow
+}
+
+private fun List<DictionarySuggestionGroup>.toRows(): List<DictionarySuggestionRow> {
+    val groups = this
+    return buildList {
+        groups.forEach { group ->
+            val license = group.entries.firstOrNull()?.attribution?.licenseShortName
+            add(
+                DictionarySuggestionRow.ProviderHeader(
+                    key = "${group.providerId.value}|header",
+                    label = listOfNotNull(group.providerName, license).joinToString(" · "),
+                ),
+            )
+            group.message?.let {
+                add(DictionarySuggestionRow.Message("${group.providerId.value}|message", it))
+            }
+            group.entries.flatMap { entry ->
+                if (entry.senses.isEmpty()) listOf(entry) else {
+                    entry.senses.map { sense -> entry.copy(senses = listOf(sense)) }
+                }
+            }.take(MAX_ROWS_PER_PROVIDER).forEachIndexed { index, entry ->
+                add(
+                    DictionarySuggestionRow.Entry(
+                        key = "${group.providerId.value}|$index|${entry.suggestionKey()}",
+                        entry = entry,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+private const val MAX_ROWS_PER_PROVIDER = 25
+private const val MAX_VISIBLE_SELECTABLE_ROWS = 4
+private val BOUNDED_SUGGESTION_HEIGHT = 352.dp
+private val SUGGESTION_ROW_SPACING = 6.dp
 
 @Composable
 private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {

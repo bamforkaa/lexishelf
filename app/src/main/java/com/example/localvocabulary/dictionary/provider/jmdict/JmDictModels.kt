@@ -65,7 +65,10 @@ internal data class JmDictMatch(
 )
 
 internal sealed interface JmDictLookupResult {
-    data class Matches(val records: List<JmDictMatch>) : JmDictLookupResult
+    data class Matches(
+        val records: List<JmDictMatch>,
+        val datasetVersion: String = JMDICT_RELEASE_ID,
+    ) : JmDictLookupResult
     data object NoMatch : JmDictLookupResult
     data object DatasetUnavailable : JmDictLookupResult
     data class MalformedDataset(val detail: String?) : JmDictLookupResult

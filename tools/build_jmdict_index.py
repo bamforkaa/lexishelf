@@ -268,10 +268,22 @@ def build_index(input_xml: Path, output_database: Path) -> BuildStats:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input_xml", type=Path)
-    parser.add_argument("output_database", type=Path)
+    parser.add_argument("input_xml", type=Path, nargs="?")
+    parser.add_argument("output_database", type=Path, nargs="?")
     arguments = parser.parse_args()
-    print(json.dumps(build_index(arguments.input_xml, arguments.output_database).__dict__, indent=2))
+    if (arguments.input_xml is None) != (arguments.output_database is None):
+        parser.error("provide both input_xml and output_database, or neither")
+    from tools.dataset_paths import dataset_paths, dataset_root_summary
+
+    paths = dataset_paths("jmdict")
+    print(dataset_root_summary(paths.root))
+    if arguments.input_xml is None:
+        input_xml = paths.source / "JMdict_e.gz"
+        output_database = paths.generated / "jmdict.db"
+    else:
+        input_xml = arguments.input_xml
+        output_database = arguments.output_database
+    print(json.dumps(build_index(input_xml.resolve(), output_database.resolve()).__dict__, indent=2))
 
 
 if __name__ == "__main__":
