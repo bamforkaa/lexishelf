@@ -3,6 +3,7 @@ package com.example.localvocabulary.dictionary.pack
 import android.content.Context
 import android.net.Uri
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
@@ -33,13 +34,27 @@ class AndroidDictionaryPackRepository @Inject constructor(
     }
 
     override fun activePack(providerId: DictionaryProviderId): ResolvedDictionaryPack? =
+        activePacks(providerId).firstOrNull()
+
+    override fun activePack(
+        providerId: DictionaryProviderId,
+        languagePair: DictionaryLanguagePair,
+    ): ResolvedDictionaryPack? = activePacks(providerId).firstOrNull { pack ->
+        pack.manifest.supportedLanguagePairs.any { manifestPair ->
+            manifestPair.sourceLanguage == languagePair.sourceLanguage.value &&
+                manifestPair.resultLanguage == languagePair.resultLanguage.value &&
+                manifestPair.resultKind == languagePair.resultKind.name
+        }
+    }
+
+    private fun activePacks(providerId: DictionaryProviderId): List<ResolvedDictionaryPack> =
         providerDirectory(providerId.value)
             .takeIf(File::isDirectory)
             ?.listFiles()
             .orEmpty()
             .mapNotNull(::readActivePack)
             .sortedByDescending { it.manifest.datasetVersion }
-            .firstOrNull()
+            .toList()
 
     override suspend fun installFromUri(uri: String): DictionaryPackInstallResult =
         withContext(Dispatchers.IO) {

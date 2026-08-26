@@ -50,3 +50,14 @@ internal fun ExternalDictionaryEntry.suggestionKey(): String = listOf(
     senses.singleOrNull()?.sourceSenseId.orEmpty(),
     headword,
 ).joinToString("|")
+
+internal fun DictionarySuggestionGroup.selectableEntries(): List<ExternalDictionaryEntry> =
+    entries.flatMap { entry ->
+        if (entry.senses.isEmpty()) {
+            listOf(entry)
+        } else {
+            entry.senses.map { sense -> entry.copy(senses = listOf(sense)) }
+        }
+    }.take(MAX_SELECTABLE_ROWS_PER_PROVIDER)
+
+internal const val MAX_SELECTABLE_ROWS_PER_PROVIDER = 25

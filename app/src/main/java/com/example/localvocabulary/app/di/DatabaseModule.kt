@@ -10,8 +10,10 @@ import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.MIGRATION_1_2
 import com.example.localvocabulary.core.database.MIGRATION_2_3
 import com.example.localvocabulary.core.database.MIGRATION_3_4
+import com.example.localvocabulary.core.database.MIGRATION_4_5
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
+import com.example.localvocabulary.core.database.dao.WordbookDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,13 +31,16 @@ object DatabaseModule {
             context,
             VocabularyDatabase::class.java,
             "vocabulary.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
 
     @Provides
     fun provideVocabularyDao(database: VocabularyDatabase): VocabularyDao = database.vocabularyDao()
 
     @Provides
     fun provideTagDao(database: VocabularyDatabase): TagDao = database.tagDao()
+
+    @Provides
+    fun provideWordbookDao(database: VocabularyDatabase): WordbookDao = database.wordbookDao()
 
     @Provides
     fun provideTimeProvider(): TimeProvider = SystemTimeProvider

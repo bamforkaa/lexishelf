@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
+import com.example.localvocabulary.core.database.dao.WordbookDao
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
 import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
@@ -12,6 +13,8 @@ import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanc
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
+import com.example.localvocabulary.core.database.entity.WordbookEntity
 
 @Database(
     entities = [
@@ -23,11 +26,14 @@ import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
         SenseDictionaryProvenanceEntity::class,
         SenseDictionaryProvenanceFieldEntity::class,
         EntryDictionaryProvenanceEntity::class,
+        WordbookEntity::class,
+        EntryWordbookCrossRef::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class VocabularyDatabase : RoomDatabase() {
     abstract fun vocabularyDao(): VocabularyDao
     abstract fun tagDao(): TagDao
+    abstract fun wordbookDao(): WordbookDao
 }

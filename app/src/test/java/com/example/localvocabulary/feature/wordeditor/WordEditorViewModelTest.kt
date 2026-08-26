@@ -16,6 +16,11 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
+import com.example.localvocabulary.vocabulary.domain.normalizeTagName
+import com.example.localvocabulary.vocabulary.domain.SaveWordbookResult
+import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
+import com.example.localvocabulary.vocabulary.domain.WordbookRepository
+import com.example.localvocabulary.vocabulary.domain.normalizeWordbookName
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -101,6 +106,22 @@ class WordEditorViewModelTest {
     }
 
     @Test
+    fun `manual language selection persists in user catalog and updates editor state`() = runTest {
+        val settingsRepository = FakeSettingsRepository()
+        val viewModel = createViewModel(
+            repository = RecordingVocabularyRepository(),
+            settingsRepository = settingsRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.UserLanguageAdded("nl"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("nl"), settingsRepository.addedLanguageTags)
+        assertEquals(setOf("nl"), viewModel.uiState.value.userLanguageTags)
+    }
+
+    @Test
     fun `missing entry finishes loading with an error state`() = runTest {
         val viewModel = createViewModel(
             repository = RecordingVocabularyRepository(initialEntry = null),
@@ -113,27 +134,180 @@ class WordEditorViewModelTest {
         assertEquals(999L, viewModel.uiState.value.entryId)
     }
 
+    @Test
+    fun `creating a tag in editor selects it and saved entry receives the relation`() = runTest {
+        val repository = RecordingVocabularyRepository(savedId = 9)
+        val tags = InlineTagRepository()
+        val viewModel = createViewModel(repository = repository, tagRepository = tags)
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.CreateTagRequested)
+        viewModel.onAction(WordEditorAction.NewTagNameChanged("  JLPT   N2  "))
+        viewModel.onAction(WordEditorAction.CreateTagConfirmed)
+        advanceUntilIdle()
+
+        assertEquals(setOf(1L), viewModel.uiState.value.selectedTagIds)
+        assertEquals("JLPT N2", viewModel.uiState.value.availableTags.single().name)
+        assertFalse(viewModel.uiState.value.isTagCreatorVisible)
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("食べる"))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "먹다"))
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+
+        assertEquals(setOf(1L), repository.savedDrafts.single().tagIds)
+    }
+
+    @Test
+    fun `blank inline tag remains in dialog with validation error`() = runTest {
+        val viewModel = createViewModel(
+            repository = RecordingVocabularyRepository(),
+            tagRepository = InlineTagRepository(),
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.CreateTagRequested)
+        viewModel.onAction(WordEditorAction.NewTagNameChanged("   "))
+        viewModel.onAction(WordEditorAction.CreateTagConfirmed)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isTagCreatorVisible)
+        assertEquals("태그 이름을 입력하세요.", viewModel.uiState.value.tagCreationError)
+        assertTrue(viewModel.uiState.value.selectedTagIds.isEmpty())
+    }
+
+    @Test
+    fun `duplicate inline tag selects existing tag without creating another row`() = runTest {
+        val tags = InlineTagRepository(listOf(VocabularyTag(7, "tag-7", "여행")))
+        val viewModel = createViewModel(
+            repository = RecordingVocabularyRepository(),
+            tagRepository = tags,
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.CreateTagRequested)
+        viewModel.onAction(WordEditorAction.NewTagNameChanged(" 여행 "))
+        viewModel.onAction(WordEditorAction.CreateTagConfirmed)
+        advanceUntilIdle()
+
+        assertEquals(setOf(7L), viewModel.uiState.value.selectedTagIds)
+        assertEquals(1, tags.currentTags.size)
+        assertEquals("이미 있는 태그를 선택했습니다.", viewModel.uiState.value.tagCreationMessage)
+    }
+
+    @Test
+    fun `cancelling inline tag creation leaves draft selection unchanged`() = runTest {
+        val tags = InlineTagRepository()
+        val viewModel = createViewModel(
+            repository = RecordingVocabularyRepository(),
+            tagRepository = tags,
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.CreateTagRequested)
+        viewModel.onAction(WordEditorAction.NewTagNameChanged("취소할 태그"))
+        viewModel.onAction(WordEditorAction.CreateTagDismissed)
+
+        assertFalse(viewModel.uiState.value.isTagCreatorVisible)
+        assertTrue(viewModel.uiState.value.selectedTagIds.isEmpty())
+        assertTrue(tags.currentTags.isEmpty())
+    }
+
+    @Test
+    fun `inline wordbook creation selects relation without creating a tag`() = runTest {
+        val repository = RecordingVocabularyRepository()
+        val wordbooks = InlineWordbookRepository()
+        val viewModel = createViewModel(repository, wordbookRepository = wordbooks)
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.CreateWordbookRequested)
+        viewModel.onAction(WordEditorAction.NewWordbookNameChanged("  JLPT   N2 "))
+        viewModel.onAction(WordEditorAction.CreateWordbookConfirmed)
+        advanceUntilIdle()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("食べる"))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "먹다"))
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+
+        assertEquals("JLPT N2", viewModel.uiState.value.availableWordbooks.single().name)
+        assertEquals(setOf(1L), repository.savedDrafts.single().wordbookIds)
+        assertTrue(viewModel.uiState.value.availableTags.isEmpty())
+    }
+
+    @Test
+    fun `duplicate candidate blocks silent insert until explicit override`() = runTest {
+        val repository = RecordingVocabularyRepository(
+            duplicateCandidates = listOf(entry(7, "Word")),
+        )
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        viewModel.onAction(WordEditorAction.HeadwordChanged(" word "))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "another meaning"))
+
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+
+        assertEquals(7L, viewModel.uiState.value.duplicateCandidate?.id)
+        assertTrue(repository.savedDrafts.isEmpty())
+
+        viewModel.onAction(WordEditorAction.SaveDuplicateAnyway)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.savedDrafts.size)
+    }
+
+    @Test
+    fun `editing existing entry excludes itself from duplicate lookup`() = runTest {
+        val repository = RecordingVocabularyRepository(initialEntry = entry(7, "Word"))
+        val viewModel = createViewModel(
+            repository,
+            savedStateHandle = SavedStateHandle(mapOf("entryId" to 7L)),
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+
+        assertEquals(7L, repository.lastExcludedEntryId)
+        assertEquals(1, repository.savedDrafts.size)
+    }
+
     private fun createViewModel(
         repository: RecordingVocabularyRepository,
         tags: List<VocabularyTag> = emptyList(),
+        tagRepository: TagRepository = FakeTagRepository(tags),
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
         providerRegistry: DictionaryProviderRegistry = DefaultDictionaryProviderRegistry(emptyList()),
+        wordbookRepository: WordbookRepository = InlineWordbookRepository(),
+        settingsRepository: SettingsRepository = FakeSettingsRepository(),
     ) = WordEditorViewModel(
         savedStateHandle = savedStateHandle,
         vocabularyRepository = repository,
-        tagRepository = FakeTagRepository(tags),
-        settingsRepository = FakeSettingsRepository(),
+        tagRepository = tagRepository,
+        settingsRepository = settingsRepository,
         dictionaryProviderRegistry = providerRegistry,
         timeProvider = TimeProvider { 1_000L },
+        wordbookRepository = wordbookRepository,
     )
 }
 
 private class RecordingVocabularyRepository(
     initialEntry: VocabularyEntry? = null,
     private val savedId: Long = 1,
+    private val duplicateCandidates: List<VocabularyEntry> = emptyList(),
 ) : VocabularyRepository {
     val entry = MutableStateFlow(initialEntry)
     val savedDrafts = mutableListOf<ValidatedVocabularyDraft>()
+    var lastExcludedEntryId: Long? = null
+
+    override suspend fun findDuplicateCandidates(
+        headword: String,
+        languageTag: String,
+        excludingEntryId: Long?,
+    ): List<VocabularyEntry> {
+        lastExcludedEntryId = excludingEntryId
+        return duplicateCandidates.filterNot { it.id == excludingEntryId }
+    }
 
     override fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntry>> =
         flowOf(entry.value?.let(::listOf) ?: emptyList())
@@ -148,6 +322,29 @@ private class RecordingVocabularyRepository(
     override suspend fun delete(id: Long) = Unit
 }
 
+private class InlineWordbookRepository(
+    initialWordbooks: List<VocabularyWordbook> = emptyList(),
+) : WordbookRepository {
+    private val wordbooks = MutableStateFlow(initialWordbooks)
+    override fun observeWordbooks(): Flow<List<VocabularyWordbook>> = wordbooks
+
+    override suspend fun save(id: Long?, name: String): SaveWordbookResult {
+        val normalized = normalizeWordbookName(name) ?: return SaveWordbookResult.BlankName
+        val existing = wordbooks.value.firstOrNull {
+            normalizeWordbookName(it.name)?.identity == normalized.identity && it.id != id
+        }
+        if (existing != null) return SaveWordbookResult.NameConflict(existing.id)
+        val newId = id ?: ((wordbooks.value.maxOfOrNull { it.id } ?: 0L) + 1L)
+        val saved = VocabularyWordbook(newId, "wordbook-$newId", normalized.displayName)
+        wordbooks.value = wordbooks.value.filterNot { it.id == newId } + saved
+        return SaveWordbookResult.Saved(newId)
+    }
+
+    override suspend fun delete(id: Long) {
+        wordbooks.value = wordbooks.value.filterNot { it.id == id }
+    }
+}
+
 private class FakeTagRepository(
     private val tags: List<VocabularyTag>,
 ) : TagRepository {
@@ -156,9 +353,40 @@ private class FakeTagRepository(
     override suspend fun delete(id: Long) = Unit
 }
 
+private class InlineTagRepository(initialTags: List<VocabularyTag> = emptyList()) : TagRepository {
+    private val tags = MutableStateFlow(initialTags)
+    val currentTags: List<VocabularyTag> get() = tags.value
+
+    override fun observeTags(): Flow<List<VocabularyTag>> = tags
+
+    override suspend fun save(id: Long?, name: String): SaveTagResult {
+        val normalized = normalizeTagName(name) ?: return SaveTagResult.BlankName
+        val existing = tags.value.firstOrNull {
+            normalizeTagName(it.name)?.identity == normalized.identity && it.id != id
+        }
+        if (existing != null) return SaveTagResult.NameConflict(existing.id)
+        val newId = id ?: ((tags.value.maxOfOrNull { it.id } ?: 0L) + 1L)
+        val saved = VocabularyTag(newId, "tag-$newId", normalized.displayName)
+        tags.value = tags.value.filterNot { it.id == newId } + saved
+        return SaveTagResult.Saved(newId)
+    }
+
+    override suspend fun delete(id: Long) {
+        tags.value = tags.value.filterNot { it.id == id }
+    }
+}
+
 private class FakeSettingsRepository : SettingsRepository {
-    override val settings: Flow<AppSettings> = flowOf(AppSettings(defaultLanguageTag = "en"))
+    private val mutableSettings = MutableStateFlow(AppSettings(defaultLanguageTag = "en"))
+    val addedLanguageTags = mutableListOf<String>()
+    override val settings: Flow<AppSettings> = mutableSettings
     override suspend fun setDefaultLanguageTag(languageTag: String) = Unit
+    override suspend fun addUserLanguageTag(languageTag: String) {
+        addedLanguageTags += languageTag
+        mutableSettings.value = mutableSettings.value.copy(
+            userLanguageTags = mutableSettings.value.userLanguageTags + languageTag,
+        )
+    }
 }
 
 private fun entry(id: Long, headword: String) = VocabularyEntry(

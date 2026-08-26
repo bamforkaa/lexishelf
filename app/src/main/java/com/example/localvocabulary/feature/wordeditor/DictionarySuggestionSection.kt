@@ -7,20 +7,31 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
+import com.example.localvocabulary.core.ui.component.MetadataLabel
+import com.example.localvocabulary.core.ui.component.SectionHeader
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -35,7 +46,10 @@ internal fun DictionarySuggestionSection(
             .testTag("dictionary_suggestions"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("사전 제안", style = MaterialTheme.typography.titleMedium)
+        SectionHeader(
+            title = "사전 제안",
+            supportingText = "뜻을 누를 때만 내 단어에 가져옵니다.",
+        )
         if (state.dictionaryLanguageOptions.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.dictionaryLanguageOptions.forEach { option ->
@@ -50,7 +64,11 @@ internal fun DictionarySuggestionSection(
             }
         }
         state.dictionarySuggestionMessage?.let { message ->
-            Text(message, style = MaterialTheme.typography.bodySmall)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (state.isDictionarySearchInProgress) {
             CircularProgressIndicator(modifier = Modifier.testTag("dictionary_suggestions_loading"))
@@ -104,8 +122,9 @@ private fun DictionarySuggestionRowContent(
         is DictionarySuggestionRow.ProviderHeader -> {
             Text(
                 row.label,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
             )
         }
         is DictionarySuggestionRow.Message -> {
@@ -129,33 +148,71 @@ private fun DictionarySuggestionEntryRow(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    Card(
+    val sense = entry.senses.singleOrNull()
+    val meanings = sense?.meanings.orEmpty()
+    val primaryMeaning = meanings.joinToString(separator = "; ") { it.text }
+        .ifBlank { entry.headword }
+    val resultLanguages = meanings.map { it.language.value }.distinct().joinToString()
+    val readings = listOfNotNull(entry.linguisticFeatures.reading) +
+        entry.linguisticFeatures.alternativeReadings
+    val pronunciations = entry.linguisticFeatures.pronunciations
+        .mapNotNull { it.text?.takeIf(String::isNotBlank) }
+    val availableFormCount = entry.linguisticFeatures.totalInflectionCount
+    val availableExampleCount = sense?.availableExampleCount ?: 0
+    val secondaryText = buildList {
+        if (primaryMeaning != entry.headword) add(entry.headword)
+        if (readings.isNotEmpty()) add(readings.joinToString { it.text })
+        if (pronunciations.isNotEmpty()) add(pronunciations.joinToString())
+        sense?.partOfSpeech?.takeIf(String::isNotBlank)?.let(::add)
+        sense?.grammaticalGender?.takeIf(String::isNotBlank)?.let(::add)
+    }.joinToString(" · ")
+    val availabilityText = buildList {
+        if (availableFormCount > 0) add("활용형 $availableFormCount")
+        if (availableExampleCount > 0) add("예문 $availableExampleCount")
+    }.joinToString(" · ")
+
+    Surface(
         onClick = onClick,
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        shape = RectangleShape,
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("dictionary_suggestion_row"),
+            .testTag("dictionary_suggestion_row")
+            .semantics {
+                selected = isSelected
+                stateDescription = if (isSelected) "가져옴" else "가져오지 않음"
+            },
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                if (isSelected) "✓ ${entry.headword}" else entry.headword,
-                style = MaterialTheme.typography.titleSmall,
-            )
-            val readings = listOfNotNull(entry.linguisticFeatures.reading) +
-                entry.linguisticFeatures.alternativeReadings
-            if (readings.isNotEmpty()) {
-                Text(readings.joinToString { it.text }, style = MaterialTheme.typography.bodySmall)
-            }
-            entry.senses.singleOrNull()?.let { sense ->
-                Text(sense.meanings.joinToString(separator = "; ") { it.text })
-                sense.partOfSpeech?.takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.labelSmall)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(primaryMeaning, style = MaterialTheme.typography.bodyLarge)
+                if (secondaryText.isNotBlank()) {
+                    Text(
+                        secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
+                if (availabilityText.isNotBlank()) MetadataLabel(availabilityText)
+                if (resultLanguages.isNotBlank()) MetadataLabel(resultLanguages)
             }
             if (isSelected) {
-                Text("가져옴", color = MaterialTheme.colorScheme.primary)
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = "가져옴",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }
@@ -184,11 +241,7 @@ private fun List<DictionarySuggestionGroup>.toRows(): List<DictionarySuggestionR
             group.message?.let {
                 add(DictionarySuggestionRow.Message("${group.providerId.value}|message", it))
             }
-            group.entries.flatMap { entry ->
-                if (entry.senses.isEmpty()) listOf(entry) else {
-                    entry.senses.map { sense -> entry.copy(senses = listOf(sense)) }
-                }
-            }.take(MAX_ROWS_PER_PROVIDER).forEachIndexed { index, entry ->
+            group.selectableEntries().forEachIndexed { index, entry ->
                 add(
                     DictionarySuggestionRow.Entry(
                         key = "${group.providerId.value}|$index|${entry.suggestionKey()}",
@@ -200,14 +253,15 @@ private fun List<DictionarySuggestionGroup>.toRows(): List<DictionarySuggestionR
     }
 }
 
-private const val MAX_ROWS_PER_PROVIDER = 25
 private const val MAX_VISIBLE_SELECTABLE_ROWS = 4
 private val BOUNDED_SUGGESTION_HEIGHT = 352.dp
 private val SUGGESTION_ROW_SPACING = 6.dp
 
 @Composable
 private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
-    Card(
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RectangleShape,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("dictionary_reference"),
@@ -216,7 +270,7 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("선택한 사전 참고 자료", style = MaterialTheme.typography.titleSmall)
+            Text("선택한 사전 참고 자료 · 저장되지 않음", style = MaterialTheme.typography.titleSmall)
             Text(entry.headword, style = MaterialTheme.typography.titleMedium)
             val readings = listOfNotNull(entry.linguisticFeatures.reading) +
                 entry.linguisticFeatures.alternativeReadings
@@ -224,7 +278,7 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
             entry.senses.forEach { sense ->
                 Text(sense.meanings.joinToString(separator = "; ") { it.text })
             }
-            Text(
+            MetadataLabel(
                 listOfNotNull(
                     entry.attribution.sourceName,
                     entry.attribution.licenseShortName,

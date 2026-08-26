@@ -6,6 +6,7 @@ import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
+import com.example.localvocabulary.vocabulary.domain.VocabularyTagSummary
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -19,10 +20,22 @@ class RoomTagRepository @Inject constructor(
         tags.map { VocabularyTag(it.id, it.backupId, it.name) }
     }
 
+    override fun observeTagSummaries(): Flow<List<VocabularyTagSummary>> =
+        tagDao.observeTagsWithEntryCounts().map { rows ->
+            rows.map { row ->
+                VocabularyTagSummary(
+                    tag = VocabularyTag(row.tag.id, row.tag.backupId, row.tag.name),
+                    entryCount = row.entryCount,
+                )
+            }
+        }
+
     override suspend fun save(id: Long?, name: String): SaveTagResult {
         val nameValue = normalizeTagName(name) ?: return SaveTagResult.BlankName
         val conflict = tagDao.findByNormalizedName(nameValue.identity)
-        if (conflict != null && conflict.id != id) return SaveTagResult.NameConflict
+        if (conflict != null && conflict.id != id) {
+            return SaveTagResult.NameConflict(conflict.id)
+        }
 
         if (id == null) {
             return SaveTagResult.Saved(

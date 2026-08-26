@@ -8,6 +8,7 @@ import com.example.localvocabulary.backup.domain.BackupImportPreview
 import com.example.localvocabulary.backup.domain.BackupImportResult
 import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupTagV1
+import com.example.localvocabulary.backup.domain.BackupWordbookV4
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupRepository
@@ -18,7 +19,9 @@ import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.WordbookEntity
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
+import com.example.localvocabulary.vocabulary.domain.normalizeWordbookName
 import javax.inject.Inject
 
 class RoomVocabularyBackupRepository @Inject constructor(
@@ -29,6 +32,9 @@ class RoomVocabularyBackupRepository @Inject constructor(
         val tags = database.tagDao().getAll()
             .sortedBy { it.backupId }
             .map { BackupTagV1(stableId = it.backupId, name = it.name) }
+        val wordbooks = database.wordbookDao().getAll()
+            .sortedBy { it.backupId }
+            .map { BackupWordbookV4(stableId = it.backupId, name = it.name) }
         val entries = database.vocabularyDao().getAllEntries()
             .sortedBy { it.entry.backupId }
             .map { relation ->
@@ -85,6 +91,7 @@ class RoomVocabularyBackupRepository @Inject constructor(
                                 modifiedAfterImport = provenance.modifiedAfterImport,
                             ).toBackupV2()
                         },
+                    wordbookStableIds = relation.wordbooks.map { it.backupId }.sorted(),
                 )
             }
         VocabularyBackupV2(
@@ -93,6 +100,7 @@ class RoomVocabularyBackupRepository @Inject constructor(
             exportedAtEpochMillis = timeProvider.currentTimeMillis(),
             tags = tags,
             entries = entries,
+            wordbooks = wordbooks,
         )
     }
 
@@ -115,6 +123,7 @@ class RoomVocabularyBackupRepository @Inject constructor(
             updatedEntryCount = if (replace) 0 else conflictCount,
             skippedEntryCount = 0,
             existingEntryRemovalCount = if (replace) existingIds.size else 0,
+            wordbookCount = document.wordbooks.size,
         )
     }
 
@@ -128,9 +137,11 @@ class RoomVocabularyBackupRepository @Inject constructor(
         if (replace) {
             database.vocabularyDao().deleteAllEntries()
             database.tagDao().deleteAll()
+            database.wordbookDao().deleteAll()
         }
 
         val localTagIds = importTags(document.tags)
+        val localWordbookIds = importWordbooks(document.wordbooks)
         var createdCount = 0
         var updatedCount = 0
         document.entries.forEach { entry ->
@@ -191,6 +202,11 @@ class RoomVocabularyBackupRepository @Inject constructor(
                         modifiedAfterImport = provenance.modifiedAfterImport,
                     )
                 },
+                wordbookIds = entry.wordbookStableIds.mapTo(mutableSetOf()) { stableId ->
+                    checkNotNull(localWordbookIds[stableId]) {
+                        "Validated wordbook reference is missing"
+                    }
+                },
             )
         }
 
@@ -233,6 +249,50 @@ class RoomVocabularyBackupRepository @Inject constructor(
                 )
             }
             put(tag.stableId, localId)
+        }
+    }
+
+    private suspend fun importWordbooks(
+        wordbooks: List<BackupWordbookV4>,
+    ): Map<String, Long> = buildMap {
+        wordbooks.forEach { wordbook ->
+            val name = checkNotNull(normalizeWordbookName(wordbook.name))
+            val sameName = database.wordbookDao().findByNormalizedName(name.identity)
+            val sameStableId = database.wordbookDao().findByBackupId(wordbook.stableId)
+            val localId = when {
+                sameName != null -> {
+                    if (
+                        sameName.backupId == wordbook.stableId &&
+                        sameName.name != name.displayName
+                    ) {
+                        check(
+                            database.wordbookDao().update(
+                                sameName.copy(name = name.displayName),
+                            ) == 1,
+                        )
+                    }
+                    sameName.id
+                }
+                sameStableId != null -> {
+                    check(
+                        database.wordbookDao().update(
+                            sameStableId.copy(
+                                name = name.displayName,
+                                normalizedName = name.identity,
+                            ),
+                        ) == 1,
+                    )
+                    sameStableId.id
+                }
+                else -> database.wordbookDao().insert(
+                    WordbookEntity(
+                        backupId = wordbook.stableId,
+                        name = name.displayName,
+                        normalizedName = name.identity,
+                    ),
+                )
+            }
+            put(wordbook.stableId, localId)
         }
     }
 }

@@ -27,7 +27,10 @@ class PanLexDataSourceTest {
             database.execSQL("PRAGMA user_version = $PANLEX_INDEX_SCHEMA_VERSION")
             database.execSQL("CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             database.execSQL("INSERT INTO metadata VALUES('release_id', ?)", arrayOf(PANLEX_RELEASE_ID))
-            database.execSQL("INSERT INTO metadata VALUES('supported_language_tags', 'de,hi,pl,la')")
+            database.execSQL(
+                "INSERT INTO metadata VALUES('supported_language_tags', ?)",
+                arrayOf(PANLEX_FOREIGN_LANGUAGE_TAGS_METADATA),
+            )
             database.execSQL(
                 """
                 CREATE TABLE relations(
@@ -59,6 +62,33 @@ class PanLexDataSourceTest {
             insertRelation(
                 database, 5, "aqua", "aqua", 15, "물", "물", 106, 206, 1, 1, 7, "la",
             )
+            listOf(
+                Triple("nl", "water", "water"),
+                Triple("pt", "água", "água"),
+                Triple("it", "acqua", "acqua"),
+                Triple("tr", "su", "su"),
+                Triple("cs", "voda", "voda"),
+                Triple("sv", "vatten", "vatten"),
+                Triple("fi", "vesi", "vesi"),
+                Triple("uk", "вода", "вода"),
+            ).forEachIndexed { index, (language, text, normalized) ->
+                val identifier = 20L + index
+                insertRelation(
+                    database = database,
+                    foreignExpressionId = identifier,
+                    foreignText = text,
+                    normalizedForeign = normalized,
+                    koreanExpressionId = 30L + index,
+                    koreanText = "물",
+                    normalizedKorean = "물",
+                    meaningId = 300L + index,
+                    sourceId = 400L + index,
+                    sourceCount = 1,
+                    sourceGroupCount = 1,
+                    quality = 7,
+                    languageTag = language,
+                )
+            }
         }
     }
 
@@ -102,6 +132,14 @@ class PanLexDataSourceTest {
             Triple("hi", "पानी", "물"),
             Triple("pl", "książka", "책"),
             Triple("la", "aqua", "물"),
+            Triple("nl", "water", "물"),
+            Triple("pt", "água", "물"),
+            Triple("it", "acqua", "물"),
+            Triple("tr", "su", "물"),
+            Triple("cs", "voda", "물"),
+            Triple("sv", "vatten", "물"),
+            Triple("fi", "vesi", "물"),
+            Triple("uk", "вода", "물"),
         )
 
         cases.forEach { (language, foreign, korean) ->

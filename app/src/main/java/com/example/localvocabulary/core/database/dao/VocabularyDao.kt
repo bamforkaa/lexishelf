@@ -13,6 +13,7 @@ import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
 import kotlinx.coroutines.flow.Flow
 
@@ -61,11 +62,31 @@ interface VocabularyDao {
                 AND entry_tag_cross_refs.tag_id = :tagId
             )
         )
+        AND (
+            :wordbookId IS NULL OR EXISTS (
+                SELECT 1 FROM entry_wordbook_cross_refs
+                WHERE entry_wordbook_cross_refs.entry_id = vocabulary_entries.id
+                AND entry_wordbook_cross_refs.wordbook_id = :wordbookId
+            )
+        )
+        AND (:languageTag IS NULL OR vocabulary_entries.language_tag = :languageTag)
         ORDER BY vocabulary_entries.modified_at_epoch_millis DESC,
                  vocabulary_entries.headword COLLATE NOCASE ASC
         """,
     )
-    fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntryWithDetails>>
+    fun observeEntries(
+        query: String,
+        tagId: Long?,
+        wordbookId: Long? = null,
+        languageTag: String? = null,
+    ): Flow<List<VocabularyEntryWithDetails>>
+
+    @Query("SELECT DISTINCT language_tag FROM vocabulary_entries ORDER BY language_tag ASC")
+    fun observeLanguages(): Flow<List<String>>
+
+    @Transaction
+    @Query("SELECT * FROM vocabulary_entries WHERE language_tag = :languageTag ORDER BY id ASC")
+    suspend fun findEntriesByLanguage(languageTag: String): List<VocabularyEntryWithDetails>
 
     @Transaction
     @Query("SELECT * FROM vocabulary_entries WHERE id = :id")
@@ -120,12 +141,19 @@ interface VocabularyDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEntryTags(crossRefs: List<EntryTagCrossRef>)
 
+    @Query("DELETE FROM entry_wordbook_cross_refs WHERE entry_id = :entryId")
+    suspend fun deleteEntryWordbooks(entryId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEntryWordbooks(crossRefs: List<EntryWordbookCrossRef>)
+
     @Transaction
     suspend fun saveEntry(
         entry: VocabularyEntryEntity,
         senses: List<SenseWrite>,
         tagIds: Set<Long>,
         readingProvenance: SenseDictionaryProvenanceWrite? = null,
+        wordbookIds: Set<Long> = emptySet(),
     ): Long {
         val entryId = if (entry.id == 0L) {
             insertEntry(entry)
@@ -198,6 +226,10 @@ interface VocabularyDao {
 
         deleteEntryTags(entryId)
         insertEntryTags(tagIds.map { tagId -> EntryTagCrossRef(entryId, tagId) })
+        deleteEntryWordbooks(entryId)
+        insertEntryWordbooks(
+            wordbookIds.map { wordbookId -> EntryWordbookCrossRef(entryId, wordbookId) },
+        )
         return entryId
     }
 }

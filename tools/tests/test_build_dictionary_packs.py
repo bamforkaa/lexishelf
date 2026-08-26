@@ -6,9 +6,33 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.build_dictionary_packs import PACKS, build_pack
+from tools.panlex_language_config import PANLEX_FOREIGN_LANGUAGE_TAGS
+from tools.kaikki_language_config import (
+    KAIKKI_INDEX_SCHEMA_VERSION,
+    KAIKKI_SUPPORTED_LANGUAGE_TAGS,
+)
 
 
 class BuildDictionaryPacksTest(unittest.TestCase):
+    def test_kaikki_uses_one_pack_per_language_under_one_provider_id(self) -> None:
+        definitions = [item for item in PACKS if item.provider_id == "kaikki"]
+
+        self.assertEqual(list(KAIKKI_SUPPORTED_LANGUAGE_TAGS), [item.artifact[:-3] for item in definitions])
+        self.assertEqual({"kaikki"}, {item.provider_id for item in definitions})
+        for definition in definitions:
+            language = definition.artifact.removesuffix(".db")
+            self.assertEqual(((language, "en", "TRANSLATION"),), definition.language_pairs)
+            self.assertEqual(f"kaikki.{language}-en", definition.pack_id)
+            self.assertEqual(KAIKKI_INDEX_SCHEMA_VERSION, definition.dataset_schema_version)
+
+    def test_panlex_manifest_pairs_come_from_the_shared_language_config(self) -> None:
+        definition = next(item for item in PACKS if item.provider_id == "panlex")
+
+        self.assertEqual(len(PANLEX_FOREIGN_LANGUAGE_TAGS) * 2, len(definition.language_pairs))
+        for language in PANLEX_FOREIGN_LANGUAGE_TAGS:
+            self.assertIn((language, "ko", "TRANSLATION"), definition.language_pairs)
+            self.assertIn(("ko", language, "TRANSLATION"), definition.language_pairs)
+
     def test_builds_from_canonical_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "dictionary-data"

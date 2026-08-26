@@ -9,7 +9,10 @@ class StageDictionaryPacksTest(unittest.TestCase):
     def test_expected_paths_use_each_dataset_pack_directory_and_exact_file_name(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
-            actual = tuple(path.relative_to(project).as_posix() for path in expected_pack_paths(project))
+            actual = tuple(
+                path.relative_to(project).as_posix()
+                for path in expected_pack_paths(project, kaikki_languages=())
+            )
 
         self.assertEqual(
             (
@@ -23,6 +26,18 @@ class StageDictionaryPacksTest(unittest.TestCase):
             ),
             actual,
         )
+
+    def test_selected_kaikki_language_adds_only_its_per_language_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            names = tuple(
+                path.name
+                for path in expected_pack_paths(project, kaikki_languages=("de", "nl"))
+            )
+
+        self.assertEqual(6, len(names))
+        self.assertIn("kaikki.de-en-enwiktionary-2026-08-05.dictpack", names)
+        self.assertIn("kaikki.nl-en-enwiktionary-2026-08-05.dictpack", names)
 
     def test_selects_only_the_explicit_manual_avd_name(self) -> None:
         avds = {

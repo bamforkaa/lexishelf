@@ -12,6 +12,7 @@ data class VocabularyEntry(
     val modifiedAtEpochMillis: Long,
     val reading: String = "",
     val readingProvenance: DictionaryProvenance? = null,
+    val wordbooks: List<VocabularyWordbook> = emptyList(),
 )
 
 data class VocabularySense(
@@ -33,6 +34,22 @@ data class VocabularyTag(
     val name: String,
 )
 
+data class VocabularyTagSummary(
+    val tag: VocabularyTag,
+    val entryCount: Int,
+)
+
+data class VocabularyWordbook(
+    val id: Long,
+    val backupId: String,
+    val name: String,
+)
+
+data class VocabularyWordbookSummary(
+    val wordbook: VocabularyWordbook,
+    val entryCount: Int,
+)
+
 data class VocabularyEntryDraft(
     val id: Long? = null,
     val headword: String,
@@ -42,6 +59,7 @@ data class VocabularyEntryDraft(
     val tagIds: Set<Long>,
     val reading: String = "",
     val readingProvenance: DictionaryProvenance? = null,
+    val wordbookIds: Set<Long> = emptySet(),
 )
 
 data class VocabularySenseDraft(

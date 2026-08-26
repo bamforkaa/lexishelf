@@ -20,11 +20,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
+import com.example.localvocabulary.core.ui.component.SectionHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +49,11 @@ fun BackupScreen(
         topBar = {
             TopAppBar(
                 title = { Text("백업 및 복원") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("뒤로") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
+                    }
+                },
             )
         },
     ) { padding ->
@@ -56,8 +65,10 @@ fun BackupScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("JSON 백업", style = MaterialTheme.typography.titleLarge)
-            Text("단어, 뜻, 예문, 메모, 태그와 관계만 포함합니다. 앱 설정이나 자격 증명은 포함하지 않습니다.")
+            SectionHeader(
+                title = "JSON 백업",
+                supportingText = "단어, 뜻, 예문, 메모, 단어장, 태그와 관계만 포함합니다. 앱 설정이나 자격 증명은 포함하지 않습니다.",
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { exportLauncher.launch("local-vocabulary-backup.json") },
@@ -88,7 +99,10 @@ fun BackupScreen(
                     ) {
                         Text("가져오기 미리보기", style = MaterialTheme.typography.titleMedium)
                         Text("단어 ${preview.entryCount}, 뜻 ${preview.senseCount}, 예문 ${preview.exampleCount}")
-                        Text("태그 ${preview.tagCount}, 충돌 ${preview.conflictCount}")
+                        Text(
+                            "단어장 ${preview.wordbookCount}, 태그 ${preview.tagCount}, " +
+                                "충돌 ${preview.conflictCount}",
+                        )
                         Text("새로 생성 ${preview.newEntryCount}, 갱신 ${preview.updatedEntryCount}, 건너뜀 ${preview.skippedEntryCount}")
                         if (preview.existingEntryRemovalCount > 0) {
                             Text(
@@ -134,7 +148,7 @@ private fun ImportPreviewCard(
         PolicyRow(
             selected = state.conflictPolicy == BackupConflictPolicy.REPLACE_ALL,
             title = "기존 데이터 전체 교체",
-            description = "현재 단어와 태그를 모두 지운 뒤 백업 내용으로 교체합니다.",
+            description = "현재 단어, 단어장, 태그를 지운 뒤 백업 내용으로 교체합니다.",
             onClick = {
                 onAction(BackupAction.ConflictPolicySelected(BackupConflictPolicy.REPLACE_ALL))
             },

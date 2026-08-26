@@ -89,13 +89,12 @@ class PanLexProvider @Inject internal constructor(
         const val STABLE_PROVIDER_ID = "panlex"
         const val DEFAULT_RESULT_LIMIT = 20
         const val MAX_RESULT_LIMIT = 100
-        const val INDEXED_RELATION_COUNT = 307_530L
+        const val INDEXED_RELATION_COUNT = 1_098_758L
 
-        private val FOREIGN_LANGUAGES = listOf("de", "hi", "pl", "la")
-            .map(Bcp47LanguageTag::requireValid)
-        private val SUPPORTED_SOURCE_LANGUAGES = FOREIGN_LANGUAGES.toSet() + PANLEX_KOREAN_LANGUAGE
+        private val SUPPORTED_SOURCE_LANGUAGES =
+            PANLEX_FOREIGN_LANGUAGES.toSet() + PANLEX_KOREAN_LANGUAGE
         private val SUPPORTED_LANGUAGE_PAIRS = buildSet {
-            FOREIGN_LANGUAGES.forEach { foreignLanguage ->
+            PANLEX_FOREIGN_LANGUAGES.forEach { foreignLanguage ->
                 add(
                     DictionaryLanguagePair(
                         sourceLanguage = foreignLanguage,
@@ -128,7 +127,8 @@ class PanLexProvider @Inject internal constructor(
                 licenseName = "CC0 1.0 Universal",
                 licenseUrl = "https://creativecommons.org/publicdomain/zero/1.0/",
                 attributionNotice =
-                    "PanLex Database. PanLex recommends citing panlex.org or its 2014 LREC paper.",
+                    "PanLex 2019-09-01 snapshot. PanLex recommends citing panlex.org or its " +
+                        "2014 LREC paper.",
                 licenseShortName = "CC0-1.0",
                 usagePolicy = DictionaryUsagePolicy(
                     localPersistence = DictionaryPermission.PERMITTED,
@@ -137,7 +137,9 @@ class PanLexProvider @Inject internal constructor(
                     vocabularyImportMode =
                         DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
                     note = "Only direct same-meaning translations from reviewed language " +
-                        "varieties are indexed. Imported text retains PanLex provenance.",
+                        "varieties in the pinned snapshot are indexed. Imported text retains " +
+                        "PanLex provenance; newer PanLex distributions require a separate " +
+                        "license review.",
                 ),
             ),
             dataset = DictionaryDatasetMetadata(

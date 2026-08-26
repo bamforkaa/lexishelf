@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val isLoading: Boolean = true,
     val defaultLanguageTag: String = "en",
+    val userLanguageTags: Set<String> = emptySet(),
     val message: String? = null,
     val dictionarySources: List<DictionarySourceUiState> = emptyList(),
     val installedPacks: List<DictionaryPackUiState> = emptyList(),
@@ -26,6 +27,7 @@ data class SettingsUiState(
 )
 
 data class DictionarySourceUiState(
+    val providerId: String,
     val providerName: String,
     val sourceUrl: String?,
     val licenseName: String?,
@@ -41,6 +43,7 @@ data class DictionarySourceUiState(
 data class DictionaryPackUiState(
     val packId: String,
     val providerId: String,
+    val providerName: String,
     val datasetVersion: String,
     val sizeBytes: Long,
     val canRollback: Boolean,
@@ -48,6 +51,7 @@ data class DictionaryPackUiState(
 
 sealed interface SettingsAction {
     data class DefaultLanguageChanged(val value: String) : SettingsAction
+    data class UserLanguageAdded(val languageTag: String) : SettingsAction
     data object Save : SettingsAction
     data class InstallDictionaryPack(val uri: String) : SettingsAction
     data class DeleteDictionaryPack(val packId: String) : SettingsAction
@@ -62,6 +66,7 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val dictionarySources = providerRegistry.descriptors().map { descriptor ->
         DictionarySourceUiState(
+            providerId = descriptor.id.value,
             providerName = descriptor.displayName,
             sourceUrl = descriptor.attribution.sourceUrl,
             licenseName = descriptor.attribution.licenseName,
@@ -88,6 +93,9 @@ class SettingsViewModel @Inject constructor(
                             DictionaryPackUiState(
                                 packId = pack.manifest.packId,
                                 providerId = pack.manifest.providerId,
+                                providerName = dictionarySources.firstOrNull {
+                                    it.providerId == pack.manifest.providerId
+                                }?.providerName ?: pack.manifest.providerId,
                                 datasetVersion = pack.manifest.datasetVersion,
                                 sizeBytes = pack.manifest.payload.sizeBytes,
                                 canRollback = pack.canRollback,
@@ -103,6 +111,7 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     defaultLanguageTag = settings.defaultLanguageTag,
+                    userLanguageTags = settings.userLanguageTags,
                     dictionarySources = dictionarySources,
                 )
             }
@@ -114,10 +123,23 @@ class SettingsViewModel @Inject constructor(
             is SettingsAction.DefaultLanguageChanged -> mutableUiState.update {
                 it.copy(defaultLanguageTag = action.value, message = null)
             }
+            is SettingsAction.UserLanguageAdded -> addUserLanguage(action.languageTag)
             SettingsAction.Save -> save()
             is SettingsAction.InstallDictionaryPack -> installPack(action.uri)
             is SettingsAction.DeleteDictionaryPack -> deletePack(action.packId)
             is SettingsAction.RollbackDictionaryPack -> rollbackPack(action.packId)
+        }
+    }
+
+    private fun addUserLanguage(languageTag: String) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.addUserLanguageTag(languageTag)
+                val storedTags = settingsRepository.settings.first().userLanguageTags
+                mutableUiState.update { it.copy(userLanguageTags = storedTags) }
+            } catch (exception: IllegalArgumentException) {
+                mutableUiState.update { it.copy(message = exception.message) }
+            }
         }
     }
 
@@ -131,8 +153,13 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsRepository.setDefaultLanguageTag(normalized)
+            val storedTags = settingsRepository.settings.first().userLanguageTags
             mutableUiState.update {
-                it.copy(defaultLanguageTag = normalized, message = "저장했습니다.")
+                it.copy(
+                    defaultLanguageTag = normalized,
+                    userLanguageTags = storedTags,
+                    message = "저장했습니다.",
+                )
             }
         }
     }

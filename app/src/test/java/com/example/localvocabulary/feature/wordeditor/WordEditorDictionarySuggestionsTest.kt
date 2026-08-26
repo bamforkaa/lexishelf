@@ -31,6 +31,8 @@ import com.example.localvocabulary.feature.wordlist.MainDispatcherRule
 import com.example.localvocabulary.settings.AppSettings
 import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.domain.ExampleSentence
+import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
+import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
@@ -42,6 +44,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -303,7 +306,7 @@ class WordEditorDictionarySuggestionsTest {
     }
 
     @Test
-    fun `same provider result cannot be imported twice`() = runTest {
+    fun `second tap deselects suggestion and removes only its unchanged contribution`() = runTest {
         val provider = suggestionProvider(importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS)
         val viewModel = createViewModel(providers = listOf(provider))
         runCurrent()
@@ -313,10 +316,144 @@ class WordEditorDictionarySuggestionsTest {
         val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
 
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        assertTrue(viewModel.uiState.value.selectedSuggestionKeys.isNotEmpty())
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
 
         assertEquals(1, viewModel.uiState.value.senses.size)
-        assertEquals("provider meaning", viewModel.uiState.value.senses.single().meaning)
+        assertEquals("", viewModel.uiState.value.senses.single().meaning)
+        assertEquals("", viewModel.uiState.value.reading)
+        assertTrue(viewModel.uiState.value.selectedSuggestionKeys.isEmpty())
+    }
+
+    @Test
+    fun `clearing headword removes session imported contribution`() = runTest {
+        val provider = suggestionProvider(
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged(""))
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertEquals("", state.senses.single().meaning)
+        assertEquals("", state.reading)
+        assertTrue(state.selectedSuggestionKeys.isEmpty())
+        assertTrue(state.dictionarySuggestionGroups.isEmpty())
+    }
+
+    @Test
+    fun `headword replacement removes old provider fields but preserves manual draft`() = runTest {
+        val provider = suggestionProvider(
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "내 뜻"))
+        viewModel.onAction(WordEditorAction.ExampleChanged(-1, -2, "내 예문"))
+        viewModel.onAction(WordEditorAction.NotesChanged("내 메모"))
+        viewModel.onAction(WordEditorAction.TagToggled(9L))
+        viewModel.onAction(WordEditorAction.WordbookToggled(10L))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("您好"))
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("내 뜻"), state.senses.map { it.meaning })
+        assertEquals("내 예문", state.senses.single().examples.single().text)
+        assertEquals("내 메모", state.notes)
+        assertEquals(setOf(9L), state.selectedTagIds)
+        assertEquals(setOf(10L), state.selectedWordbookIds)
+        assertEquals("", state.reading)
+        assertTrue(state.selectedSuggestionKeys.isEmpty())
+    }
+
+    @Test
+    fun `edited imported example survives cleanup without stale provider meaning`() = runTest {
+        val provider = suggestionProvider(
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        val importedSense = viewModel.uiState.value.senses.single()
+        viewModel.onAction(
+            WordEditorAction.ExampleChanged(
+                importedSense.key,
+                importedSense.examples.single().key,
+                "사용자가 고친 예문",
+            ),
+        )
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("您好"))
+
+        val retained = viewModel.uiState.value.senses.single()
+        assertEquals("", retained.meaning)
+        assertEquals("", retained.partOfSpeech)
+        assertEquals("사용자가 고친 예문", retained.examples.single().text)
+        assertNull(retained.provenance)
+    }
+
+    @Test
+    fun `deselecting edited imported sense preserves user content and clears provenance`() = runTest {
+        val provider = suggestionProvider(importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS)
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        val senseKey = viewModel.uiState.value.senses.single().key
+        viewModel.onAction(WordEditorAction.MeaningChanged(senseKey, "사용자가 수정한 뜻"))
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+
+        val sense = viewModel.uiState.value.senses.single()
+        assertEquals("사용자가 수정한 뜻", sense.meaning)
+        assertNull(sense.provenance)
+        assertTrue(viewModel.uiState.value.selectedSuggestionKeys.isEmpty())
+    }
+
+    @Test
+    fun `shared imported reading remains until its last selected suggestion is removed`() = runTest {
+        val first = suggestionProvider(
+            id = "first.dictionary",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val second = suggestionProvider(
+            id = "second.dictionary",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val viewModel = createViewModel(providers = listOf(first, second))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val results = viewModel.uiState.value.dictionarySuggestionGroups.map { it.entries.single() }
+        results.forEach {
+            viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(it))
+        }
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(results.first()))
+        assertEquals("provider reading", viewModel.uiState.value.reading)
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(results.last()))
+        assertEquals("", viewModel.uiState.value.reading)
     }
 
     @Test
@@ -401,12 +538,51 @@ class WordEditorDictionarySuggestionsTest {
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(refreshedResult))
 
         assertEquals(listOf("你好", "您好"), provider.queries.map { it.text })
-        assertEquals(3, viewModel.uiState.value.senses.size)
+        assertEquals(2, viewModel.uiState.value.senses.size)
         val preservedUserSense = viewModel.uiState.value.senses.first { it.key == -1L }
         assertEquals("my meaning", preservedUserSense.meaning)
         assertEquals("my example", preservedUserSense.examples.single().text)
         assertEquals("my reading", viewModel.uiState.value.reading)
-        assertTrue(viewModel.uiState.value.readingProvenance!!.modifiedAfterImport)
+        assertNull(viewModel.uiState.value.readingProvenance)
+    }
+
+    @Test
+    fun `headword edit of existing entry changes draft only and preserves stored aggregate`() = runTest {
+        val stored = savedEntry().let { entry ->
+            entry.copy(
+                senses = entry.senses.map { sense ->
+                    sense.copy(
+                        provenance = testProvenance(
+                            sourceEntryId = "test.dictionary:${entry.headword}",
+                            sourceSenseId = "0",
+                            importedFields = setOf(
+                                ImportedDictionaryField.MEANING,
+                                ImportedDictionaryField.EXAMPLES,
+                            ),
+                        ),
+                    )
+                },
+            )
+        }
+        val repository = SuggestionVocabularyRepository(initialEntry = stored)
+        val viewModel = createViewModel(
+            repository = repository,
+            providers = listOf(
+                suggestionProvider(
+                    importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+                ),
+            ),
+            savedStateHandle = SavedStateHandle(mapOf("entryId" to stored.id)),
+        )
+        advanceUntilIdle()
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("您好"))
+
+        assertEquals("saved meaning", viewModel.uiState.value.senses.single().meaning)
+        assertEquals("saved example", viewModel.uiState.value.senses.single().examples.single().text)
+        assertEquals("test.dictionary", viewModel.uiState.value.senses.single().provenance?.providerId)
+        assertEquals("你好", repository.observeEntry(stored.id).first()!!.headword)
+        assertTrue(repository.savedDrafts.isEmpty())
     }
 
     @Test
@@ -435,6 +611,60 @@ class WordEditorDictionarySuggestionsTest {
         assertEquals("saved note", state.notes)
         assertEquals("user reading", state.reading)
         assertEquals(setOf(9L), state.selectedTagIds)
+    }
+
+    @Test
+    fun `existing provider provenance restores toggle ownership without overwriting content`() = runTest {
+        val provider = suggestionProvider(importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS)
+        val original = savedEntry()
+        val sourceEntryId = "test.dictionary:${original.headword}"
+        val repository = SuggestionVocabularyRepository(
+            initialEntry = original.copy(
+                reading = "provider reading",
+                readingProvenance = testProvenance(
+                    sourceEntryId = sourceEntryId,
+                    sourceSenseId = null,
+                    importedFields = setOf(ImportedDictionaryField.READING),
+                ),
+                senses = listOf(
+                    original.senses.single().copy(
+                        meaning = "provider meaning",
+                        partOfSpeech = "noun",
+                        examples = listOf(ExampleSentence(700, "provider example")),
+                        provenance = testProvenance(
+                            sourceEntryId = sourceEntryId,
+                            sourceSenseId = "0",
+                            importedFields = setOf(
+                                ImportedDictionaryField.MEANING,
+                                ImportedDictionaryField.PART_OF_SPEECH,
+                                ImportedDictionaryField.EXAMPLES,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            providers = listOf(provider),
+            savedStateHandle = SavedStateHandle(mapOf("entryId" to 7L)),
+        )
+
+        advanceUntilIdle()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        val selectedState = viewModel.uiState.value
+        assertEquals(setOf(result.suggestionKey()), selectedState.selectedSuggestionKeys)
+        assertEquals(result.suggestionKey(), selectedState.senses.single().importSuggestionKey)
+        assertEquals("provider meaning", selectedState.senses.single().meaning)
+        assertEquals("saved note", selectedState.notes)
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+
+        val deselectedState = viewModel.uiState.value
+        assertTrue(deselectedState.selectedSuggestionKeys.isEmpty())
+        assertEquals("", deselectedState.senses.single().meaning)
+        assertEquals("", deselectedState.reading)
+        assertEquals("saved note", deselectedState.notes)
     }
 
     private fun createViewModel(
@@ -600,6 +830,7 @@ private object SuggestionTagRepository : TagRepository {
 private object SuggestionSettingsRepository : SettingsRepository {
     override val settings: Flow<AppSettings> = flowOf(AppSettings(defaultLanguageTag = "zh-Hans"))
     override suspend fun setDefaultLanguageTag(languageTag: String) = Unit
+    override suspend fun addUserLanguageTag(languageTag: String) = Unit
 }
 
 private class FixedSettingsRepository(defaultLanguageTag: String) : SettingsRepository {
@@ -608,6 +839,7 @@ private class FixedSettingsRepository(defaultLanguageTag: String) : SettingsRepo
     )
 
     override suspend fun setDefaultLanguageTag(languageTag: String) = Unit
+    override suspend fun addUserLanguageTag(languageTag: String) = Unit
 }
 
 private fun savedEntry() = VocabularyEntry(
@@ -628,4 +860,22 @@ private fun savedEntry() = VocabularyEntry(
     createdAtEpochMillis = 100,
     modifiedAtEpochMillis = 200,
     reading = "user reading",
+)
+
+private fun testProvenance(
+    sourceEntryId: String,
+    sourceSenseId: String?,
+    importedFields: Set<ImportedDictionaryField>,
+) = DictionaryProvenance(
+    providerId = "test.dictionary",
+    sourceEntryId = sourceEntryId,
+    sourceSenseId = sourceSenseId,
+    sourceName = "Test Dictionary",
+    sourceUrl = "https://example.invalid/test.dictionary",
+    licenseName = "Test fixture",
+    licenseUrl = null,
+    datasetVersion = null,
+    importedFields = importedFields,
+    importedAtEpochMillis = 1_000L,
+    modifiedAfterImport = false,
 )

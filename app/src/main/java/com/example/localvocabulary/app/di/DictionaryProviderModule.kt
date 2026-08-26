@@ -16,6 +16,10 @@ import com.example.localvocabulary.dictionary.provider.panlex.PanLexDataSource
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexSource
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexLookup
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexProvider
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiDataSource
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiIndexSource
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiLookup
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiProvider
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
 import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistry
 import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReferenceProvider
@@ -103,6 +107,15 @@ abstract class DictionaryProviderModule {
         @Provides
         @IntoSet
         fun providePanLexProvider(provider: PanLexProvider): DictionaryProvider = provider
+
+        @Provides
+        @Singleton
+        internal fun provideKaikkiLookup(indexSource: KaikkiIndexSource): KaikkiLookup =
+            KaikkiDataSource(indexSource)
+
+        @Provides
+        @IntoSet
+        fun provideKaikkiProvider(provider: KaikkiProvider): DictionaryProvider = provider
 
         @Provides
         @Singleton

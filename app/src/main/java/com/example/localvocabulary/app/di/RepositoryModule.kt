@@ -10,8 +10,10 @@ import com.example.localvocabulary.settings.DataStoreSettingsRepository
 import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.data.RoomTagRepository
 import com.example.localvocabulary.vocabulary.data.RoomVocabularyRepository
+import com.example.localvocabulary.vocabulary.data.RoomWordbookRepository
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
+import com.example.localvocabulary.vocabulary.domain.WordbookRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -44,6 +46,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTagRepository(implementation: RoomTagRepository): TagRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWordbookRepository(
+        implementation: RoomWordbookRepository,
+    ): WordbookRepository
 
     @Binds
     @Singleton

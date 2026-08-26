@@ -82,7 +82,7 @@ Mapping policy:
 - Explicit Use copies only the chosen gloss/POS and primary reading. Alternative spellings and
   readings remain transient; the user's current headword is the persistent canonical writing.
 
-Reading is a first-class vocabulary field in Room v4. Provider-neutral entry-field provenance
+Reading was introduced as a first-class vocabulary field in Room v4 and remains in current v5. Provider-neutral entry-field provenance
 records its source independently from sense meaning/POS provenance. Backup v3 round-trips both.
 Editing or clearing reading marks its provenance modified; refresh has no persistence path.
 

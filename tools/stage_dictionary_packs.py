@@ -9,16 +9,30 @@ import shutil
 import subprocess
 from typing import Mapping
 
-from tools.build_dictionary_packs import PACKS, pack_file_name
+from tools.build_dictionary_packs import CORE_PACKS, KAIKKI_PACKS, pack_file_name
 from tools.dataset_paths import dataset_paths, dataset_root_summary
+from tools.kaikki_language_config import KAIKKI_SUPPORTED_LANGUAGE_TAGS
 
 REMOTE_DIRECTORY = "/sdcard/Download/LocalVocabularyPacks"
 
 
-def expected_pack_paths(project_root: Path) -> tuple[Path, ...]:
+def expected_pack_paths(
+    project_root: Path,
+    kaikki_languages: tuple[str, ...] | None = None,
+) -> tuple[Path, ...]:
+    selected_languages = set(
+        kaikki_languages
+        if kaikki_languages is not None
+        else (item.artifact.removesuffix(".db") for item in KAIKKI_PACKS)
+    )
+    definitions = CORE_PACKS + tuple(
+        item
+        for item in KAIKKI_PACKS
+        if item.artifact.removesuffix(".db") in selected_languages
+    )
     return tuple(
         dataset_paths(definition.dataset, project_root).packs / pack_file_name(definition)
-        for definition in PACKS
+        for definition in definitions
     )
 
 
@@ -105,11 +119,20 @@ def main() -> None:
         help="Exact connected AVD name, for example Medium_Phone_Manual",
     )
     parser.add_argument("--adb", type=Path, help="Optional explicit adb executable path")
+    parser.add_argument(
+        "--kaikki-language",
+        action="append",
+        choices=KAIKKI_SUPPORTED_LANGUAGE_TAGS,
+        help="Stage only these Kaikki language packs; core packs are always staged",
+    )
     arguments = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
-    packs = expected_pack_paths(project_root)
-    print(dataset_root_summary(dataset_paths(PACKS[0].dataset, project_root).root), flush=True)
+    packs = expected_pack_paths(
+        project_root,
+        tuple(arguments.kaikki_language) if arguments.kaikki_language else None,
+    )
+    print(dataset_root_summary(dataset_paths(CORE_PACKS[0].dataset, project_root).root), flush=True)
     missing = [pack for pack in packs if not pack.is_file()]
     if missing:
         formatted = "\n".join(f"- {pack}" for pack in missing)

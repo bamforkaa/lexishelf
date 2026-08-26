@@ -1,8 +1,8 @@
 # 사전 소스 라이선스 조사
 
-최종 확인일: 2026-08-23
+최종 확인일: 2026-08-26
 
-현재 실제 provider는 CC-CEDICT와 한국어기초사전 두 개입니다. full dataset binary와 자동 download 코드는 저장소에 없고, 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
+현재 실제 provider는 CC-CEDICT, 한국어기초사전, PanLex, JMdict, Kaikki 다섯 개입니다. full dataset binary와 자동 download 코드는 저장소에 없고, 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
 
 코드의 `DictionaryUsagePolicy`도 법률 판단을 대신하지 않습니다. 확인하지 않은 local persistence, redistribution, cache 값은 기본 `UNKNOWN`입니다. 검색 결과 표시는 permission과 별개지만, provider text를 Room/backup으로 이어지는 draft에 복사하려면 local persistence와 redistribution이 모두 `PERMITTED`이고 app import mode도 `COPY_EXPORTABLE_FIELDS`여야 합니다. 복사된 sense는 provider/source/license provenance를 Room과 backup에 함께 보존해야 합니다. 이 조건을 충족하지 못하는 provider는 `REFERENCE_ONLY`입니다.
 
@@ -67,6 +67,32 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 - 비영어 gloss distribution은 권리 범위를 별도 확인하기 전에 등록하지 않는다.
 - 수동 update 절차는 정의했지만 자동 update 주기/manifest와 downloadable pack 설치·정리 UX는
   Task 9의 미결정 사항이다.
+
+## Kaikki / English Wiktionary / Wiktextract
+
+공식 출처:
+
+- [Kaikki raw data downloads](https://kaikki.org/dictionary/rawdata.html)
+- [Kaikki English Wiktionary dictionary](https://kaikki.org/dictionary/)
+- [Wiktionary copyrights](https://en.wiktionary.org/wiki/Wiktionary:Copyrights)
+- [Wiktextract software license](https://github.com/tatuylonen/wiktextract/blob/master/LICENSE)
+
+확인된 사실과 선택:
+
+- Kaikki official raw page는 English Wiktionary dump의 raw Wiktextract JSONL/GZip과 보통 주 1회 이상의 update를 제공한다. 현재 고정본은 `2026-08-05` dump를 `2026-08-23` 추출한 2,826,618,017-byte gzip이며 SHA-256은 `e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65`이다.
+- Kaikki의 언어별 post-processed downloads는 deprecated/removal 예정으로 표시된다. 개발자가 current official raw를 명시적으로 한 번 받아 streaming filter하며 앱/Gradle이 자동 다운로드하지 않는다.
+- Kaikki는 extracted data를 Wiktionary와 같은 CC BY-SA/GFDL 조건으로 제공한다고 명시한다. English Wiktionary 원 entry text는 CC BY-SA 4.0과 GFDL 1.1 or later의 dual license다.
+- 이 앱과 generated pack은 CC BY-SA 4.0 재사용 경로를 선택하고 source entry URL, Kaikki/Wiktextract attribution, release/license를 provenance에 보존한다. local persistence/redistribution/cache의 `PERMITTED`는 attribution/ShareAlike 조건을 지워 주는 값이 아니다.
+- Wiktextract 프로그램의 MIT license는 parser software에 대한 것이며 extracted Wiktionary data의 license를 대체하지 않는다.
+- Wiktionary는 외부 source의 quotation/text/image/sound에 별도 조건이나 fair use가 있을 수 있다고 경고한다. Kaikki `examples` 중 `type=example`이고 `ref`가 없는 contributor-authored usage text만 선택한 CC BY-SA 4.0 경로로 index에 넣고, `quotation`, `ref`가 있는 attributed text와 audio/image/media URL은 제외한다. import한 example은 enclosing sense의 source entry/sense/license provenance를 공유한다.
+- raw POS와 normalized generic POS를 분리하고 pronunciation/forms/gender를 transient result로 표시한다. explicit row tap만 English gloss와 허용된 POS를 generic mapper로 가져오며 refresh는 user data를 갱신하지 않는다.
+- provider ID는 `kaikki`, 첫 지원 pair는 `de|hi|pl|nl|pt|tr|cs|sv|uk|vi|th|id → en`이다. 후보 coverage, 선택/제외 근거, pack 크기와 QA key는 [kaikki-dataset.md](kaikki-dataset.md)에 있다.
+
+미결정 사항:
+
+- 새 Kaikki/Wiktionary release마다 license/source field와 checksum이 동일한지 재검토해야 한다.
+- quotation/attributed example 또는 audio/media를 향후 표시·저장하려면 개별 source/attribution/fair-use 조건을 field별로 다시 확인해야 한다.
+- public release용 pack catalog/update channel과 CC BY-SA attribution UI의 최종 제품 검토가 필요하다.
 
 ## CC-CEDICT
 
@@ -175,10 +201,11 @@ API 대신 local dataset을 선택한 이유:
 
 확인된 사실:
 
-- PanLex Database CSV/JSON snapshots, PanLex Lite와 Swadesh 자료는 CC0 1.0 Universal로 제공된다. copy/modify/distribute와 commercial use가 허용되며 PanLex site 또는 2014 LREC paper citation을 권장한다.
+- 체크섬으로 고정한 `panlex-20190901-csv.zip`의 내장 `LICENSE.txt`는 그 artifact를 CC0 1.0 Universal로 제공한다. copy/modify/distribute와 commercial use가 허용되며 PanLex site 또는 2014 LREC paper citation을 권장한다.
+- 2026-08-26 현재 PanLex 공식 license page는 database에 CC BY-NC-SA 4.0을 적용하고 commercial use에는 서면 허가가 필요하다고 명시한다. 과거 고정 artifact의 CC0 grant를 현재나 미래 배포물로 일반화하지 않는다.
 - expression은 하나의 language variety에 속하고 denotation은 expression을 source-owned meaning에 연결한다. 이번 구현은 동일 meaning의 Korean/foreign co-denotation만 direct relation으로 사용한다.
 - distance-1 translation quality는 source group별 최대 quality를 합산하는 방식으로 설명된다. converter ranking은 이 개념을 따르고 deterministic tie-break만 추가한다.
-- 2026-08-23 현재 공식 snapshot page는 artifact 목록을 제공하지 않고 과거 API/database host는 DNS에서 사용할 수 없었다. 공식 URL의 archived 2019-09-01 CSV response를 digest와 embedded CC0 license까지 확인했지만 최신 자료라고 표현하지 않는다.
+- 2026-08-26 현재 공식 snapshot page는 artifact 목록을 제공하지 않고 과거 API/database host는 사용할 수 없었다. 공식 URL의 archived 2019-09-01 CSV response를 size, SHA-256, ZIP CRC와 embedded CC0 license까지 확인했지만 최신 자료라고 표현하지 않는다.
 
 선택한 구현과 metadata:
 
@@ -186,16 +213,16 @@ API 대신 local dataset을 선택한 이유:
 | --- | --- |
 | provider ID | `panlex` |
 | access | `LOCAL_DATASET` |
-| source/result | `de|hi|pl|la ↔ ko` translation exact lookup |
-| reviewed PanLex UID | `deu-000`, `hin-000`, `pol-000`, `lat-000`, `kor-000` |
+| source/result | `de|hi|pl|la|nl|pt|it|tr|cs|sv|fi|uk ↔ ko` translation exact lookup |
+| reviewed PanLex UID | `deu-000`, `hin-000`, `pol-000`, `lat-000`, `nld-000`, `por-000`, `ita-000`, `tur-000`, `ces-000`, `swe-000`, `fin-000`, `ukr-000`, `kor-000` |
 | source release | `2019-09-01` official CSV snapshot |
 | generated artifact | `panlex_korean_fallback.db` |
-| indexed relations | 307,530 unique expression pairs |
-| license | CC0 1.0 Universal |
+| indexed relations | 1,098,758 unique expression pairs |
+| license | 고정한 2019-09-01 artifact의 CC0 1.0 Universal |
 
 저장/재배포 결정:
 
-- CC0 grant에 따라 local persistence, redistribution과 cache를 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다.
+- 고정 artifact의 내장 CC0 grant에 따라 local persistence, redistribution과 cache를 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다. 새 PanLex 배포물에는 이 결정을 재사용하지 않는다.
 - 명시적 `Use`로 선택한 translation에 PanLex expression/meaning/source ID, release, source/license를 sense provenance로 저장하고 JSON backup에도 유지한다.
 - 전체 PanLex dataset은 user Room이나 backup에 넣지 않는다. 검색 result는 transient이며 refresh가 저장된 사용자 data를 바꾸지 않는다.
 - 다른 언어를 거치는 pivot translation, definition/POS/example 추론은 하지 않는다.

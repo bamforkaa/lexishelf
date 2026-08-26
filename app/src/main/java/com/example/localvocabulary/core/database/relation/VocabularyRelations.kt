@@ -11,6 +11,8 @@ import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanc
 import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
+import com.example.localvocabulary.core.database.entity.WordbookEntity
 
 data class SenseWithExamples(
     @Embedded
@@ -56,4 +58,14 @@ data class VocabularyEntryWithDetails(
         ),
     )
     val tags: List<TagEntity>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = EntryWordbookCrossRef::class,
+            parentColumn = "entry_id",
+            entityColumn = "wordbook_id",
+        ),
+    )
+    val wordbooks: List<WordbookEntity> = emptyList(),
 )

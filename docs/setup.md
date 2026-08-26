@@ -80,17 +80,17 @@ python -m tools.build_krdict_index
 
 ## 선택 사항: PanLex Korean fallback index
 
-PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별도 read-only SQLite pack payload를 사용합니다. 현재 공식 distribution/API가 unavailable하므로 확인하지 않은 mirror나 third-party 변환본을 사용하지 마세요. 검증한 2019-09-01 공식 CSV snapshot의 archived official response, 정확한 SHA-256/SHA-1 digest와 노후화 제한은 [panlex-dataset.md](panlex-dataset.md)에 기록했습니다.
+PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별도 read-only SQLite pack payload를 사용합니다. 현재 공식 distribution/API가 unavailable하므로 확인하지 않은 mirror나 third-party 변환본을 사용하지 마세요. 검증한 2019-09-01 공식 CSV snapshot의 archived official response, 정확한 SHA-256/SHA-1 digest, artifact 내장 CC0와 현재 공식 license의 차이는 [panlex-dataset.md](panlex-dataset.md)에 기록했습니다.
 
 원본 ZIP을 저장소 밖에 준비한 뒤 Python 3 표준 라이브러리 변환기를 실행합니다.
 
 ```powershell
 Copy-Item C:\path\to\panlex-20190901-csv.zip `
   D:\lang-Database\panlex\source\panlex-20190901-csv.zip
-python -m tools.build_panlex_index --languages de,hi,pl,la
+python -X utf8 -m tools.build_panlex_index
 ```
 
-생성 DB는 `<dataset-root>/panlex/generated/panlex_korean_fallback.db`에 생기며 현재 검증본은 53,211,136 bytes입니다. 누락되어도 pack 미포함 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 reviewed language-variety allowlist와 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
+생성 DB는 `<dataset-root>/panlex/generated/panlex_korean_fallback.db`에 생기며 현재 12개 언어 검증본은 189,714,432 bytes입니다. 누락되어도 pack 미포함 build/test, 수동 저장과 다른 provider는 정상이고 PanLex suggestion group만 dataset unavailable을 표시합니다. 변환기는 shared reviewed language-variety config와 고정 artifact의 embedded CC0 license를 검사하며 pivot translation을 생성하지 않습니다.
 
 ## 선택 사항: JMdict local index
 
@@ -104,6 +104,21 @@ python -m tools.build_jmdict_index
 
 정확한 artifact와 checksum은 [jmdict-dataset.md](jmdict-dataset.md)에 있습니다. 생성 DB는
 `<dataset-root>/jmdict/generated/jmdict.db`이며, 없어도 pack 미포함 build와 manual vocabulary는 정상이고 JMdict suggestion group만 dataset unavailable입니다.
+
+## 선택 사항: Kaikki multilingual English fallback
+
+Android/Gradle build는 Kaikki 원본을 다운로드하거나 runtime JSON parsing을 하지 않습니다. 공식 raw page에서 current English Wiktionary extraction gzip을 명시적으로 받은 뒤, [Kaikki dataset 문서](kaikki-dataset.md)의 dump date·bytes·SHA-256을 확인해 다음 exact 이름으로 둡니다.
+
+```text
+D:\lang-Database\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz
+```
+
+```powershell
+python -X utf8 -m tools.build_kaikki_indexes
+python -X utf8 -m tools.build_dictionary_packs --pack kaikki
+```
+
+원본은 약 2.63GiB이고 production-selected 12개 DB 합계는 약 1.20GiB이므로 충분한 disk/time을 확보하세요. converter는 Python 표준 라이브러리만 사용하며 source checksum mismatch나 malformed JSON이면 기존 성공 output을 유지하고 실패합니다. pack이 없는 언어만 suggestion 영역에서 dataset unavailable이며 manual entry와 다른 provider는 정상 동작합니다.
 
 ## 누락 항목 설치 및 설정
 
@@ -181,9 +196,10 @@ Windows에서 `D:\lang-Database`를 지속적으로 사용할 때는 project roo
 ```properties
 dictionaryDataDir=D\:\\lang-Database
 bundleDictionaryPacksInDebug=true
+debugDictionaryPackLanguages=de,vi
 ```
 
-두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. `installDebug` 전에 Python pack builder가 실행되며, 첫 앱 실행에서 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
+두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. 세 번째 값은 큰 Kaikki 전체 12개 중 debug APK에 넣을 언어만 제한합니다. `installDebug` 전에 Python pack builder가 core 네 개와 선택한 Kaikki pack을 생성하며, 첫 앱 실행에서 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
 
 현재 PowerShell session에서만 우선 적용하려면 환경 변수를 사용합니다.
 
@@ -197,6 +213,7 @@ $env:LANG_DATABASE_DIR = 'D:\lang-Database'
 python -m tools.build_jmdict_index
 python -m tools.build_krdict_index
 python -m tools.build_panlex_index
+python -X utf8 -m tools.build_kaikki_indexes
 python -m tools.build_dictionary_packs
 ```
 
@@ -204,11 +221,12 @@ python -m tools.build_dictionary_packs
 
 생성한 `.dictpack`은 설정 화면의 `로컬 pack 설치`로 고릅니다. 앱은 Storage Access Framework를 사용하므로 storage permission이 필요하지 않습니다. Android runtime 저장 경로는 `noBackupFilesDir/dictionary-packs`이며 Windows root와 무관합니다. 자세한 layout/manifest/update/rollback은 [dictionary-packs.md](dictionary-packs.md)에 있습니다.
 
-Manual QA에서는 Test AVD를 끄고 `Medium_Phone_Manual`만 연결한 뒤 다음처럼 네 pack을 Downloads에 staging할 수 있습니다.
+Manual QA에서는 Test AVD를 끄고 `Medium_Phone_Manual`만 연결한 뒤 다음처럼 core pack과 필요한 Kaikki pack을 Downloads에 staging할 수 있습니다.
 
 ```powershell
 python -m tools.build_dictionary_packs
-python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual
+python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual `
+  --kaikki-language de --kaikki-language vi
 ```
 
 `bundleDictionaryPacksInDebug=false`인 경우 staging은 설치가 아닙니다. 앱의 설정 → `로컬 pack 설치`에서 `Download/LocalVocabularyPacks`의 파일을 선택해야 합니다. `true`인 Manual QA 구성에서는 `installDebug`가 pack 포함 APK를 설치하고 첫 실행이 `AndroidDictionaryPackRepository`의 manifest/size/SHA-256/payload 검증과 atomic activation을 수행합니다.
@@ -331,7 +349,7 @@ full asset 계측 test의 강제 첫 복사는 531ms, 첫 open + `食べる` exa
 
 ## 2026-08-23 Task 9 dictionary pack 검증
 
-Task 8의 dataset 포함 debug APK 144,462,083 bytes에서 모든 dictionary payload를 분리했습니다. 최종 base APK는 18,466,693 bytes, AndroidTest APK는 1,289,772 bytes입니다. Room schema는 v4, JSON backup schema는 v3로 유지했습니다.
+Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payload를 분리했을 당시 base APK는 18,466,693 bytes, AndroidTest APK는 1,289,772 bytes였습니다. 이 수치는 당시 빌드 기록이며 현재 데이터 모델은 Room schema v5, JSON backup schema v4입니다.
 
 | 명령 | 실제 결과 |
 | --- | --- |
@@ -345,3 +363,21 @@ Task 8의 dataset 포함 debug APK 144,462,083 bytes에서 모든 dictionary pay
 `/data/local/tmp/local-vocabulary-packs`에 실제 생성 pack을 staging하고 opt-in 계측 test를 별도로 실행했습니다. 한 pack 설치와 네 pack 동시 설치가 모두 성공했으며 측정값은 CC-CEDICT 229ms, JMdict 1,130ms, 한국어기초사전 5,023ms, PanLex 1,756ms였습니다. 설치 직후 JMdict 첫 exact query는 20ms였습니다. 이 값은 해당 Test AVD의 단일 계측값이며 일반 기기의 benchmark로 간주하지 않습니다.
 
 중간 실패 두 건은 production 결함이 아니었습니다. pack repository test가 test-only 내부 설치 후 명시적 refresh를 누락했고, Compose test가 sense별로 두 번 표시되는 headword를 한 node로 기대했습니다. 두 test expectation/setup만 바로잡은 뒤 관련 test 11개와 전체 계측 suite를 재실행해 통과했습니다. pack이 0개인 기본 상태에서도 전체 editor 및 수동 저장 흐름은 정상이며, 실제 pack 1개/4개 상태는 opt-in integration test에서 검증했습니다.
+
+## 2026-08-26 Task 11 PanLex coverage 확장 검증
+
+체크섬을 검증한 동일 2019-09-01 source에서 후보 39개 언어를 측정한 뒤 PanLex 범위를 기존 `de/hi/pl/la`와 신규 `nl/pt/it/tr/cs/sv/fi/uk`의 총 12개로 제한했습니다. 전체 변환은 502.454초, 결과는 1,098,758 unique direct pairs / 189,714,432-byte SQLite / 72,462,031-byte pack입니다. 기존 네 언어 relation count는 모두 동일했습니다. 상세 candidate table, artifact license 경계, QA sample과 성능은 [panlex-dataset.md](panlex-dataset.md)에 있습니다.
+
+| 명령 | 실제 결과 |
+| --- | --- |
+| `python -X utf8 -m unittest discover -s tools\tests -v` | 성공, 23개 통과 |
+| `python -X utf8 -m tools.build_panlex_index` | 성공, 502.454초, `integrity_check=ok` |
+| `python -X utf8 -m tools.build_dictionary_packs --pack panlex` | 성공, production manifest/size/SHA-256 pack 생성 |
+| `.\gradlew.bat testDebugUnitTest` | 성공, 23 suites / 133 tests / 실패·오류·건너뜀 0 |
+| `.\gradlew.bat lintDebug` | 성공 |
+| `.\gradlew.bat assembleDebug` | 성공, 최종 검증 파일 `app-debug.apk` 201,374,823 bytes |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,414,953 bytes |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone_Test`에서 92개 발견 / 실패 0 / optional staged-pack 2개 건너뜀 |
+| opt-in real PanLex pack 계측 | 성공, production install/activation 4,906ms / 첫 `nl → ko` exact query 15ms |
+
+수동 QA AVD는 연결하지 않았습니다. Test AVD만 headless로 시작했고, 전체 suite 후 opt-in pack test를 별도로 실행했습니다. Room schema v5와 backup schema v4는 변경하지 않았습니다.

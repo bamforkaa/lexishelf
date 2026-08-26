@@ -11,6 +11,8 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
 import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.text.Normalizer
+import java.util.Locale
 import javax.inject.Inject
 
 class RoomVocabularyRepository @Inject constructor(
@@ -19,9 +21,38 @@ class RoomVocabularyRepository @Inject constructor(
     private val stableIdGenerator: StableIdGenerator,
 ) : VocabularyRepository {
     override fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntry>> =
-        vocabularyDao.observeEntries(query.escapeForLike(), tagId).map { rows ->
+        observeEntries(query, tagId, wordbookId = null, languageTag = null)
+
+    override fun observeEntries(
+        query: String,
+        tagId: Long?,
+        wordbookId: Long?,
+        languageTag: String?,
+    ): Flow<List<VocabularyEntry>> =
+        vocabularyDao.observeEntries(
+            query.escapeForLike(),
+            tagId,
+            wordbookId,
+            languageTag,
+        ).map { rows ->
             rows.map { it.toDomain() }
         }
+
+    override fun observeLanguages(): Flow<List<String>> = vocabularyDao.observeLanguages()
+
+    override suspend fun findDuplicateCandidates(
+        headword: String,
+        languageTag: String,
+        excludingEntryId: Long?,
+    ): List<VocabularyEntry> {
+        val identity = normalizeHeadwordIdentity(headword)
+        return vocabularyDao.findEntriesByLanguage(languageTag)
+            .asSequence()
+            .filterNot { it.entry.id == excludingEntryId }
+            .filter { normalizeHeadwordIdentity(it.entry.headword) == identity }
+            .map { it.toDomain() }
+            .toList()
+    }
 
     override fun observeEntry(id: Long): Flow<VocabularyEntry?> =
         vocabularyDao.observeEntry(id).map { it?.toDomain() }
@@ -67,6 +98,7 @@ class RoomVocabularyRepository @Inject constructor(
             },
             tagIds = draft.tagIds,
             readingProvenance = draft.readingProvenance?.toWrite(),
+            wordbookIds = draft.wordbookIds,
         )
     }
 
@@ -94,3 +126,9 @@ private fun String.escapeForLike(): String = trim()
     .replace("\\", "\\\\")
     .replace("%", "\\%")
     .replace("_", "\\_")
+
+internal fun normalizeHeadwordIdentity(value: String): String = Normalizer
+    .normalize(value.trim().replace(HEADWORD_WHITESPACE, " "), Normalizer.Form.NFC)
+    .lowercase(Locale.ROOT)
+
+private val HEADWORD_WHITESPACE = Regex("\\s+")

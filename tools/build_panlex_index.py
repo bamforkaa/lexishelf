@@ -19,33 +19,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, Sequence
 
+from tools.panlex_language_config import (
+    PANLEX_BCP47_TO_VARIETY_UID,
+    PANLEX_FOREIGN_LANGUAGE_TAGS,
+    PANLEX_KOREAN_LANGUAGE_TAG,
+    PANLEX_KOREAN_VARIETY_UID,
+    PANLEX_PINNED_ARCHIVE_SHA256,
+)
+
 
 INDEX_SCHEMA_VERSION = 1
 PANLEX_SOURCE_URL = "https://panlex.org/"
 PANLEX_SNAPSHOT_URL = "https://panlex.org/snapshot/"
 PANLEX_LICENSE_NAME = "CC0 1.0 Universal"
 PANLEX_LICENSE_URL = "https://creativecommons.org/publicdomain/zero/1.0/"
-KOREAN_LANGUAGE_TAG = "ko"
-KOREAN_VARIETY_UID = "kor-000"
-DEFAULT_LANGUAGE_TAGS = ("de", "hi", "pl", "la")
-BCP47_TO_PANLEX_UID = {
-    "ko": KOREAN_VARIETY_UID,
-    "de": "deu-000",
-    "hi": "hin-000",
-    "pl": "pol-000",
-    "la": "lat-000",
-    "en": "eng-000",
-    "ja": "jpn-000",
-    "zh": "cmn-000",
-    "fr": "fra-000",
-    "es": "spa-000",
-    "ru": "rus-000",
-    "ar": "arb-000",
-    "mn": "khk-000",
-    "vi": "vie-000",
-    "th": "tha-000",
-    "id": "ind-000",
-}
+KOREAN_LANGUAGE_TAG = PANLEX_KOREAN_LANGUAGE_TAG
+KOREAN_VARIETY_UID = PANLEX_KOREAN_VARIETY_UID
+DEFAULT_LANGUAGE_TAGS = PANLEX_FOREIGN_LANGUAGE_TAGS
+BCP47_TO_PANLEX_UID = PANLEX_BCP47_TO_VARIETY_UID
 
 _SNAPSHOT_ROOT = re.compile(r"panlex-(\d{4})(\d{2})(\d{2})-csv/$")
 _REQUIRED_TABLE_COLUMNS = {
@@ -517,6 +508,7 @@ def build_index(
     snapshot_path: Path,
     output_database: Path,
     language_tags: Sequence[str] = DEFAULT_LANGUAGE_TAGS,
+    expected_source_sha256: str | None = None,
 ) -> PanLexBuildStats:
     if not snapshot_path.is_file():
         raise FileNotFoundError(snapshot_path)
@@ -529,6 +521,10 @@ def build_index(
             generated.unlink()
 
     archive_sha256 = _sha256(snapshot_path)
+    if expected_source_sha256 is not None and archive_sha256 != expected_source_sha256:
+        raise ValueError(
+            "PanLex source SHA-256 does not match the reviewed pinned artifact"
+        )
     archive_sha1_base32 = _sha1_base32(snapshot_path)
     staging = sqlite3.connect(staging_path)
     try:
@@ -603,6 +599,9 @@ def main() -> None:
         snapshot.resolve(),
         output_database.resolve(),
         args.languages.split(","),
+        expected_source_sha256=(
+            PANLEX_PINNED_ARCHIVE_SHA256 if args.snapshot is None else None
+        ),
     )
     report = {
         **stats.__dict__,

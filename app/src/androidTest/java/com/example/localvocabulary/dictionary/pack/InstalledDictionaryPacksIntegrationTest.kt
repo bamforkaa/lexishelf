@@ -6,21 +6,72 @@ import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.example.localvocabulary.app.DictionaryApplication
+import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
+import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictDataSource
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictIndexSource
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictLookupResult
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiDataSource
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiIndexSource
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiLookupResult
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexDataSource
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexSource
+import com.example.localvocabulary.dictionary.provider.panlex.PanLexLookupResult
 import java.io.File
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlin.system.measureTimeMillis
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import kotlinx.coroutines.runBlocking
 
-/** Optional Test-AVD development flow; no pack is bundled into either APK. */
+/** Real-pack checks for the configured debug bundle and optional Test-AVD staging flow. */
 @RunWith(AndroidJUnit4::class)
 class InstalledDictionaryPacksIntegrationTest {
+    @Test
+    fun bundledKaikkiPackResolvesByLanguagePairAndPerformsRealExactLookup() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val application = context.applicationContext as DictionaryApplication
+        application.bundledDictionaryPackBootstrapper.state
+            .filterIsInstance<BundledDictionaryPackBootstrapState.Complete>()
+            .first()
+        val repository = AndroidDictionaryPackRepository(
+            context,
+            AndroidDictionaryPackPayloadValidator(),
+            DictionaryPackManifestCodec(),
+        )
+        val providerId = DictionaryProviderId("kaikki")
+        val germanPack = repository.activePack(providerId, pair("de"))
+        assumeTrue(
+            "The optional de Kaikki debug pack is not configured for this build",
+            germanPack != null,
+        )
+
+        val lookup = KaikkiDataSource(KaikkiIndexSource(repository))
+        lateinit var result: KaikkiLookupResult
+        val elapsed = measureTimeMillis {
+            result = lookup.exactLookup("Wasser", "de", 20)
+        }
+
+        assertTrue(result is KaikkiLookupResult.Matches)
+        val matches = result as KaikkiLookupResult.Matches
+        assertEquals("Wasser", matches.records.first().entry.headword)
+        assertTrue(
+            matches.records
+                .flatMap { it.entry.senses }
+                .flatMap { it.retainedExamples }
+                .contains("Wasser lassen"),
+        )
+        Log.i("DictionaryPackBenchmark", "kaikki-de-first-query=${elapsed}ms")
+        Unit
+    }
+
     @Test
     fun installsLocallyStagedRealPacks() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -63,10 +114,25 @@ class InstalledDictionaryPacksIntegrationTest {
             assertTrue(lookupResult is JmDictLookupResult.Matches)
             Log.i("DictionaryPackBenchmark", "jmdict-first-query=${firstQueryMillis}ms")
         }
+        if (repository.activePack(DictionaryProviderId("panlex")) != null) {
+            val lookup = PanLexDataSource(PanLexIndexSource(repository))
+            lateinit var lookupResult: PanLexLookupResult
+            val firstQueryMillis = measureTimeMillis {
+                lookupResult = lookup.exactLookup("water", "nl", "ko", 20)
+            }
+            assertTrue(lookupResult is PanLexLookupResult.Matches)
+            Log.i("DictionaryPackBenchmark", "panlex-first-query=${firstQueryMillis}ms")
+        }
     }
 
     private companion object {
         const val STAGING_DIRECTORY = "/data/local/tmp/local-vocabulary-packs"
         const val PACK_PATHS_ARGUMENT = "dictionaryPackPaths"
     }
+
+    private fun pair(sourceLanguage: String) = DictionaryLanguagePair(
+        sourceLanguage = Bcp47LanguageTag.requireValid(sourceLanguage),
+        resultLanguage = Bcp47LanguageTag.requireValid("en"),
+        resultKind = DictionaryResultKind.TRANSLATION,
+    )
 }

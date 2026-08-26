@@ -8,6 +8,7 @@ import com.example.localvocabulary.backup.domain.BackupImportedFieldV2
 import com.example.localvocabulary.backup.domain.BackupReadError
 import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupTagV1
+import com.example.localvocabulary.backup.domain.BackupWordbookV4
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.VocabularyBackupV2
 import org.junit.Assert.assertEquals
@@ -39,12 +40,26 @@ class KotlinxBackupSerializerTest {
 
     @Test
     fun `provider provenance survives current schema round trip`() {
-        val provenance = provenance(modified = true)
+        val provenance = provenance(modified = true).copy(
+            providerId = "kaikki",
+            sourceEntryId = "enw-de-entry",
+            sourceSenseId = "en-Wasser-de-noun-1",
+            sourceName = "English Wiktionary via Kaikki/Wiktextract",
+            importedFields = listOf(
+                BackupImportedFieldV2.EXAMPLES,
+                BackupImportedFieldV2.MEANING,
+            ),
+        )
         val backup = backup(
             entries = listOf(
                 entry(
                     senses = listOf(
-                        BackupSenseV2("hello; hi", "", emptyList(), provenance),
+                        BackupSenseV2(
+                            "water",
+                            "noun",
+                            listOf("Das Wasser ist kalt."),
+                            provenance,
+                        ),
                         BackupSenseV2("사용자 뜻", "", emptyList()),
                     ),
                 ),
@@ -54,6 +69,10 @@ class KotlinxBackupSerializerTest {
         val decoded = serializer.decode(serializer.encode(backup)) as BackupDecodeResult.Success
 
         assertEquals(provenance, decoded.backup.document.entries.single().senses.first().provenance)
+        assertEquals(
+            listOf("Das Wasser ist kalt."),
+            decoded.backup.document.entries.single().senses.first().examples,
+        )
         assertNull(decoded.backup.document.entries.single().senses.last().provenance)
     }
 
@@ -187,6 +206,46 @@ class KotlinxBackupSerializerTest {
         val decoded = serializer.decode(serializer.encode(backup)) as BackupDecodeResult.Success
 
         assertEquals(backup, decoded.backup.document)
+    }
+
+    @Test
+    fun `wordbooks and tags remain distinct in current schema round trip`() {
+        val document = VocabularyBackupV2(
+            format = BACKUP_FORMAT_ID,
+            schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
+            exportedAtEpochMillis = 10,
+            tags = listOf(BackupTagV1("tag-food", "음식")),
+            wordbooks = listOf(BackupWordbookV4("wordbook-jlpt", "JLPT N2")),
+            entries = listOf(
+                entry(headword = "食べる", languageTag = "ja").copy(
+                    tagStableIds = listOf("tag-food"),
+                    wordbookStableIds = listOf("wordbook-jlpt"),
+                ),
+            ),
+        )
+
+        val decoded = serializer.decode(serializer.encode(document)) as BackupDecodeResult.Success
+
+        assertEquals(listOf("음식"), decoded.backup.document.tags.map { it.name })
+        assertEquals(listOf("JLPT N2"), decoded.backup.document.wordbooks.map { it.name })
+        assertEquals(
+            listOf("wordbook-jlpt"),
+            decoded.backup.document.entries.single().wordbookStableIds,
+        )
+    }
+
+    @Test
+    fun `schema v3 imports with empty wordbooks`() {
+        val oldJson = serializer.encode(backup(entries = listOf(entry(headword = "old"))))
+            .replace("\"schemaVersion\": 4", "\"schemaVersion\": 3")
+            .replace(",\n  \"wordbooks\": []", "")
+            .replace(",\n      \"wordbookStableIds\": []", "")
+
+        val decoded = serializer.decode(oldJson) as BackupDecodeResult.Success
+
+        assertEquals(CURRENT_BACKUP_SCHEMA_VERSION, decoded.backup.document.schemaVersion)
+        assertTrue(decoded.backup.document.wordbooks.isEmpty())
+        assertTrue(decoded.backup.document.entries.single().wordbookStableIds.isEmpty())
     }
 
     @Test

@@ -234,8 +234,15 @@ data class DictionaryLinguisticFeatures(
     val pronunciations: List<DictionaryPronunciation> = emptyList(),
     val transliterations: List<DictionaryTransliteration> = emptyList(),
     val inflections: List<DictionaryInflection> = emptyList(),
+    val totalInflectionCount: Int = inflections.size,
     val etymology: String? = null,
-)
+) {
+    init {
+        require(totalInflectionCount >= inflections.size) {
+            "Total inflection count cannot be smaller than retained inflections"
+        }
+    }
+}
 
 data class DictionaryReading(
     val text: String,
@@ -268,12 +275,20 @@ data class DictionaryInflection(
 data class ExternalDictionarySense(
     val meanings: List<DictionaryMeaning>,
     val partOfSpeech: String? = null,
+    val sourcePartOfSpeech: String? = null,
     val grammaticalGender: String? = null,
     val examples: List<DictionaryExample> = emptyList(),
+    val availableExampleCount: Int = examples.size,
     val sourceSenseId: String? = null,
     val writtenFormRestrictions: Set<String> = emptySet(),
     val readingRestrictions: Set<String> = emptySet(),
-)
+) {
+    init {
+        require(availableExampleCount >= examples.size) {
+            "Available example count cannot be smaller than retained examples"
+        }
+    }
+}
 
 data class DictionaryMeaning(
     val text: String,

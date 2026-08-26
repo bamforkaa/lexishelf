@@ -2,24 +2,30 @@ package com.example.localvocabulary.feature.wordeditor
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -27,7 +33,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.localvocabulary.core.ui.component.MetadataLabel
+import com.example.localvocabulary.core.ui.component.ScreenStatePane
+import com.example.localvocabulary.core.ui.component.SectionHeader
+import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
+import com.example.localvocabulary.feature.language.LanguagePickerField
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -41,7 +55,11 @@ fun WordEditorScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (state.entryId == null) "단어 추가" else "단어 수정") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("취소") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "취소하고 뒤로")
+                    }
+                },
                 actions = {
                     TextButton(
                         onClick = { onAction(WordEditorAction.Save) },
@@ -55,13 +73,11 @@ fun WordEditorScreen(
         },
     ) { padding ->
         if (state.isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) { CircularProgressIndicator() }
+            ScreenStatePane(
+                title = "단어를 불러오는 중입니다",
+                isLoading = true,
+                modifier = Modifier.fillMaxSize().padding(padding),
+            )
             return@Scaffold
         }
 
@@ -69,50 +85,61 @@ fun WordEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            contentPadding = PaddingValues(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                EditorSection {
+                    SectionHeader(
+                        title = "단어 정보",
+                        supportingText = "검색과 저장에 사용할 원문을 입력합니다.",
+                    )
                     OutlinedTextField(
                         value = state.headword,
                         onValueChange = { onAction(WordEditorAction.HeadwordChanged(it)) },
                         label = { Text("단어 또는 표현") },
                         singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("headword"),
+                        isError = state.validationError == VocabularyValidationError.MissingHeadword,
+                        modifier = Modifier.fillMaxWidth().testTag("headword"),
                     )
-                    OutlinedTextField(
+                    LanguagePickerField(
                         value = state.languageTag,
                         onValueChange = { onAction(WordEditorAction.LanguageTagChanged(it)) },
-                        label = { Text("언어 태그 (BCP 47)") },
-                        supportingText = { Text("예: en, ko, ja, zh-Hant") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("language_tag"),
+                        label = "언어",
+                        userLanguageTags = state.userLanguageTags,
+                        onUserLanguageAdded = {
+                            onAction(WordEditorAction.UserLanguageAdded(it))
+                        },
+                        supportingText = "목록에서 선택하거나 BCP 47 태그를 직접 입력할 수 있습니다.",
+                        isError = state.validationError == VocabularyValidationError.InvalidLanguageTag,
+                        testTag = "language_tag",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            item { DictionarySuggestionSection(state = state, onAction = onAction) }
+
+            item {
+                EditorSection {
+                    SectionHeader(
+                        title = "내 단어",
+                        supportingText = "여기에 입력하거나 가져온 내용만 저장됩니다.",
                     )
                     OutlinedTextField(
                         value = state.reading,
                         onValueChange = { onAction(WordEditorAction.ReadingChanged(it)) },
-                        label = { Text("Reading / pronunciation") },
+                        label = { Text("읽기 / 발음") },
                         singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("reading"),
+                        modifier = Modifier.fillMaxWidth().testTag("reading"),
                     )
                     state.readingProvenance?.let { provenance ->
-                        Text(
+                        MetadataLabel(
                             buildString {
                                 append(provenance.sourceName)
-                                append(" reading")
-                                if (provenance.modifiedAfterImport) append(" · modified")
+                                append("에서 가져온 읽기")
+                                if (provenance.modifiedAfterImport) append(" · 수정됨")
                             },
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.testTag("reading_provenance"),
                         )
                     }
@@ -123,18 +150,14 @@ fun WordEditorScreen(
                             },
                             modifier = Modifier.testTag("external_dictionary_reference"),
                         ) {
-                            Text("${reference.destinationName}에서 확인 ↗")
+                            Text("${reference.destinationName}에서 발음 확인 ↗")
                         }
                     }
                 }
             }
 
-            item {
-                DictionarySuggestionSection(state = state, onAction = onAction)
-            }
-
             items(state.senses, key = { it.key }) { sense ->
-                SenseEditorCard(
+                SenseEditorSection(
                     sense = sense,
                     canRemove = state.senses.size > 1,
                     onAction = onAction,
@@ -149,148 +172,286 @@ fun WordEditorScreen(
             }
 
             item {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("태그", style = MaterialTheme.typography.titleMedium)
-                    if (state.availableTags.isEmpty()) {
-                        Text("태그 관리 화면에서 태그를 먼저 만들 수 있습니다.")
-                    } else {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            state.availableTags.forEach { tag ->
-                                FilterChip(
-                                    selected = tag.id in state.selectedTagIds,
-                                    onClick = { onAction(WordEditorAction.TagToggled(tag.id)) },
-                                    label = { Text(tag.name) },
-                                )
-                            }
+                EditorSection {
+                    SectionHeader(
+                        title = "단어장",
+                        supportingText = "한 단어를 여러 단어장에 넣을 수 있습니다.",
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        state.availableWordbooks.forEach { wordbook ->
+                            FilterChip(
+                                selected = wordbook.id in state.selectedWordbookIds,
+                                onClick = {
+                                    onAction(WordEditorAction.WordbookToggled(wordbook.id))
+                                },
+                                label = { Text(wordbook.name) },
+                            )
                         }
+                        SuggestionChip(
+                            onClick = { onAction(WordEditorAction.CreateWordbookRequested) },
+                            label = { Text("+ 새 단어장") },
+                            modifier = Modifier.testTag("create_wordbook"),
+                        )
                     }
+                    state.wordbookCreationMessage?.let {
+                        MetadataLabel(
+                            text = it,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                    SectionHeader(
+                        title = "태그",
+                        supportingText = "내용을 설명하는 자유로운 라벨입니다.",
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        state.availableTags.forEach { tag ->
+                            FilterChip(
+                                selected = tag.id in state.selectedTagIds,
+                                onClick = { onAction(WordEditorAction.TagToggled(tag.id)) },
+                                label = { Text(tag.name) },
+                            )
+                        }
+                        SuggestionChip(
+                            onClick = { onAction(WordEditorAction.CreateTagRequested) },
+                            label = { Text("+ 새 태그") },
+                            modifier = Modifier.testTag("create_tag"),
+                        )
+                    }
+                    state.tagCreationMessage?.let {
+                        MetadataLabel(
+                            text = it,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                    OutlinedTextField(
+                        value = state.notes,
+                        onValueChange = { onAction(WordEditorAction.NotesChanged(it)) },
+                        label = { Text("메모") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-            }
-
-            item {
-                OutlinedTextField(
-                    value = state.notes,
-                    onValueChange = { onAction(WordEditorAction.NotesChanged(it)) },
-                    label = { Text("메모") },
-                    minLines = 3,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                )
             }
 
             state.validationError?.let { error ->
                 item {
-                    Text(
-                        text = validationMessage(error),
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .testTag("validation_error"),
+                    ErrorText(
+                        message = validationMessage(error),
+                        modifier = Modifier.testTag("validation_error"),
                     )
                 }
             }
-            state.loadErrorMessage?.let { message ->
-                item { ErrorText(message) }
-            }
-            state.saveErrorMessage?.let { message ->
-                item { ErrorText(message) }
-            }
-            item { Spacer(Modifier.height(80.dp)) }
+            state.loadErrorMessage?.let { item { ErrorText(it) } }
+            state.saveErrorMessage?.let { item { ErrorText(it) } }
         }
+    }
+
+    if (state.isTagCreatorVisible) {
+        AlertDialog(
+            onDismissRequest = { onAction(WordEditorAction.CreateTagDismissed) },
+            title = { Text("새 태그") },
+            text = {
+                OutlinedTextField(
+                    value = state.newTagName,
+                    onValueChange = { onAction(WordEditorAction.NewTagNameChanged(it)) },
+                    label = { Text("태그 이름") },
+                    singleLine = true,
+                    isError = state.tagCreationError != null,
+                    supportingText = state.tagCreationError?.let { message -> { Text(message) } },
+                    modifier = Modifier.fillMaxWidth().testTag("new_tag_name"),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onAction(WordEditorAction.CreateTagConfirmed) },
+                    enabled = !state.isCreatingTag,
+                    modifier = Modifier.testTag("confirm_create_tag"),
+                ) { Text("추가") }
+            },
+            dismissButton = {
+                TextButton(onClick = { onAction(WordEditorAction.CreateTagDismissed) }) {
+                    Text("취소")
+                }
+            },
+        )
+    }
+    if (state.isWordbookCreatorVisible) {
+        AlertDialog(
+            onDismissRequest = { onAction(WordEditorAction.CreateWordbookDismissed) },
+            title = { Text("새 단어장") },
+            text = {
+                OutlinedTextField(
+                    value = state.newWordbookName,
+                    onValueChange = { onAction(WordEditorAction.NewWordbookNameChanged(it)) },
+                    label = { Text("단어장 이름") },
+                    singleLine = true,
+                    isError = state.wordbookCreationError != null,
+                    supportingText = state.wordbookCreationError?.let { message ->
+                        { Text(message) }
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("new_wordbook_name"),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onAction(WordEditorAction.CreateWordbookConfirmed) },
+                    enabled = !state.isCreatingWordbook,
+                    modifier = Modifier.testTag("confirm_create_wordbook"),
+                ) { Text("추가") }
+            },
+            dismissButton = {
+                TextButton(onClick = { onAction(WordEditorAction.CreateWordbookDismissed) }) {
+                    Text("취소")
+                }
+            },
+        )
+    }
+    state.duplicateCandidate?.let { duplicate ->
+        AlertDialog(
+            onDismissRequest = { onAction(WordEditorAction.DismissDuplicateWarning) },
+            title = { Text("이미 저장된 단어입니다") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(duplicate.headword, style = MaterialTheme.typography.titleMedium)
+                    duplicate.senses.firstOrNull()?.meaning?.let { Text(it) }
+                    MetadataLabel(
+                        LanguageDisplayNameResolver.resolve(duplicate.languageTag).name,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onAction(WordEditorAction.OpenExistingDuplicate) }) {
+                    Text("기존 단어 열기")
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { onAction(WordEditorAction.DismissDuplicateWarning) }) {
+                        Text("취소")
+                    }
+                    TextButton(onClick = { onAction(WordEditorAction.SaveDuplicateAnyway) }) {
+                        Text("별도 단어로 저장")
+                    }
+                }
+            },
+        )
     }
 }
 
 @Composable
-private fun SenseEditorCard(
+private fun EditorSection(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun SenseEditorSection(
     sense: EditableSense,
     canRemove: Boolean,
     onAction: (WordEditorAction) -> Unit,
 ) {
-    Card(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("뜻", style = MaterialTheme.typography.titleMedium)
-                if (canRemove) {
-                    TextButton(
-                        onClick = { onAction(WordEditorAction.RemoveSense(sense.key)) },
-                    ) { Text("삭제") }
+            Text("뜻", style = MaterialTheme.typography.titleMedium)
+            if (canRemove) {
+                IconButton(onClick = { onAction(WordEditorAction.RemoveSense(sense.key)) }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "이 뜻 삭제",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
-            OutlinedTextField(
-                value = sense.meaning,
-                onValueChange = { onAction(WordEditorAction.MeaningChanged(sense.key, it)) },
-                label = { Text("의미") },
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth(),
+        }
+        OutlinedTextField(
+            value = sense.meaning,
+            onValueChange = { onAction(WordEditorAction.MeaningChanged(sense.key, it)) },
+            label = { Text("의미") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        sense.provenance?.let { provenance ->
+            MetadataLabel(
+                text = buildString {
+                    append(provenance.sourceName)
+                    append(" 기반")
+                    if (provenance.modifiedAfterImport) append(" · 수정됨")
+                },
+                modifier = Modifier.testTag("sense_provenance"),
             )
-            sense.provenance?.let { provenance ->
-                Text(
-                    text = buildString {
-                        append(provenance.sourceName)
-                        append(" 기반")
-                        if (provenance.modifiedAfterImport) append(" · 수정됨")
+        }
+        OutlinedTextField(
+            value = sense.partOfSpeech,
+            onValueChange = { onAction(WordEditorAction.PartOfSpeechChanged(sense.key, it)) },
+            label = { Text("품사") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text("예문", style = MaterialTheme.typography.labelMedium)
+        sense.examples.forEach { example ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = example.text,
+                    onValueChange = {
+                        onAction(WordEditorAction.ExampleChanged(sense.key, example.key, it))
                     },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.testTag("sense_provenance"),
+                    label = { Text("예문") },
+                    modifier = Modifier.weight(1f),
                 )
-            }
-            OutlinedTextField(
-                value = sense.partOfSpeech,
-                onValueChange = { onAction(WordEditorAction.PartOfSpeechChanged(sense.key, it)) },
-                label = { Text("품사") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("예문", style = MaterialTheme.typography.labelLarge)
-            sense.examples.forEach { example ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = example.text,
-                        onValueChange = {
-                            onAction(WordEditorAction.ExampleChanged(sense.key, example.key, it))
+                if (sense.examples.size > 1) {
+                    IconButton(
+                        onClick = {
+                            onAction(WordEditorAction.RemoveExample(sense.key, example.key))
                         },
-                        label = { Text("예문") },
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (sense.examples.size > 1) {
-                        AssistChip(
-                            onClick = {
-                                onAction(WordEditorAction.RemoveExample(sense.key, example.key))
-                            },
-                            label = { Text("삭제") },
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "예문 삭제",
+                            tint = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
             }
-            TextButton(onClick = { onAction(WordEditorAction.AddExample(sense.key)) }) {
-                Text("예문 추가")
-            }
+        }
+        TextButton(onClick = { onAction(WordEditorAction.AddExample(sense.key)) }) {
+            Text("예문 추가")
         }
     }
 }
 
 @Composable
-private fun ErrorText(message: String) {
+private fun ErrorText(message: String, modifier: Modifier = Modifier) {
     Text(
         text = message,
         color = MaterialTheme.colorScheme.error,
-        modifier = Modifier.padding(horizontal = 16.dp),
+        modifier = modifier
+            .padding(horizontal = 16.dp)
+            .semantics { liveRegion = LiveRegionMode.Assertive },
     )
 }
 

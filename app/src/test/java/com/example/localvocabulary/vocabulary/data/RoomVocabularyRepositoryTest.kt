@@ -25,6 +25,34 @@ import org.junit.Test
 
 class RoomVocabularyRepositoryTest {
     @Test
+    fun `duplicate normalization uses NFC collapsed whitespace and case folding`() {
+        assertEquals(normalizeHeadwordIdentity(" Café "), normalizeHeadwordIdentity("CAFE\u0301"))
+        assertEquals(normalizeHeadwordIdentity("ice   cream"), normalizeHeadwordIdentity(" ICE CREAM "))
+    }
+
+    @Test
+    fun `duplicate lookup requires same language and excludes current entry`() = runTest {
+        val english = VocabularyEntryWithDetails(
+            entry = VocabularyEntryEntity(
+                id = 1,
+                backupId = "entry-en",
+                headword = "Long",
+                languageTag = "en",
+                notes = "",
+                createdAtEpochMillis = 1,
+                modifiedAtEpochMillis = 1,
+            ),
+            senses = emptyList(),
+            tags = emptyList(),
+        )
+        val dao = FakeVocabularyDao(entriesByLanguage = listOf(english))
+        val repository = RoomVocabularyRepository(dao, TimeProvider { 1 }, StableIdGenerator { "new" })
+
+        assertEquals(1L, repository.findDuplicateCandidates(" long ", "en").single().id)
+        assertEquals(emptyList<Any>(), repository.findDuplicateCandidates("long", "ja"))
+        assertEquals(emptyList<Any>(), repository.findDuplicateCandidates("long", "en", 1L))
+    }
+    @Test
     fun `creating an entry writes timestamps and the complete aggregate`() = runTest {
         val dao = FakeVocabularyDao()
         val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "entry-new" })
@@ -139,6 +167,7 @@ class RoomVocabularyRepositoryTest {
 
 private class FakeVocabularyDao(
     var storedEntry: VocabularyEntryEntity? = null,
+    private val entriesByLanguage: List<VocabularyEntryWithDetails> = emptyList(),
 ) : VocabularyDao {
     val savedSenses = mutableListOf<SenseWrite>()
     val savedTagIds = mutableSetOf<Long>()
@@ -146,10 +175,23 @@ private class FakeVocabularyDao(
     var observedTagId: Long? = null
     private var nextSenseId = 1L
 
-    override fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntryWithDetails>> {
+    override fun observeEntries(
+        query: String,
+        tagId: Long?,
+        wordbookId: Long?,
+        languageTag: String?,
+    ): Flow<List<VocabularyEntryWithDetails>> {
         observedQuery = query
         observedTagId = tagId
         return flowOf(emptyList())
+    }
+
+    override fun observeLanguages(): Flow<List<String>> = flowOf(emptyList())
+
+    override suspend fun findEntriesByLanguage(
+        languageTag: String,
+    ): List<VocabularyEntryWithDetails> = entriesByLanguage.filter {
+        it.entry.languageTag == languageTag
     }
 
     override fun observeEntry(id: Long): Flow<VocabularyEntryWithDetails?> = flowOf(null)
@@ -237,4 +279,10 @@ private class FakeVocabularyDao(
     override suspend fun insertEntryTags(crossRefs: List<EntryTagCrossRef>) {
         savedTagIds += crossRefs.map { it.tagId }
     }
+
+    override suspend fun deleteEntryWordbooks(entryId: Long) = Unit
+
+    override suspend fun insertEntryWordbooks(
+        crossRefs: List<com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef>,
+    ) = Unit
 }

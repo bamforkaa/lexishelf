@@ -5,6 +5,8 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
@@ -19,14 +21,18 @@ abstract class StageDictionaryPackAssets @Inject constructor(
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val packFiles: ConfigurableFileCollection
 
+    @get:Input
+    abstract val expectedPackCount: Property<Int>
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
     fun stage() {
         val inputs = packFiles.files.filter { it.isFile && it.extension == "dictpack" }
-        check(inputs.size == EXPECTED_PACK_COUNT) {
-            "Expected $EXPECTED_PACK_COUNT debug dictionary packs, found ${inputs.size}: " +
+        val expected = expectedPackCount.get()
+        check(inputs.size == expected) {
+            "Expected $expected debug dictionary packs, found ${inputs.size}: " +
                 inputs.joinToString { it.absolutePath }
         }
         fileSystemOperations.sync {
@@ -38,9 +44,6 @@ abstract class StageDictionaryPackAssets @Inject constructor(
         }
     }
 
-    private companion object {
-        const val EXPECTED_PACK_COUNT = 4
-    }
 }
 
 val localProperties = Properties().apply {
@@ -53,6 +56,12 @@ val dictionaryDatasetRoot = System.getenv("LANG_DATABASE_DIR")
     ?.takeIf(String::isNotEmpty)
     ?: localProperties.getProperty("dictionaryDataDir")?.trim()?.takeIf(String::isNotEmpty)
     ?: rootProject.file(".local/dictionary-data").absolutePath
+val debugKaikkiPackLanguages = localProperties.getProperty("debugDictionaryPackLanguages")
+    ?.split(',')
+    ?.map(String::trim)
+    ?.filter(String::isNotEmpty)
+    ?.distinct()
+    .orEmpty()
 val debugDictionaryPackAssets = layout.buildDirectory.dir("generated/debugDictionaryPackAssets")
 val dictionaryDatasets = listOf("cc-cedict", "korean-basic", "panlex", "jmdict")
 
@@ -61,15 +70,26 @@ val buildDebugDictionaryPacks by tasks.registering(Exec::class) {
     group = "dictionary packs"
     description = "Builds local dictionary packs for the developer debug APK."
     workingDir(rootProject.projectDir)
-    commandLine(
-        if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+    commandLine(buildList {
+        val pythonCommand = if (
+            System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+        ) {
             "python"
         } else {
             "python3"
-        },
-        "-m",
-        "tools.build_dictionary_packs",
-    )
+        }
+        add(pythonCommand)
+        addAll(listOf("-m", "tools.build_dictionary_packs"))
+        listOf("cc-cedict", "korean-basic", "panlex", "jmdict").forEach { dataset ->
+            addAll(listOf("--pack", dataset))
+        }
+        if (debugKaikkiPackLanguages.isNotEmpty()) {
+            addAll(listOf("--pack", "kaikki"))
+            debugKaikkiPackLanguages.forEach { language ->
+                addAll(listOf("--kaikki-language", language))
+            }
+        }
+    })
 }
 
 val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAssets::class) {
@@ -77,6 +97,7 @@ val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAsset
     description = "Stages configured local dictionary packs as debug-only APK assets."
     if (bundleDictionaryPacksInDebug) {
         dependsOn(buildDebugDictionaryPacks)
+        expectedPackCount.set(4 + debugKaikkiPackLanguages.size)
         dictionaryDatasets.forEach { dataset ->
             packFiles.from(
                 rootProject.fileTree("$dictionaryDatasetRoot/$dataset/packs") {
@@ -84,6 +105,15 @@ val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAsset
                 },
             )
         }
+        debugKaikkiPackLanguages.forEach { language ->
+            packFiles.from(
+                rootProject.fileTree("$dictionaryDatasetRoot/kaikki/packs") {
+                    include("kaikki.$language-en-*.dictpack")
+                },
+            )
+        }
+    } else {
+        expectedPackCount.set(0)
     }
     outputDirectory.set(debugDictionaryPackAssets)
 }
@@ -173,6 +203,7 @@ dependencies {
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
+    implementation(libs.compose.material.icons.core)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)

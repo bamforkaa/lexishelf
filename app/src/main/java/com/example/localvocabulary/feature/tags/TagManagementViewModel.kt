@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
+import com.example.localvocabulary.vocabulary.domain.VocabularyTagSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +17,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class TagManagementUiState(
-    val tags: List<VocabularyTag> = emptyList(),
+    val tags: List<VocabularyTagSummary> = emptyList(),
     val editingTagId: Long? = null,
     val nameInput: String = "",
     val errorMessage: String? = null,
     val isSaving: Boolean = false,
+    val pendingDeleteTag: VocabularyTag? = null,
 )
 
 sealed interface TagManagementAction {
@@ -28,7 +30,9 @@ sealed interface TagManagementAction {
     data class EditStarted(val tag: VocabularyTag) : TagManagementAction
     data object EditCancelled : TagManagementAction
     data object Save : TagManagementAction
-    data class Delete(val tagId: Long) : TagManagementAction
+    data class DeleteRequested(val tag: VocabularyTag) : TagManagementAction
+    data object DeleteCancelled : TagManagementAction
+    data object DeleteConfirmed : TagManagementAction
 }
 
 private data class TagEditorState(
@@ -36,6 +40,7 @@ private data class TagEditorState(
     val nameInput: String = "",
     val errorMessage: String? = null,
     val isSaving: Boolean = false,
+    val pendingDeleteTag: VocabularyTag? = null,
 )
 
 @HiltViewModel
@@ -45,7 +50,7 @@ class TagManagementViewModel @Inject constructor(
     private val editorState = MutableStateFlow(TagEditorState())
 
     val uiState: StateFlow<TagManagementUiState> = combine(
-        tagRepository.observeTags(),
+        tagRepository.observeTagSummaries(),
         editorState,
     ) { tags, editor ->
         TagManagementUiState(
@@ -54,6 +59,7 @@ class TagManagementViewModel @Inject constructor(
             nameInput = editor.nameInput,
             errorMessage = editor.errorMessage,
             isSaving = editor.isSaving,
+            pendingDeleteTag = editor.pendingDeleteTag,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -72,10 +78,19 @@ class TagManagementViewModel @Inject constructor(
             )
             TagManagementAction.EditCancelled -> editorState.value = TagEditorState()
             TagManagementAction.Save -> saveTag()
-            is TagManagementAction.Delete -> viewModelScope.launch {
-                tagRepository.delete(action.tagId)
-                if (editorState.value.editingTagId == action.tagId) {
+            is TagManagementAction.DeleteRequested -> editorState.update {
+                it.copy(pendingDeleteTag = action.tag)
+            }
+            TagManagementAction.DeleteCancelled -> editorState.update {
+                it.copy(pendingDeleteTag = null)
+            }
+            TagManagementAction.DeleteConfirmed -> viewModelScope.launch {
+                val tagId = editorState.value.pendingDeleteTag?.id ?: return@launch
+                tagRepository.delete(tagId)
+                if (editorState.value.editingTagId == tagId) {
                     editorState.value = TagEditorState()
+                } else {
+                    editorState.update { it.copy(pendingDeleteTag = null) }
                 }
             }
         }
@@ -91,7 +106,7 @@ class TagManagementViewModel @Inject constructor(
                 SaveTagResult.BlankName -> editorState.update {
                     it.copy(isSaving = false, errorMessage = "태그 이름을 입력하세요.")
                 }
-                SaveTagResult.NameConflict -> editorState.update {
+                is SaveTagResult.NameConflict -> editorState.update {
                     it.copy(isSaving = false, errorMessage = "같은 이름의 태그가 이미 있습니다.")
                 }
                 SaveTagResult.NotFound -> editorState.update {

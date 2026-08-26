@@ -96,3 +96,42 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
     }
 }
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS wordbooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                backup_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_wordbooks_normalized_name " +
+                "ON wordbooks(normalized_name)",
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_wordbooks_backup_id ON wordbooks(backup_id)",
+        )
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS entry_wordbook_cross_refs (
+                entry_id INTEGER NOT NULL,
+                wordbook_id INTEGER NOT NULL,
+                PRIMARY KEY(entry_id, wordbook_id),
+                FOREIGN KEY(entry_id) REFERENCES vocabulary_entries(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(wordbook_id) REFERENCES wordbooks(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_entry_wordbook_cross_refs_wordbook_id " +
+                "ON entry_wordbook_cross_refs(wordbook_id)",
+        )
+    }
+}

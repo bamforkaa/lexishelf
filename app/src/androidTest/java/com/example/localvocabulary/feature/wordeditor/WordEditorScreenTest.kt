@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -25,10 +26,12 @@ import com.example.localvocabulary.dictionary.domain.DictionaryReading
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
+import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReference
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -118,8 +121,11 @@ class WordEditorScreenTest {
             }
         }
 
-        composeRule.onAllNodesWithText("たべる").assertCountEquals(2)
-        composeRule.onAllNodesWithText("Ichidan verb; transitive verb").assertCountEquals(2)
+        composeRule.onAllNodesWithText("たべる", substring = true).assertCountEquals(2)
+        composeRule.onAllNodesWithText(
+            "Ichidan verb; transitive verb",
+            substring = true,
+        ).assertCountEquals(2)
         composeRule.onNodeWithText("to eat").assertIsDisplayed()
         composeRule.onNodeWithText("to live on").assertIsDisplayed()
         composeRule.onAllNodesWithText("Use").assertCountEquals(0)
@@ -149,7 +155,8 @@ class WordEditorScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("✓ 你好").assertIsDisplayed().performClick()
+        composeRule.onNodeWithContentDescription("가져옴").assertIsDisplayed()
+        composeRule.onNodeWithText("greeting").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assert(selected != null) }
     }
 
@@ -368,6 +375,184 @@ class WordEditorScreenTest {
         composeRule.onNode(hasScrollAction())
             .performScrollToNode(hasTestTag("sense_provenance"))
         composeRule.onNodeWithText("CC-CEDICT 기반 · 수정됨").assertIsDisplayed()
+    }
+
+    @Test
+    fun inlineTagCreationStartsInsideEditorWithoutNavigation() {
+        val actions = mutableListOf<WordEditorAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(isLoading = false),
+                    onAction = actions::add,
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("create_tag"))
+        composeRule.onNodeWithTag("create_tag").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf(WordEditorAction.CreateTagRequested), actions)
+        }
+    }
+
+    @Test
+    fun inlineTagDialogShowsValidationAndConfirmAction() {
+        val actions = mutableListOf<WordEditorAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        isTagCreatorVisible = true,
+                        tagCreationError = "태그 이름을 입력하세요.",
+                    ),
+                    onAction = actions::add,
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("태그 이름을 입력하세요.").assertIsDisplayed()
+        composeRule.onNodeWithTag("confirm_create_tag").performClick()
+        composeRule.runOnIdle {
+            assert(actions.contains(WordEditorAction.CreateTagConfirmed))
+        }
+    }
+
+    @Test
+    fun wordbookAndTagSectionsAreSeparateAndInlineWordbookCreationNeedsNoNavigation() {
+        val actions = mutableListOf<WordEditorAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        availableWordbooks = listOf(
+                            com.example.localvocabulary.vocabulary.domain.VocabularyWordbook(
+                                1,
+                                "wordbook-1",
+                                "JLPT N2",
+                            ),
+                        ),
+                        availableTags = listOf(
+                            com.example.localvocabulary.vocabulary.domain.VocabularyTag(
+                                2,
+                                "tag-2",
+                                "음식",
+                            ),
+                        ),
+                    ),
+                    onAction = actions::add,
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("create_wordbook"))
+        composeRule.onNodeWithText("단어장").assertIsDisplayed()
+        composeRule.onNodeWithText("태그").assertIsDisplayed()
+        composeRule.onNodeWithTag("create_wordbook").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf(WordEditorAction.CreateWordbookRequested), actions)
+        }
+    }
+
+    @Test
+    fun duplicateWarningRequiresAnExplicitChoice() {
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        duplicateCandidate = com.example.localvocabulary.vocabulary.domain.VocabularyEntry(
+                            id = 7,
+                            backupId = "entry-7",
+                            headword = "long",
+                            languageTag = "en",
+                            senses = listOf(
+                                com.example.localvocabulary.vocabulary.domain.VocabularySense(
+                                    id = 70,
+                                    meaning = "기다랗다",
+                                    partOfSpeech = "",
+                                    examples = emptyList(),
+                                ),
+                            ),
+                            notes = "",
+                            tags = emptyList(),
+                            createdAtEpochMillis = 1,
+                            modifiedAtEpochMillis = 1,
+                        ),
+                    ),
+                    onAction = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("이미 저장된 단어입니다").assertIsDisplayed()
+        composeRule.onNodeWithText("기존 단어 열기").assertIsDisplayed()
+        composeRule.onNodeWithText("별도 단어로 저장").assertIsDisplayed()
+    }
+
+    @Test
+    fun externalDictionaryLinkAppearsImmediatelyBelowReadingAndKeepsAction() {
+        val actions = mutableListOf<WordEditorAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        reading = "word",
+                        externalDictionaryReference = ExternalDictionaryReference(
+                            providerId = "naver-dictionary-reference",
+                            providerName = "NAVER Dictionary",
+                            destinationName = "네이버 영어사전",
+                            uri = "https://en.dict.naver.com/#/search?query=word",
+                        ),
+                    ),
+                    onAction = actions::add,
+                    onBack = {},
+                )
+            }
+        }
+
+        val readingBounds = composeRule.onNodeWithTag("reading").fetchSemanticsNode().boundsInRoot
+        val link = composeRule.onNodeWithTag("external_dictionary_reference").assertIsDisplayed()
+        val linkBounds = link.fetchSemanticsNode().boundsInRoot
+
+        assertTrue(linkBounds.top >= readingBounds.bottom)
+        composeRule.onNodeWithText("외부 참고").assertDoesNotExist()
+        composeRule.onNodeWithText("네이버 영어사전에서 발음 확인 ↗").performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                listOf(WordEditorAction.OpenExternalDictionaryReference),
+                actions,
+            )
+        }
+    }
+
+    @Test
+    fun wordEditorUsesSharedLanguagePicker() {
+        val actions = mutableListOf<WordEditorAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(isLoading = false, languageTag = "en"),
+                    onAction = actions::add,
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("언어 선택").performClick()
+        composeRule.onNodeWithText("日本語").performClick()
+        composeRule.runOnIdle {
+            assertTrue(actions.contains(WordEditorAction.LanguageTagChanged("ja")))
+        }
     }
 
     private fun suggestionGroup(

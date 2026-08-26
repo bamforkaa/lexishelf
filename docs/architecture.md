@@ -68,13 +68,15 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
 - UI에는 Room entity를 전달하지 않습니다.
 - 단순 repository 호출의 이름만 바꾸는 use-case 클래스는 두지 않았습니다. 입력 정규화와 규칙을 집행하는 validator만 domain에 둡니다.
 
-## Room schema version 4
+## Room schema version 5
 
-Task 8은 `vocabulary_entries.reading`과 provider-neutral
+Task 8의 v4는 `vocabulary_entries.reading`과 provider-neutral
 `entry_dictionary_provenance`를 추가합니다. Entry-level reading provenance와 sense-level
 meaning/POS/example provenance를 분리하여 sense 삭제가 reading 출처를 없애지 않게 합니다.
 `MIGRATION_3_4`는 기존 aggregate를 건드리지 않고 빈 reading과 빈 entry provenance만
-추가합니다. JMdict 전용 Room 컬럼은 없습니다.
+추가합니다. JMdict 전용 Room 컬럼은 없습니다. Task 10C의 `MIGRATION_4_5`는
+기존 aggregate와 Tag를 변경하지 않고 독립적인 Wordbook 및 entry-wordbook relation만
+추가합니다. 기존 `en`, `ja` 같은 사용자 Tag는 삭제하거나 의미를 추정하지 않습니다.
 
 | 테이블 | 책임 | 핵심 제약 |
 | --- | --- | --- |
@@ -83,14 +85,16 @@ meaning/POS/example provenance를 분리하여 sense 삭제가 reading 출처를
 | `examples` | sense별 여러 예문 | sense FK, cascade delete, index, sort order |
 | `tags` | 사용자 태그 | normalized name와 backup ID unique index |
 | `entry_tag_cross_refs` | entry-tag 다대다 연결 | composite PK, 양쪽 FK/cascade, tag index |
+| `wordbooks` | 사용자 단어 컬렉션 | normalized name와 backup ID unique index |
+| `entry_wordbook_cross_refs` | entry-wordbook 다대다 연결 | composite PK, 양쪽 FK/cascade, wordbook index |
 | `sense_dictionary_provenance` | provider-derived sense의 source/license/import 상태 | sense와 1:0 PK/FK, cascade delete |
 | `sense_dictionary_provenance_fields` | 해당 sense에서 provider로부터 가져온 field 종류 | provenance FK, composite PK, cascade delete |
 
-뜻과 예문은 delimiter 문자열로 합치지 않습니다. `VocabularyDao.saveEntry`는 entry, senses, examples, tag links 전체를 한 Room transaction으로 저장합니다. 수정 시 `createdAt`은 보존하고 `modifiedAt`만 갱신합니다. 태그 삭제는 교차 참조만 cascade하고 단어는 유지합니다.
+뜻과 예문은 delimiter 문자열로 합치지 않습니다. `VocabularyDao.saveEntry`는 entry, senses, examples, tag/wordbook links 전체를 한 Room transaction으로 저장합니다. 수정 시 `createdAt`은 보존하고 `modifiedAt`만 갱신합니다. Tag나 Wordbook 삭제는 해당 교차 참조만 cascade하고 단어/sense/example/다른 분류는 유지합니다. Wordbook batch add는 `INSERT IGNORE`, batch remove는 단일 `DELETE ... IN (...)`을 DAO transaction에서 수행하므로 중복 관계나 부분 반영을 남기지 않습니다.
 
-검색은 headword, notes, sense meaning, example text에 대해 로컬 SQLite `LIKE`를 사용합니다. `%`, `_`, `\`는 repository boundary에서 escape합니다. 태그 필터는 교차 테이블 `EXISTS` 조건으로 적용합니다.
+검색은 headword, notes, sense meaning, example text에 대해 로컬 SQLite `LIKE`를 사용합니다. `%`, `_`, `\`는 repository boundary에서 escape합니다. Language는 `vocabulary_entries.language_tag`, Tag와 Wordbook은 각각의 교차 테이블 `EXISTS` 조건으로 독립 필터링합니다.
 
-Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용합니다. 외부 백업 식별자는 단어와 태그에 별도의 opaque stable ID를 사용합니다. 신규 row에는 UUID를 부여하며 `MIGRATION_1_2`는 기존 row마다 고유한 32자리 hex ID를 생성합니다. `MIGRATION_2_3`은 기존 entry/sense/example/tag/relation/stable ID를 건드리지 않고 nullable 의미의 별도 provenance 테이블 두 개만 생성합니다. schema JSON 1~3과 aggregate 보존 migration test를 유지하며 destructive migration은 사용하지 않습니다.
+Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용합니다. 외부 백업 식별자는 단어, Tag, Wordbook에 별도의 opaque stable ID를 사용합니다. 신규 row에는 UUID를 부여하며 `MIGRATION_1_2`는 기존 row마다 고유한 32자리 hex ID를 생성합니다. schema JSON 1~5와 각 단계 aggregate 보존 migration test를 유지하며 destructive migration은 사용하지 않습니다.
 
 ## 사용자 편집 데이터 보호
 
@@ -98,27 +102,35 @@ Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용�
 
 Provider 원문을 export 가능한 draft로 복사하려면 app-level `DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS`와 field별 local persistence/redistribution `PERMITTED`가 모두 필요합니다. 법적 permission과 현재 앱의 compliance 준비 상태를 분리하기 위한 이중 gate입니다. `REFERENCE_ONLY`, `UNKNOWN` 또는 `PROHIBITED` 결과는 원문을 transient entry에만 유지하고 manual draft에는 provider content를 넣지 않습니다. 사용자는 inline suggestion/reference를 보면서 자신의 headword, meaning, example, notes, tags를 작성해 정상 저장할 수 있습니다.
 
-CC-CEDICT와 한국어기초사전은 각각 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록, PanLex는 확인한 CC0 grant 아래 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. 명시적 row tap은 허용된 gloss/번역과 명시적 POS를 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 기존 sense는 지우지 않고 같은 stable source를 반복 선택하면 추가하지 않습니다. imported sense를 편집하면 provenance를 유지하고 `modifiedAfterImport`만 true로 바꿉니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
+CC-CEDICT·한국어기초사전·JMdict·Kaikki는 각각의 CC BY-SA attribution/ShareAlike 조건을 잃지 않도록, PanLex는 확인한 고정 artifact의 CC0 grant 아래 app import mode를 `COPY_EXPORTABLE_FIELDS`로 설정했습니다. 명시적 row tap은 허용된 gloss/번역, POS와 example을 새 sense로 추가하고 provider/source entry/source sense/source·license URL/dataset version/import time/imported fields를 provenance로 함께 저장합니다. `ExternalDictionarySense.sourceSenseId`는 optional common field이며 이를 제공하지 않는 기존 provider는 기존 순번 fallback을 유지합니다. user-authored sense는 provenance가 없으므로 한 entry 안의 혼합 상태를 표현할 수 있습니다. 선택한 row를 다시 누르면 editor session의 field/example snapshot과 비교해 그 suggestion이 추가한 unchanged contribution만 제거합니다. 사용자가 고친 meaning/POS/example과 새로 쓴 example은 보존하면서 provenance 연결을 해제합니다. 다른 선택이 같은 reading을 사용하는 경우 reading은 유지합니다. 검색 결과 도착·refresh 자체는 editor나 저장된 entry를 갱신하지 않습니다.
 
 ## BCP 47 언어 식별
 
-저장 전 `Locale.Builder.setLanguageTag`로 태그를 검증하고 canonical form(예: `EN-gb` → `en-GB`)으로 정규화합니다. `_` 기반 locale 이름은 거부합니다. 표시 문자열을 내부 언어 ID로 사용하지 않습니다. 언어/공급자 선택은 향후 registry가 담당하며 화면별 `when` 분기를 만들지 않습니다.
+저장 전 `Locale.Builder.setLanguageTag`로 태그를 검증하고 canonical form(예: `EN-gb` → `en-GB`)으로 정규화합니다. `_` 기반 locale 이름은 거부합니다. 중앙 `AppLanguageCatalog`의 17개 built-in 항목은 source metadata이며, Settings와 Word Editor의 같은 `LanguagePickerField`가 이름·autonym·code 검색을 제공합니다. catalog 밖의 valid tag를 picker에서 확정하면 canonical tag만 DataStore의 `user_language_tags` set에 저장합니다. built-in과 canonical identity가 같으면 별도 사용자 항목을 만들지 않습니다. 사용자 항목의 autonym/localized/English name과 script/region 표기는 플랫폼 `Locale` metadata에서 만들고, metadata가 부족하면 canonical raw tag로 fallback합니다. 현재 vocabulary/default 값이 어느 catalog에도 없어도 transient current item으로 표시합니다. 표시 이름은 내부 identity나 Tag로 저장하지 않습니다.
+
+LanguagePicker, Settings, Tag/Wordbook 관리와 batch 목록은 Compose 기본 `LazyColumn`/`LazyRow`만 사용하며 custom pointer/fling 배율이 없습니다. Word Editor는 화면 전체 `LazyColumn`과 selectable suggestion 5개 이상일 때만 생기는 352dp 내부 `LazyColumn`의 Compose 기본 nested scrolling을 사용합니다. 실제 touch fling을 임의로 느리게 만들지 않으며, 에뮬레이터 mouse wheel/host trackpad 속도는 호스트 입력 변환 차이로 취급합니다. 마지막 항목 도달, swipe 중 row 오선택 방지, suggestion 내부 목록 동작을 UI test로 검증합니다.
+
+## 중복 저장 보호
+
+새 entry 저장 시 repository는 canonical source language가 같은 행만 읽고 headword를 trim, 연속 공백 축약, Unicode NFC, `Locale.ROOT` lowercase한 identity로 비교합니다. fuzzy matching과 DB UNIQUE constraint는 사용하지 않습니다. 후보가 있으면 저장을 멈추고 기존 entry 열기 또는 명시적인 별도 저장을 제공하므로 homograph와 과거 중복은 유효합니다. 기존 entry 편집은 자신의 ID를 제외합니다.
 
 ## 설정과 비밀정보
 
-DataStore에는 현재 새 단어의 기본 BCP 47 태그만 저장합니다. API 키는 저장하지 않습니다. 미래 키용 파일은 empty example만 제공하며 실제 `secrets.properties`, `local.properties`, keystore는 ignore합니다. 공급자가 추가될 때는 Android 로컬 credential 저장 방식을 별도 ADR로 결정하고 클라이언트 저장의 한계를 명시해야 합니다.
+DataStore에는 새 단어의 기본 BCP 47 태그와 picker에서 추가한 canonical 사용자 언어 tag set을 저장합니다. 이는 vocabulary aggregate가 아닌 앱 preference이므로 canonical JSON backup v4에는 포함하지 않습니다. vocabulary 자체의 언어 태그는 계속 Room/backup에 저장되고 catalog 밖의 현재 값도 picker에 표시됩니다. API 키는 저장하지 않습니다. 미래 키용 파일은 empty example만 제공하며 실제 `secrets.properties`, `local.properties`, keystore는 ignore합니다. 공급자가 추가될 때는 Android 로컬 credential 저장 방식을 별도 ADR로 결정하고 클라이언트 저장의 한계를 명시해야 합니다.
 
 ## Provider 확장 경계
 
 `DictionaryProviderId`는 persistence 가능한 lowercase stable value입니다. 언어는 validated BCP 47 값으로 표현하고, 독립적인 source/result 언어 집합 대신 `(source language, result language, monolingual definition 또는 translation)` pair를 선언합니다. 따라서 `zh-Hans`와 `zh-Hant`, script, region variant를 임의로 합치거나 지원하지 않는 cross-product를 만들지 않습니다. script code는 언어 태그와 별도 optional field입니다.
 
-Descriptor는 `ONLINE`/`LOCAL_DATASET`, capability set, attribution, license 식별자, dataset artifact/release/format metadata, local persistence/redistribution의 `UNKNOWN|PERMITTED|PROHIBITED`, app import mode, field override, cache policy/note를 제공합니다. Result는 alternate written form, reading, pronunciation text/audio, transliteration, examples, part of speech, gender, inflection, etymology를 optional 값으로 표현합니다. Search page에는 opaque continuation token과 truncation 상태가 있습니다.
+Descriptor는 `ONLINE`/`LOCAL_DATASET`, capability set, attribution, license 식별자, dataset artifact/release/format metadata, local persistence/redistribution의 `UNKNOWN|PERMITTED|PROHIBITED`, app import mode, field override, cache policy/note를 제공합니다. Result는 alternate written form, reading, pronunciation text/audio, transliteration, examples, part of speech, gender, 대표 inflection과 전체 form count, 원문 없이 제공 가능한 example count, etymology를 optional 값으로 표현합니다. Search page에는 opaque continuation token과 truncation 상태가 있습니다.
 
 Failure는 unsupported source, unsupported result language/kind, missing credential, authentication, rate limit, network, provider unavailable, malformed data, no result, local dataset unavailable, unknown을 구분합니다. CC-CEDICT provider는 asset 부재와 malformed dataset을 구분하며 offline lookup에서는 network failure를 만들지 않습니다.
 
-`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`, `jmdict`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
+`DefaultDictionaryProviderRegistry`는 stable ID 중복을 거부하고 exact language pair로 descriptor를 찾습니다. Hilt set multibinding에는 `cc-cedict`, `korean-basic-dictionary`, `panlex`, `jmdict`, `kaikki`가 등록됩니다. Editor의 source language는 저장되는 BCP 47 `languageTag`이고 result language/kind option은 해당 source를 지원하는 registry descriptor에서 만듭니다. 선택된 pair를 지원하는 모든 provider를 동시에 검색하며 결과와 오류는 provider별 immutable group으로 표시하므로 provider별 `when`이 없습니다. 새 provider package는 구현과 `@IntoSet` binding, fixture/tests만 추가하면 같은 inline UI를 재사용합니다.
 
 Headword 검색 request는 trim된 query와 exact language pair의 immutable 값입니다. 빈 query/pair는 실행하지 않고 `StateFlow.debounce(400ms)`, `distinctUntilChanged`, `collectLatest`를 적용합니다. provider들은 한 request 안에서 병렬 검색하지만 각 failure/exception은 해당 provider group에만 격리합니다. 새 결과는 suggestion state만 바꾸며 editor form은 건드리지 않습니다. 명시적인 row tap도 사용자가 이미 sense/example을 입력했거나 기존 entry를 편집 중이면 그 값을 보존합니다.
+
+Headword 또는 language-pair identity가 바뀌면 이번 editor session에서 import한 contribution만 즉시 draft에서 정리하고 selection/check state를 초기화합니다. unchanged provider meaning/POS/reading/example은 제거하지만 user-authored 또는 수정된 text, notes, Tag, Wordbook은 유지합니다. 기존 저장 entry에서 불러온 aggregate는 session snapshot이 아니므로 draft headword 변경만으로 삭제되지 않으며 Room은 Save transaction 전까지 변하지 않습니다.
 
 ## CC-CEDICT dataset과 index
 
@@ -144,11 +156,19 @@ PanLex provider도 user Room과 별도인 read-only SQLite lifecycle을 사용�
 
 같은 expression pair의 여러 attestation은 source group별 최대 quality를 합산하고 대표 `meaning_id`/`source_id`, source/group count를 보존합니다. runtime query는 NFC/trim/whitespace/root-case exact key와 indexed `LIMIT + 1`만 사용해 결과 제한과 truncation을 계산합니다. PanLex-specific relation/SQLite 타입은 `provider.panlex` 내부에서 common `ExternalDictionaryEntry`로 매핑됩니다.
 
-현재 descriptor는 기존 한국어기초사전 범위와 겹치지 않는 `de|hi|pl|la ↔ ko`만 선언합니다. 생성 index는 307,530 unique expression relations/53,211,136 bytes입니다. missing/malformed dataset은 PanLex suggestion group에만 표시되고 editor manual save를 막지 않습니다. CC0 source/license/release와 PanLex expression/meaning/source ID는 `Use` 후 generic sense provenance와 backup에 보존되며 dataset refresh는 user sense를 갱신하지 않습니다. 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md), 재현/coverage/update 절차는 [panlex-dataset.md](panlex-dataset.md)에 있습니다.
+현재 descriptor는 기존 한국어기초사전 범위와 겹치지 않는 `de|hi|pl|la|nl|pt|it|tr|cs|sv|fi|uk ↔ ko`를 선언합니다. shared build config가 converter와 pack manifest의 24개 양방향 pair를 만들고, runtime mirror와 DB `supported_language_tags` metadata가 다르면 index를 거부합니다. 생성 index는 1,098,758 unique expression relations/189,714,432 bytes입니다. missing/malformed dataset은 PanLex suggestion group에만 표시되고 editor manual save를 막지 않습니다. 고정한 2019 artifact의 CC0 source/license/release와 PanLex expression/meaning/source ID는 row toggle 후 generic sense provenance와 backup에 보존되며 dataset refresh는 user sense를 갱신하지 않습니다. 현재 PanLex 배포물의 라이선스가 다르므로 새 artifact에는 이 결정을 자동 적용하지 않습니다. 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md), 재현/coverage/update 절차는 [panlex-dataset.md](panlex-dataset.md)에 있습니다.
+
+## Kaikki per-language English fallback index
+
+`tools/build_kaikki_indexes.py`는 checksum으로 고정한 official English Wiktionary raw Wiktextract JSONL을 streaming으로 한 번 읽고 reviewed language별 compact SQLite를 만든다. NFC/trim/whitespace/root-case exact key만 색인하며 homograph entry와 source sense 순서를 합치지 않는다. runtime은 raw JSONL을 읽지 않고 provider package 내부의 abbreviated record를 common `ExternalDictionaryEntry`로 명시적으로 mapping한다.
+
+provider ID는 하나의 `kaikki`이고 pack은 `kaikki.<source>-en` per-language다. generic `DictionaryPackResolver`의 기존 provider-only API를 유지하면서 `providerId + DictionaryLanguagePair` overload를 추가해 여러 active pack이 공존한다. 한 language pack의 누락/손상은 해당 suggestion group만 `LocalDatasetUnavailable`/malformed가 되고 다른 Kaikki pack과 provider를 막지 않는다.
+
+Kaikki index schema v2는 headword, raw POS, English gloss/sense, textual pronunciation, representative forms/전체 form count, gender와 import 가능한 usage example text/count를 보존한다. 각 sense는 원본 순서의 최대 두 example만 보유하고 `quotation`, `ref`가 있는 attributed text, category/graph/full etymology와 audio/media는 제외한다. pronunciation/forms는 transient UI metadata고 row tap은 기존 mapper로 English gloss/POS/example과 source/license/release provenance를 가져온다. Example provenance는 별도 Kaikki column이 아니라 enclosing sense의 generic `EXAMPLES` imported field를 사용한다. Room v5와 backup v4는 바뀌지 않는다. current 12개 pair와 측정 수치·license/update 절차는 [kaikki-dataset.md](kaikki-dataset.md), 결정은 [ADR-0011](decisions/0011-kaikki-per-language-english-fallback.md)에 있다.
 
 ## 백업/복원 경계
 
-canonical backup은 Room schema와 독립된 `schemaVersion: 3` UTF-8 JSON입니다. v3는 reading과 entry-level reading provenance를 추가하며 v1/v2 import는 reading이 빈 기존 의미를 유지합니다. sense provenance와 user-authored null semantics도 그대로입니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
+canonical backup은 Room schema와 독립된 `schemaVersion: 4` UTF-8 JSON입니다. v4는 Wordbook stable ID와 entry-wordbook 관계를 추가하며 v1/v2/v3 import는 Wordbook이 빈 기존 의미로 현재 모델에 올라옵니다. v3의 reading/provenance와 user-authored null semantics도 그대로 유지합니다. version별 serializable DTO는 `backup.domain`, strict codec과 검증은 `backup.data`, 화면 상태와 SAF contract launcher는 `feature.backup`에 둡니다. Composable은 URI 선택 결과를 action으로 전달할 뿐 파일이나 DB I/O를 하지 않습니다.
 
 ## JMdict compact local index
 
@@ -165,15 +185,15 @@ Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmd
 ## 테스트 전략
 
 - JVM: BCP 47/입력 규칙, Room relation/provenance mapping, JSON v1→v2 parse/validation, repository timestamp/aggregate behavior, ViewModel state transition, provider contract/registry/editor seed policy, CC-CEDICT parser/index/autofill, 한국어기초사전 양방향 mapping/언어/license/autofill, PanLex mapping/ranking/provenance/registry coexistence, editor debounce/latest-query/provider grouping/error isolation/user-edit protection
-- Python fixture: 한국어기초사전 공식 JSON shape/lexical ID/forward-reverse SQLite, PanLex direct relation/variety allowlist/source-group ranking/Unicode/metadata/atomic failure cleanup
-- Android instrumented: in-memory Room의 aggregate/search/tag cascade와 provenance export/import round trip/rollback/conflict policy, v1→v2 및 v2→v3 migration, 작은 별도 SQLite fixture의 한국어기초사전 및 PanLex 양방향 exact query와 malformed schema 처리
+- Python fixture: 한국어기초사전 공식 JSON shape/lexical ID/forward-reverse SQLite, PanLex direct relation/variety allowlist/source-group ranking, Kaikki homograph/sense/rich metadata/Unicode/checksum/atomic failure cleanup
+- Android instrumented: in-memory Room의 aggregate/search/Tag·Wordbook cascade와 provenance/Wordbook export-import round trip·rollback·conflict policy, v1→v2→v3→v4→v5 데이터 보존 migration, 작은 별도 SQLite fixture의 한국어기초사전·PanLex·Kaikki exact query와 malformed schema 처리
 - Compose instrumented: 편집 validation, provider별 inline suggestion, compact attribution, imported source indicator 같은 핵심 UI 계약
 - CC-CEDICT tests는 출처와 CC BY-SA 4.0 notice가 있는 작은 UTF-8 fixture만 사용하며 full dataset이나 network에 의존하지 않음
 
 ## Dictionary pack과 editor orchestration
 
-`dictionary.pack`은 generic manifest codec, installer/repository/resolver를 소유합니다. 네 provider의 source는 stable provider ID로 active pack file을 얻고 provider-specific parser/SQLite mapping은 기존 package 안에 남습니다. SAF URI/ZIP/checksum/파일 교체는 data boundary에서만 처리하고 Settings Composable은 action을 보낼 뿐 I/O를 하지 않습니다. pack 삭제/update는 `VocabularyDatabase`를 주입받지 않습니다.
+`dictionary.pack`은 generic manifest codec, installer/repository/resolver를 소유합니다. 다섯 provider의 source는 stable provider ID로 active pack file을 얻고 provider-specific parser/SQLite mapping은 기존 package 안에 남습니다. Kaikki처럼 provider 하나가 여러 pack을 가지면 exact language pair까지 resolver key에 포함하고 기존 one-pack provider 동작은 유지합니다. SAF URI/ZIP/checksum/파일 교체는 data boundary에서만 처리하고 Settings Composable은 action을 보낼 뿐 I/O를 하지 않습니다. pack 삭제/update는 `VocabularyDatabase`를 주입받지 않습니다.
 
 Word Editor option은 provider ID가 아니라 result language preference(`ko`, `en`, 나머지)에 따라 정렬합니다. 선택한 pair를 지원하는 여러 provider는 registry에서 함께 검색하며 provider별 group을 유지합니다. query limit은 provider당 20, UI materialization은 provider당 최대 25 sense row입니다. 모든 group은 header와 selectable sense/result row로 한 번 flatten됩니다. provider header를 제외한 selectable row가 4개 이하면 자연 높이 `Column`, 5개 이상이면 352dp로 제한한 단일 `LazyColumn`을 사용하므로 provider별 nested list는 없습니다. 결과 도착은 draft를 바꾸지 않으며 row tap만 기존 generic mapper를 호출합니다.
 
-`ExternalDictionaryReferenceProvider`는 content provider와 별도입니다. NAVER 구현은 검증된 BCP 47 base language mapping과 headword로 URI만 만들고 ViewModel effect 뒤 user tap에서 `ACTION_VIEW`를 보냅니다. network client, HTML parser, downloader, Room/backup mapping dependency가 없습니다.
+`ExternalDictionaryReferenceProvider`는 content provider와 별도입니다. NAVER 구현은 검증된 BCP 47 base language mapping과 headword로 URI만 만들며 Word Editor의 Reading 바로 아래 secondary action으로 표시합니다. ViewModel effect 뒤 user tap에서만 `ACTION_VIEW`를 보내고 network client, HTML parser, downloader, Room/backup mapping dependency가 없습니다.

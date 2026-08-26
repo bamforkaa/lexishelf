@@ -1,6 +1,7 @@
 package com.example.localvocabulary.dictionary.pack
 
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import java.io.File
 import kotlinx.serialization.Serializable
 
@@ -70,5 +71,15 @@ sealed interface DictionaryPackInstallResult {
 
 interface DictionaryPackResolver {
     fun activePack(providerId: DictionaryProviderId): ResolvedDictionaryPack?
-}
 
+    fun activePack(
+        providerId: DictionaryProviderId,
+        languagePair: DictionaryLanguagePair,
+    ): ResolvedDictionaryPack? = activePack(providerId)?.takeIf { pack ->
+        pack.manifest.supportedLanguagePairs.any { manifestPair ->
+            manifestPair.sourceLanguage == languagePair.sourceLanguage.value &&
+                manifestPair.resultLanguage == languagePair.resultLanguage.value &&
+                manifestPair.resultKind == languagePair.resultKind.name
+        }
+    }
+}

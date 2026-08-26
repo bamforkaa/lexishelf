@@ -21,6 +21,7 @@ import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.WordbookEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -55,6 +56,8 @@ class RoomVocabularyBackupRepositoryTest {
     fun completeExportImportRoundTripPreservesUnicodeOrderRelationsAndTimestamps() = runTest {
         val sharedTagId = insertTag("tag-shared", "Shared")
         val japaneseTagId = insertTag("tag-japanese", "日本語")
+        val studyWordbookId = insertWordbook("wordbook-jlpt", "JLPT N2")
+        val travelWordbookId = insertWordbook("wordbook-travel", "여행")
         insertEntry(
             stableId = "entry-japanese",
             headword = "辞書",
@@ -81,6 +84,7 @@ class RoomVocabularyBackupRepositoryTest {
                 datasetVersion = "2026-08-23",
                 importedFields = setOf("READING"),
             ),
+            wordbookIds = setOf(studyWordbookId, travelWordbookId),
         )
         insertEntry(
             stableId = "entry-arabic",
@@ -118,6 +122,11 @@ class RoomVocabularyBackupRepositoryTest {
         assertTrue(senses.first().provenance!!.modifiedAfterImport)
         assertEquals(null, senses.last().provenance)
         assertEquals(2, database.tagDao().getAll().size)
+        assertEquals(2, database.wordbookDao().getAll().size)
+        assertEquals(
+            listOf("JLPT N2", "여행"),
+            japanese.wordbooks.map { it.name }.sorted(),
+        )
         assertEquals(
             2,
             entries.count { entry -> entry.tags.any { it.backupId == "tag-shared" } },
@@ -318,6 +327,17 @@ class RoomVocabularyBackupRepositoryTest {
         ),
     )
 
+    private suspend fun insertWordbook(
+        stableId: String,
+        name: String,
+    ): Long = database.wordbookDao().insert(
+        WordbookEntity(
+            backupId = stableId,
+            name = name,
+            normalizedName = name.lowercase(),
+        ),
+    )
+
     private suspend fun insertEntry(
         stableId: String,
         headword: String,
@@ -329,6 +349,7 @@ class RoomVocabularyBackupRepositoryTest {
         modifiedAt: Long = 20,
         reading: String = "",
         readingProvenance: SenseDictionaryProvenanceWrite? = null,
+        wordbookIds: Set<Long> = emptySet(),
     ): Long = database.vocabularyDao().saveEntry(
         entry = VocabularyEntryEntity(
             backupId = stableId,
@@ -342,6 +363,7 @@ class RoomVocabularyBackupRepositoryTest {
         senses = senses,
         tagIds = tagIds,
         readingProvenance = readingProvenance,
+        wordbookIds = wordbookIds,
     )
 
     private fun decode(json: String): ValidatedBackup =

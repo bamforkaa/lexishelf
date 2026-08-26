@@ -7,6 +7,7 @@ import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
+import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
 
 internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = VocabularyEntry(
     id = entry.id,
@@ -61,5 +62,8 @@ internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = Vocabulary
             importedAtEpochMillis = provenance.importedAtEpochMillis,
             modifiedAfterImport = provenance.modifiedAfterImport,
         )
+    },
+    wordbooks = wordbooks.sortedBy { it.name.lowercase() }.map {
+        VocabularyWordbook(it.id, it.backupId, it.name)
     },
 )

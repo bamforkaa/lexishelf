@@ -19,11 +19,17 @@ import com.example.localvocabulary.dictionary.reference.ExternalDictionaryRefere
 import com.example.localvocabulary.dictionary.reference.NaverDictionaryLinkProvider
 import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.domain.TagRepository
+import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryValidator
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
+import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
+import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
+import com.example.localvocabulary.vocabulary.domain.WordbookRepository
+import com.example.localvocabulary.vocabulary.domain.SaveWordbookResult
+import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationResult
 import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
@@ -43,11 +49,18 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 data class EditableExample(
     val key: Long,
     val text: String = "",
+)
+
+data class SuggestionSenseContribution(
+    val meaning: String,
+    val partOfSpeech: String,
+    val exampleTextsByKey: Map<Long, String>,
 )
 
 data class EditableSense(
@@ -56,6 +69,8 @@ data class EditableSense(
     val partOfSpeech: String = "",
     val examples: List<EditableExample> = listOf(EditableExample(-2)),
     val provenance: DictionaryProvenance? = null,
+    val importSuggestionKey: String? = null,
+    val sessionContribution: SuggestionSenseContribution? = null,
 )
 
 data class WordEditorUiState(
@@ -64,13 +79,28 @@ data class WordEditorUiState(
     val entryId: Long? = null,
     val headword: String = "",
     val languageTag: String = "en",
+    val userLanguageTags: Set<String> = emptySet(),
     val reading: String = "",
     val readingProvenance: DictionaryProvenance? = null,
     val isReadingUserEdited: Boolean = false,
+    val readingSuggestionKeys: Set<String> = emptySet(),
+    val sessionReadingSuggestionKeys: Set<String> = emptySet(),
     val senses: List<EditableSense> = listOf(EditableSense(-1)),
     val notes: String = "",
     val availableTags: List<VocabularyTag> = emptyList(),
     val selectedTagIds: Set<Long> = emptySet(),
+    val availableWordbooks: List<VocabularyWordbook> = emptyList(),
+    val selectedWordbookIds: Set<Long> = emptySet(),
+    val isTagCreatorVisible: Boolean = false,
+    val newTagName: String = "",
+    val tagCreationError: String? = null,
+    val tagCreationMessage: String? = null,
+    val isCreatingTag: Boolean = false,
+    val isWordbookCreatorVisible: Boolean = false,
+    val newWordbookName: String = "",
+    val wordbookCreationError: String? = null,
+    val wordbookCreationMessage: String? = null,
+    val isCreatingWordbook: Boolean = false,
     val dictionaryLanguageOptions: List<DictionaryLanguagePairOption> = emptyList(),
     val selectedDictionaryLanguageOptionKey: String? = null,
     val isDictionarySearchInProgress: Boolean = false,
@@ -82,11 +112,13 @@ data class WordEditorUiState(
     val validationError: VocabularyValidationError? = null,
     val loadErrorMessage: String? = null,
     val saveErrorMessage: String? = null,
+    val duplicateCandidate: VocabularyEntry? = null,
 )
 
 sealed interface WordEditorAction {
     data class HeadwordChanged(val value: String) : WordEditorAction
     data class LanguageTagChanged(val value: String) : WordEditorAction
+    data class UserLanguageAdded(val languageTag: String) : WordEditorAction
     data class ReadingChanged(val value: String) : WordEditorAction
     data class DictionaryLanguagePairSelected(val key: String) : WordEditorAction
     data class DictionarySuggestionSelected(
@@ -106,12 +138,25 @@ sealed interface WordEditorAction {
         val value: String,
     ) : WordEditorAction
     data class TagToggled(val tagId: Long) : WordEditorAction
+    data object CreateTagRequested : WordEditorAction
+    data class NewTagNameChanged(val value: String) : WordEditorAction
+    data object CreateTagConfirmed : WordEditorAction
+    data object CreateTagDismissed : WordEditorAction
+    data class WordbookToggled(val wordbookId: Long) : WordEditorAction
+    data object CreateWordbookRequested : WordEditorAction
+    data class NewWordbookNameChanged(val value: String) : WordEditorAction
+    data object CreateWordbookConfirmed : WordEditorAction
+    data object CreateWordbookDismissed : WordEditorAction
+    data object OpenExistingDuplicate : WordEditorAction
+    data object SaveDuplicateAnyway : WordEditorAction
+    data object DismissDuplicateWarning : WordEditorAction
     data object Save : WordEditorAction
 }
 
 sealed interface WordEditorEffect {
     data class Saved(val entryId: Long) : WordEditorEffect
     data class OpenExternalDictionaryReference(val uri: String) : WordEditorEffect
+    data class OpenExistingEntry(val entryId: Long) : WordEditorEffect
 }
 
 @OptIn(FlowPreview::class)
@@ -119,12 +164,13 @@ sealed interface WordEditorEffect {
 class WordEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val vocabularyRepository: VocabularyRepository,
-    tagRepository: TagRepository,
-    settingsRepository: SettingsRepository,
+    private val tagRepository: TagRepository,
+    private val settingsRepository: SettingsRepository,
     private val dictionaryProviderRegistry: DictionaryProviderRegistry,
     private val timeProvider: TimeProvider,
     private val externalReferenceProvider: ExternalDictionaryReferenceProvider =
         NaverDictionaryLinkProvider(),
+    private val wordbookRepository: WordbookRepository = EmptyWordbookRepository,
 ) : ViewModel() {
     private val requestedEntryId: Long? = savedStateHandle["entryId"]
     private val mutableUiState = MutableStateFlow(WordEditorUiState(entryId = requestedEntryId))
@@ -134,11 +180,17 @@ class WordEditorViewModel @Inject constructor(
     val effects = mutableEffects.asSharedFlow()
     private val dictionarySuggestionRequests = MutableStateFlow(DictionarySuggestionRequest())
     private var nextLocalKey = -10L
+    private var pendingDuplicateDraft: ValidatedVocabularyDraft? = null
 
     init {
         viewModelScope.launch {
             tagRepository.observeTags().collect { tags ->
                 mutableUiState.update { it.copy(availableTags = tags) }
+            }
+        }
+        viewModelScope.launch {
+            wordbookRepository.observeWordbooks().collect { wordbooks ->
+                mutableUiState.update { it.copy(availableWordbooks = wordbooks) }
             }
         }
         viewModelScope.launch {
@@ -164,10 +216,16 @@ class WordEditorViewModel @Inject constructor(
             if (requestedEntryId == null) {
                 val settings = settingsRepository.settings.first()
                 mutableUiState.update {
-                    it.copy(isLoading = false, languageTag = settings.defaultLanguageTag)
+                    it.copy(
+                        isLoading = false,
+                        languageTag = settings.defaultLanguageTag,
+                        userLanguageTags = settings.userLanguageTags,
+                    )
                 }
                 refreshDictionaryLanguageOptions()
             } else {
+                val settings = settingsRepository.settings.first()
+                mutableUiState.update { it.copy(userLanguageTags = settings.userLanguageTags) }
                 loadExistingEntry(requestedEntryId)
             }
         }
@@ -177,18 +235,26 @@ class WordEditorViewModel @Inject constructor(
         when (action) {
             is WordEditorAction.HeadwordChanged -> {
                 updateForm {
-                    copy(headword = action.value, dictionaryReference = null)
+                    val currentQuery = headword.trim()
+                    val nextQuery = action.value.trim()
+                    val state = if (currentQuery == nextQuery) {
+                        this
+                    } else {
+                        clearSessionDictionaryContributions()
+                    }
+                    state.copy(headword = action.value, dictionaryReference = null)
                 }
                 refreshExternalDictionaryReference()
                 scheduleDictionarySuggestions()
             }
             is WordEditorAction.LanguageTagChanged -> {
                 updateForm {
-                    copy(languageTag = action.value, dictionaryReference = null)
+                    clearSessionDictionaryContributions().copy(languageTag = action.value)
                 }
                 refreshDictionaryLanguageOptions()
                 refreshExternalDictionaryReference()
             }
+            is WordEditorAction.UserLanguageAdded -> addUserLanguage(action.languageTag)
             is WordEditorAction.ReadingChanged -> updateForm {
                 copy(
                     reading = action.value,
@@ -243,7 +309,158 @@ class WordEditorViewModel @Inject constructor(
                 if (!selection.add(action.tagId)) selection.remove(action.tagId)
                 copy(selectedTagIds = selection)
             }
+            WordEditorAction.CreateTagRequested -> mutableUiState.update {
+                it.copy(
+                    isTagCreatorVisible = true,
+                    newTagName = "",
+                    tagCreationError = null,
+                    tagCreationMessage = null,
+                )
+            }
+            is WordEditorAction.NewTagNameChanged -> mutableUiState.update {
+                it.copy(newTagName = action.value, tagCreationError = null)
+            }
+            WordEditorAction.CreateTagConfirmed -> createTag()
+            WordEditorAction.CreateTagDismissed -> mutableUiState.update {
+                it.copy(
+                    isTagCreatorVisible = false,
+                    newTagName = "",
+                    tagCreationError = null,
+                    isCreatingTag = false,
+                )
+            }
+            is WordEditorAction.WordbookToggled -> updateForm {
+                val selection = selectedWordbookIds.toMutableSet()
+                if (!selection.add(action.wordbookId)) selection.remove(action.wordbookId)
+                copy(selectedWordbookIds = selection)
+            }
+            WordEditorAction.CreateWordbookRequested -> mutableUiState.update {
+                it.copy(
+                    isWordbookCreatorVisible = true,
+                    newWordbookName = "",
+                    wordbookCreationError = null,
+                    wordbookCreationMessage = null,
+                )
+            }
+            is WordEditorAction.NewWordbookNameChanged -> mutableUiState.update {
+                it.copy(newWordbookName = action.value, wordbookCreationError = null)
+            }
+            WordEditorAction.CreateWordbookConfirmed -> createWordbook()
+            WordEditorAction.CreateWordbookDismissed -> mutableUiState.update {
+                it.copy(
+                    isWordbookCreatorVisible = false,
+                    newWordbookName = "",
+                    wordbookCreationError = null,
+                    isCreatingWordbook = false,
+                )
+            }
+            WordEditorAction.OpenExistingDuplicate -> openExistingDuplicate()
+            WordEditorAction.SaveDuplicateAnyway -> saveDuplicateAnyway()
+            WordEditorAction.DismissDuplicateWarning -> {
+                pendingDuplicateDraft = null
+                mutableUiState.update { it.copy(duplicateCandidate = null, isSaving = false) }
+            }
             WordEditorAction.Save -> save()
+        }
+    }
+
+    private fun addUserLanguage(languageTag: String) {
+        viewModelScope.launch {
+            try {
+                settingsRepository.addUserLanguageTag(languageTag)
+                val storedTags = settingsRepository.settings.first().userLanguageTags
+                mutableUiState.update { it.copy(userLanguageTags = storedTags) }
+            } catch (exception: IllegalArgumentException) {
+                mutableUiState.update { it.copy(saveErrorMessage = exception.message) }
+            }
+        }
+    }
+
+    private fun createWordbook() {
+        val state = mutableUiState.value
+        if (state.isCreatingWordbook) return
+        viewModelScope.launch {
+            mutableUiState.update {
+                it.copy(
+                    isCreatingWordbook = true,
+                    wordbookCreationError = null,
+                    wordbookCreationMessage = null,
+                )
+            }
+            when (val result = wordbookRepository.save(null, state.newWordbookName)) {
+                is SaveWordbookResult.Saved -> selectCreatedWordbook(
+                    result.id,
+                    "새 단어장을 선택했습니다.",
+                )
+                is SaveWordbookResult.NameConflict -> selectCreatedWordbook(
+                    result.existingId,
+                    "이미 있는 단어장을 선택했습니다.",
+                )
+                SaveWordbookResult.BlankName -> mutableUiState.update {
+                    it.copy(
+                        isCreatingWordbook = false,
+                        wordbookCreationError = "단어장 이름을 입력하세요.",
+                    )
+                }
+                SaveWordbookResult.NotFound -> mutableUiState.update {
+                    it.copy(
+                        isCreatingWordbook = false,
+                        wordbookCreationError = "단어장을 만들지 못했습니다.",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun selectCreatedWordbook(wordbookId: Long, message: String) {
+        mutableUiState.update {
+            it.copy(
+                selectedWordbookIds = it.selectedWordbookIds + wordbookId,
+                isWordbookCreatorVisible = false,
+                newWordbookName = "",
+                wordbookCreationError = null,
+                wordbookCreationMessage = message,
+                isCreatingWordbook = false,
+            )
+        }
+    }
+
+    private fun createTag() {
+        val state = mutableUiState.value
+        if (state.isCreatingTag) return
+        viewModelScope.launch {
+            mutableUiState.update {
+                it.copy(isCreatingTag = true, tagCreationError = null, tagCreationMessage = null)
+            }
+            when (val result = tagRepository.save(null, state.newTagName)) {
+                is SaveTagResult.Saved -> selectCreatedTag(
+                    result.id,
+                    message = "새 태그를 선택했습니다.",
+                )
+                is SaveTagResult.NameConflict -> selectCreatedTag(
+                    result.existingId,
+                    message = "이미 있는 태그를 선택했습니다.",
+                )
+                SaveTagResult.BlankName -> mutableUiState.update {
+                    it.copy(isCreatingTag = false, tagCreationError = "태그 이름을 입력하세요.")
+                }
+                SaveTagResult.NotFound -> mutableUiState.update {
+                    it.copy(isCreatingTag = false, tagCreationError = "태그를 만들지 못했습니다.")
+                }
+            }
+        }
+    }
+
+    private fun selectCreatedTag(tagId: Long, message: String) {
+        mutableUiState.update {
+            it.copy(
+                selectedTagIds = it.selectedTagIds + tagId,
+                isTagCreatorVisible = false,
+                newTagName = "",
+                tagCreationError = null,
+                tagCreationMessage = message,
+                isCreatingTag = false,
+            )
         }
     }
 
@@ -273,6 +490,7 @@ class WordEditorViewModel @Inject constructor(
                             },
                             notes = entry.notes,
                             selectedTagIds = entry.tags.mapTo(mutableSetOf()) { it.id },
+                            selectedWordbookIds = entry.wordbooks.mapTo(mutableSetOf()) { it.id },
                         )
                     }
                 }
@@ -333,7 +551,7 @@ class WordEditorViewModel @Inject constructor(
         if (state.dictionaryLanguageOptions.none { it.key == key }) return
         if (state.selectedDictionaryLanguageOptionKey == key) return
         mutableUiState.update {
-            it.copy(
+            it.clearSessionDictionaryContributions().copy(
                 selectedDictionaryLanguageOptionKey = key,
                 dictionarySuggestionGroups = emptyList(),
                 dictionarySuggestionMessage = null,
@@ -399,8 +617,8 @@ class WordEditorViewModel @Inject constructor(
             }.map { it.await() }
         }
         if (dictionarySuggestionRequests.value != request) return
-        mutableUiState.update {
-            it.copy(
+        mutableUiState.update { state ->
+            state.restoreSuggestionOwnership(groups).copy(
                 isDictionarySearchInProgress = false,
                 dictionarySuggestionGroups = groups,
                 dictionarySuggestionMessage = null,
@@ -447,6 +665,10 @@ class WordEditorViewModel @Inject constructor(
 
     private fun selectDictionarySuggestion(entry: ExternalDictionaryEntry) {
         val suggestionKey = entry.suggestionKey()
+        if (suggestionKey in mutableUiState.value.selectedSuggestionKeys) {
+            deselectDictionarySuggestion(suggestionKey)
+            return
+        }
         when (
             val mapping = DictionaryEntryDraftMapper.map(
                 entry = entry,
@@ -456,11 +678,14 @@ class WordEditorViewModel @Inject constructor(
             is DictionaryEntryDraftMappingResult.Ready -> {
                 val seededSenses = mapping.seed.draft.senses
                     .takeIf { senses -> senses.any { it.hasContent() } }
-                    ?.let(::toEditableSenses)
+                    ?.let { toEditableSenses(it, suggestionKey) }
                     .orEmpty()
                 mutableUiState.update { state ->
                     val acceptsReading = !state.isReadingUserEdited && state.reading.isBlank() &&
                         mapping.seed.draft.reading.isNotBlank()
+                    val sharesReading = !state.isReadingUserEdited &&
+                        state.reading.isNotBlank() &&
+                        state.reading == mapping.seed.draft.reading
                     val uniqueSenses = seededSenses.filterNot { imported ->
                         val provenance = imported.provenance ?: return@filterNot false
                         state.senses.any { existing ->
@@ -479,6 +704,16 @@ class WordEditorViewModel @Inject constructor(
                         } else {
                             state.readingProvenance
                         },
+                        readingSuggestionKeys = if (acceptsReading || sharesReading) {
+                            state.readingSuggestionKeys + suggestionKey
+                        } else {
+                            state.readingSuggestionKeys
+                        },
+                        sessionReadingSuggestionKeys = if (acceptsReading || sharesReading) {
+                            state.sessionReadingSuggestionKeys + suggestionKey
+                        } else {
+                            state.sessionReadingSuggestionKeys
+                        },
                         dictionaryReference = mapping.seed.transientEntry,
                         selectedSuggestionKeys = state.selectedSuggestionKeys + suggestionKey,
                     )
@@ -491,6 +726,130 @@ class WordEditorViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun deselectDictionarySuggestion(suggestionKey: String) {
+        mutableUiState.update { state ->
+            val remainingSelectedKeys = state.selectedSuggestionKeys - suggestionKey
+            val remainingReadingKeys = state.readingSuggestionKeys - suggestionKey
+            val remainingSessionReadingKeys = state.sessionReadingSuggestionKeys - suggestionKey
+            val retainedSenses = state.senses.mapNotNull { sense ->
+                val provenance = sense.provenance
+                if (sense.importSuggestionKey != suggestionKey || provenance == null) {
+                    return@mapNotNull sense
+                }
+                if (sense.sessionContribution != null) {
+                    sense.withoutUnchangedSessionContribution()
+                } else if (provenance.modifiedAfterImport) {
+                    sense.copy(provenance = null, importSuggestionKey = null)
+                } else {
+                    null
+                }
+            }.ifEmpty {
+                listOf(EditableSense(key = newKey(), examples = listOf(EditableExample(newKey()))))
+            }
+            val removesReading = suggestionKey in state.readingSuggestionKeys &&
+                remainingReadingKeys.isEmpty() && state.readingProvenance != null
+            val keepEditedReading = removesReading &&
+                state.readingProvenance.modifiedAfterImport
+            val replacementReadingProvenance = if (
+                suggestionKey in state.readingSuggestionKeys && remainingReadingKeys.isNotEmpty()
+            ) {
+                readingProvenanceForSelection(remainingReadingKeys)?.let { replacement ->
+                    if (state.readingProvenance?.modifiedAfterImport == true) {
+                        replacement.markModified()
+                    } else {
+                        replacement
+                    }
+                }
+            } else {
+                state.readingProvenance
+            }
+            state.copy(
+                senses = retainedSenses,
+                reading = if (removesReading && !keepEditedReading) "" else state.reading,
+                readingProvenance = if (removesReading) null else replacementReadingProvenance,
+                readingSuggestionKeys = remainingReadingKeys,
+                sessionReadingSuggestionKeys = remainingSessionReadingKeys,
+                isReadingUserEdited = if (removesReading && !keepEditedReading) {
+                    false
+                } else {
+                    state.isReadingUserEdited
+                },
+                dictionaryReference = if (state.dictionaryReference?.suggestionKey() == suggestionKey) {
+                    null
+                } else {
+                    state.dictionaryReference
+                },
+                selectedSuggestionKeys = remainingSelectedKeys,
+            )
+        }
+    }
+
+    private fun readingProvenanceForSelection(
+        selectedKeys: Set<String>,
+    ): DictionaryProvenance? = mutableUiState.value.dictionarySuggestionGroups
+        .asSequence()
+        .flatMap { it.selectableEntries().asSequence() }
+        .filter { it.suggestionKey() in selectedKeys }
+        .mapNotNull { candidate ->
+            when (
+                val mapped = DictionaryEntryDraftMapper.map(
+                    candidate,
+                    importedAtEpochMillis = 0,
+                )
+            ) {
+                is DictionaryEntryDraftMappingResult.Ready ->
+                    mapped.seed.draft.readingProvenance
+                is DictionaryEntryDraftMappingResult.ReferenceOnly -> null
+            }
+        }
+        .firstOrNull()
+
+    private fun WordEditorUiState.restoreSuggestionOwnership(
+        groups: List<DictionarySuggestionGroup>,
+    ): WordEditorUiState {
+        var restoredSenses = senses
+        val restoredSelections = selectedSuggestionKeys.toMutableSet()
+        val restoredReadingOwners = readingSuggestionKeys.toMutableSet()
+
+        groups.asSequence()
+            .flatMap { it.selectableEntries().asSequence() }
+            .forEach { candidate ->
+                val key = candidate.suggestionKey()
+                val mapping = DictionaryEntryDraftMapper.map(candidate, importedAtEpochMillis = 0)
+                if (mapping !is DictionaryEntryDraftMappingResult.Ready) return@forEach
+
+                val candidateProvenances = mapping.seed.draft.senses.mapNotNull { it.provenance }
+                var ownsPersistedContent = false
+                restoredSenses = restoredSenses.map { sense ->
+                    val matches = sense.provenance?.let { existing ->
+                        candidateProvenances.any(existing::hasSameSourceAs)
+                    } == true
+                    if (matches) {
+                        ownsPersistedContent = true
+                        if (sense.importSuggestionKey == null) {
+                            sense.copy(importSuggestionKey = key)
+                        } else {
+                            sense
+                        }
+                    } else {
+                        sense
+                    }
+                }
+
+                val ownsReading = readingProvenance?.let { existing ->
+                    mapping.seed.draft.readingProvenance?.let(existing::hasSameSourceAs)
+                } == true
+                if (ownsReading) restoredReadingOwners += key
+                if (ownsPersistedContent || ownsReading) restoredSelections += key
+            }
+
+        return copy(
+            senses = restoredSenses,
+            selectedSuggestionKeys = restoredSelections,
+            readingSuggestionKeys = restoredReadingOwners,
+        )
     }
 
     private fun refreshExternalDictionaryReference() {
@@ -527,6 +886,7 @@ class WordEditorViewModel @Inject constructor(
                 tagIds = state.selectedTagIds,
                 reading = state.reading,
                 readingProvenance = state.readingProvenance,
+                wordbookIds = state.selectedWordbookIds,
             ),
         )
         if (result is VocabularyValidationResult.Invalid) {
@@ -537,19 +897,57 @@ class WordEditorViewModel @Inject constructor(
         val draft = (result as VocabularyValidationResult.Valid).draft
         viewModelScope.launch {
             mutableUiState.update { it.copy(isSaving = true, saveErrorMessage = null) }
-            runCatching { vocabularyRepository.save(draft) }
-                .onSuccess { id ->
-                    mutableUiState.update { it.copy(isSaving = false, entryId = id) }
-                    mutableEffects.emit(WordEditorEffect.Saved(id))
-                }
-                .onFailure { error ->
+            runCatching {
+                vocabularyRepository.findDuplicateCandidates(
+                    headword = draft.headword,
+                    languageTag = draft.languageTag,
+                    excludingEntryId = draft.id,
+                )
+            }.onSuccess { duplicates ->
+                val candidate = duplicates.firstOrNull()
+                if (candidate == null) {
+                    persistDraft(draft)
+                } else {
+                    pendingDuplicateDraft = draft
                     mutableUiState.update {
-                        it.copy(
-                            isSaving = false,
-                            saveErrorMessage = error.message ?: "단어를 저장하지 못했습니다.",
-                        )
+                        it.copy(isSaving = false, duplicateCandidate = candidate)
                     }
                 }
+            }.onFailure(::showSaveFailure)
+        }
+    }
+
+    private fun saveDuplicateAnyway() {
+        val draft = pendingDuplicateDraft ?: return
+        pendingDuplicateDraft = null
+        mutableUiState.update { it.copy(duplicateCandidate = null, isSaving = true) }
+        viewModelScope.launch { persistDraft(draft) }
+    }
+
+    private fun openExistingDuplicate() {
+        val entryId = mutableUiState.value.duplicateCandidate?.id ?: return
+        pendingDuplicateDraft = null
+        mutableUiState.update { it.copy(duplicateCandidate = null, isSaving = false) }
+        viewModelScope.launch { mutableEffects.emit(WordEditorEffect.OpenExistingEntry(entryId)) }
+    }
+
+    private suspend fun persistDraft(draft: ValidatedVocabularyDraft) {
+        runCatching { vocabularyRepository.save(draft) }
+            .onSuccess { id ->
+                mutableUiState.update {
+                    it.copy(isSaving = false, entryId = id, duplicateCandidate = null)
+                }
+                mutableEffects.emit(WordEditorEffect.Saved(id))
+            }
+            .onFailure(::showSaveFailure)
+    }
+
+    private fun showSaveFailure(error: Throwable) {
+        mutableUiState.update {
+            it.copy(
+                isSaving = false,
+                saveErrorMessage = error.message ?: "단어를 저장하지 못했습니다.",
+            )
         }
     }
 
@@ -577,18 +975,73 @@ class WordEditorViewModel @Inject constructor(
         }
     }
 
-    private fun toEditableSenses(senses: List<VocabularySenseDraft>): List<EditableSense> =
+    private fun toEditableSenses(
+        senses: List<VocabularySenseDraft>,
+        suggestionKey: String,
+    ): List<EditableSense> =
         senses.map { sense ->
+            val editableExamples = sense.examples.map { example ->
+                EditableExample(key = newKey(), text = example)
+            }
             EditableSense(
                 key = newKey(),
                 meaning = sense.meaning,
                 partOfSpeech = sense.partOfSpeech,
-                examples = sense.examples.map { example ->
-                    EditableExample(key = newKey(), text = example)
-                }.ifEmpty { listOf(EditableExample(newKey())) },
+                examples = editableExamples.ifEmpty { listOf(EditableExample(newKey())) },
                 provenance = sense.provenance,
+                importSuggestionKey = suggestionKey,
+                sessionContribution = SuggestionSenseContribution(
+                    meaning = sense.meaning,
+                    partOfSpeech = sense.partOfSpeech,
+                    exampleTextsByKey = editableExamples.associate { it.key to it.text },
+                ),
             )
         }.ifEmpty { listOf(EditableSense(newKey())) }
+
+    private fun WordEditorUiState.clearSessionDictionaryContributions(): WordEditorUiState {
+        val retainedSenses = senses.mapNotNull { sense ->
+            if (sense.sessionContribution != null) {
+                sense.withoutUnchangedSessionContribution()
+            } else {
+                sense.copy(importSuggestionKey = null)
+            }
+        }.ifEmpty {
+            listOf(EditableSense(key = newKey(), examples = listOf(EditableExample(newKey()))))
+        }
+        val hasSessionReading = sessionReadingSuggestionKeys.isNotEmpty()
+        return copy(
+            senses = retainedSenses,
+            reading = if (hasSessionReading && !isReadingUserEdited) "" else reading,
+            readingProvenance = if (hasSessionReading) null else readingProvenance,
+            readingSuggestionKeys = emptySet(),
+            sessionReadingSuggestionKeys = emptySet(),
+            dictionaryReference = null,
+            selectedSuggestionKeys = emptySet(),
+        )
+    }
+
+    private fun EditableSense.withoutUnchangedSessionContribution(): EditableSense? {
+        val contribution = requireNotNull(sessionContribution)
+        val retainedExamples = examples.filter { example ->
+            contribution.exampleTextsByKey[example.key]?.let { importedText ->
+                example.text != importedText
+            } ?: true
+        }
+        val retained = copy(
+            meaning = meaning.takeUnless { it == contribution.meaning }.orEmpty(),
+            partOfSpeech = partOfSpeech.takeUnless {
+                it == contribution.partOfSpeech
+            }.orEmpty(),
+            examples = retainedExamples,
+            provenance = null,
+            importSuggestionKey = null,
+            sessionContribution = null,
+        )
+        return retained.takeIf { it.hasContent() }
+    }
+
+    private fun EditableSense.hasContent(): Boolean =
+        meaning.isNotBlank() || partOfSpeech.isNotBlank() || examples.any { it.text.isNotBlank() }
 
     private fun VocabularySenseDraft.hasContent(): Boolean =
         meaning.isNotBlank() || partOfSpeech.isNotBlank() || examples.any(String::isNotBlank)
@@ -623,4 +1076,11 @@ class WordEditorViewModel @Inject constructor(
         internal const val DICTIONARY_SEARCH_DEBOUNCE_MILLIS = 400L
         private const val DICTIONARY_RESULT_LIMIT = 20
     }
+}
+
+private object EmptyWordbookRepository : WordbookRepository {
+    override fun observeWordbooks() = flowOf(emptyList<VocabularyWordbook>())
+    override suspend fun save(id: Long?, name: String): SaveWordbookResult =
+        SaveWordbookResult.BlankName
+    override suspend fun delete(id: Long) = Unit
 }

@@ -85,7 +85,7 @@ internal class PanLexDataSource(
         check(releaseId == expectedDatasetVersion) {
             "Unexpected PanLex release: $releaseId"
         }
-        check(database.metadata("supported_language_tags") == PANLEX_FOREIGN_LANGUAGE_TAGS) {
+        check(database.metadata("supported_language_tags") == PANLEX_FOREIGN_LANGUAGE_TAGS_METADATA) {
             "Unexpected PanLex language-variety mapping"
         }
     }
@@ -175,7 +175,6 @@ internal class PanLexDataSource(
 
     private companion object {
         const val KOREAN_LANGUAGE_TAG = "ko"
-        const val PANLEX_FOREIGN_LANGUAGE_TAGS = "de,hi,pl,la"
         val WHITESPACE = Regex("\\s+")
 
         val FOREIGN_TO_KOREAN_QUERY =

@@ -30,11 +30,12 @@ class PanLexProviderTest {
 
         assertEquals("panlex", descriptor.id.value)
         assertEquals(DictionaryAccess.LOCAL_DATASET, descriptor.access)
-        assertEquals(8, descriptor.supportedLanguagePairs.size)
-        listOf("de", "hi", "pl", "la").forEach { language ->
-            assertTrue(descriptor.supports(query("term", language, "ko")))
-            assertTrue(descriptor.supports(query("말", "ko", language)))
-        }
+        assertEquals(24, descriptor.supportedLanguagePairs.size)
+        listOf("de", "hi", "pl", "la", "nl", "pt", "it", "tr", "cs", "sv", "fi", "uk")
+            .forEach { language ->
+                assertTrue(descriptor.supports(query("term", language, "ko")))
+                assertTrue(descriptor.supports(query("말", "ko", language)))
+            }
         assertEquals(
             setOf(DictionaryCapability.EXACT_LOOKUP, DictionaryCapability.TRANSLATIONS),
             descriptor.capabilities,

@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.WordbookEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -130,19 +131,47 @@ class VocabularyDaoTest {
 
     @Test
     fun deletingTagRemovesOnlyCrossReference() = runTest {
-        val tagId = insertTag("Keep")
+        val deletedTagId = insertTag("Delete")
+        val retainedTagId = insertTag("Keep")
         database.vocabularyDao().saveEntry(
             entry = entry(headword = "word"),
-            senses = listOf(SenseWrite("meaning", "", emptyList())),
-            tagIds = setOf(tagId),
+            senses = listOf(SenseWrite("meaning", "noun", listOf("example"))),
+            tagIds = setOf(deletedTagId, retainedTagId),
         )
 
-        database.tagDao().delete(tagId)
+        database.tagDao().delete(deletedTagId)
 
         val entries = database.vocabularyDao().observeEntries("", null).first()
         assertEquals(1, entries.size)
-        assertTrue(entries.single().tags.isEmpty())
-        assertEquals(0L, tableCount("entry_tag_cross_refs"))
+        assertEquals(listOf("Keep"), entries.single().tags.map { it.name })
+        assertEquals(1L, tableCount("senses"))
+        assertEquals(1L, tableCount("examples"))
+        assertEquals(1L, tableCount("entry_tag_cross_refs"))
+        assertEquals(1L, tableCount("vocabulary_entries"))
+    }
+
+    @Test
+    fun wordbookRelationsSupportMultipleCollectionsAndDeletionPreservesVocabulary() = runTest {
+        val firstWordbookId = insertWordbook("JLPT N2")
+        val secondWordbookId = insertWordbook("여행")
+        val tagId = insertTag("음식")
+        val entryId = database.vocabularyDao().saveEntry(
+            entry = entry(headword = "食べる"),
+            senses = listOf(SenseWrite("먹다", "동사", listOf("寿司を食べる。"))),
+            tagIds = setOf(tagId),
+            wordbookIds = setOf(firstWordbookId, secondWordbookId),
+        )
+
+        val stored = database.vocabularyDao().observeEntry(entryId).first()!!
+        assertEquals(listOf("JLPT N2", "여행"), stored.wordbooks.map { it.name }.sorted())
+
+        database.wordbookDao().delete(firstWordbookId)
+
+        val afterDelete = database.vocabularyDao().observeEntry(entryId).first()!!
+        assertEquals(listOf("여행"), afterDelete.wordbooks.map { it.name })
+        assertEquals(listOf("음식"), afterDelete.tags.map { it.name })
+        assertEquals("먹다", afterDelete.senses.single().sense.meaning)
+        assertEquals("寿司を食べる。", afterDelete.senses.single().examples.single().text)
     }
 
     @Test
@@ -226,6 +255,14 @@ class VocabularyDaoTest {
 
     private suspend fun insertTag(name: String): Long = database.tagDao().insert(
         TagEntity(backupId = "tag-$name", name = name, normalizedName = name.lowercase()),
+    )
+
+    private suspend fun insertWordbook(name: String): Long = database.wordbookDao().insert(
+        WordbookEntity(
+            backupId = "wordbook-${name.hashCode()}",
+            name = name,
+            normalizedName = name.lowercase(),
+        ),
     )
 
     private fun entry(

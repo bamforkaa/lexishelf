@@ -10,10 +10,12 @@ from pathlib import Path
 
 from tools.build_panlex_index import (
     BCP47_TO_PANLEX_UID,
+    DEFAULT_LANGUAGE_TAGS,
     PANLEX_LICENSE_NAME,
     build_index,
     normalized_exact_key,
 )
+from tools.panlex_language_config import PANLEX_FOREIGN_LANGUAGE_TAGS
 
 
 LICENSE = """PanLex is a project of The Long Now Foundation, and provides CSV and JSON
@@ -41,6 +43,7 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
                 {"id": 2, "lang_code": "deu", "var_code": 0},
                 {"id": 3, "lang_code": "hin", "var_code": 0},
                 {"id": 4, "lang_code": "deu", "var_code": 1},
+                {"id": 5, "lang_code": "nld", "var_code": 0},
             ],
         ),
         "expr.csv": csv_text(
@@ -58,6 +61,7 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
                 {"id": 21, "langvar": 2, "txt": "Cafe\u0301", "txt_degr": "cafe"},
                 {"id": 22, "langvar": 4, "txt": "Dialekt", "txt_degr": "dialekt"},
                 {"id": 30, "langvar": 3, "txt": "पानी", "txt_degr": "पानी"},
+                {"id": 31, "langvar": 5, "txt": "water", "txt_degr": "water"},
             ],
         ),
         "denotation.csv": csv_text(
@@ -77,6 +81,8 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
                 {"id": 12, "meaning": 105, "expr": 30},
                 {"id": 13, "meaning": 106, "expr": 10},
                 {"id": 14, "meaning": 106, "expr": 22},
+                {"id": 15, "meaning": 107, "expr": 10},
+                {"id": 16, "meaning": 107, "expr": 31},
             ],
         ),
         "meaning.csv": csv_text(
@@ -89,6 +95,7 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
                 {"id": 104, "source": 5},
                 {"id": 105, "source": 6},
                 {"id": 106, "source": 7},
+                {"id": 107, "source": 8},
             ],
         ),
         "source.csv": csv_text(
@@ -101,6 +108,7 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
                 {"id": 5, "quality": 6, "grp": 50},
                 {"id": 6, "quality": 4, "grp": 60},
                 {"id": 7, "quality": 9, "grp": 70},
+                {"id": 8, "quality": 8, "grp": 80},
             ],
         ),
     }
@@ -112,6 +120,13 @@ def write_snapshot(path: Path, *, malformed_expr=False, license_text=LICENSE):
 
 
 class PanLexIndexBuilderTest(unittest.TestCase):
+    def test_default_languages_come_from_the_reviewed_shared_config(self):
+        self.assertEqual(PANLEX_FOREIGN_LANGUAGE_TAGS, DEFAULT_LANGUAGE_TAGS)
+        self.assertEqual(
+            ("de", "hi", "pl", "la", "nl", "pt", "it", "tr", "cs", "sv", "fi", "uk"),
+            DEFAULT_LANGUAGE_TAGS,
+        )
+
     def test_normalization_is_nfc_trimmed_whitespace_collapsed_and_case_insensitive(self):
         self.assertEqual("café au lait", normalized_exact_key("  CAFE\u0301   au lait "))
 
@@ -122,12 +137,13 @@ class PanLexIndexBuilderTest(unittest.TestCase):
             output = root / "panlex.db"
             write_snapshot(snapshot)
 
-            stats = build_index(snapshot, output, ("de", "hi"))
+            stats = build_index(snapshot, output, ("de", "hi", "nl"))
 
             self.assertEqual("2019-09-01", stats.release_id)
             self.assertEqual(3, stats.coverage["de"].direct_relation_count)
             self.assertEqual(1, stats.coverage["hi"].direct_relation_count)
-            self.assertEqual(("de", "hi"), stats.selected_language_tags)
+            self.assertEqual(1, stats.coverage["nl"].direct_relation_count)
+            self.assertEqual(("de", "hi", "nl"), stats.selected_language_tags)
             self.assertGreater(stats.generated_database_bytes, 0)
             with closing(sqlite3.connect(output)) as database:
                 water = database.execute(
@@ -144,7 +160,8 @@ class PanLexIndexBuilderTest(unittest.TestCase):
                 self.assertEqual("수", water[1][0])
                 self.assertEqual(
                     [("de", BCP47_TO_PANLEX_UID["de"]), ("hi", BCP47_TO_PANLEX_UID["hi"]),
-                     ("ko", BCP47_TO_PANLEX_UID["ko"])],
+                     ("ko", BCP47_TO_PANLEX_UID["ko"]),
+                     ("nl", BCP47_TO_PANLEX_UID["nl"])],
                     database.execute(
                         "SELECT language_tag, panlex_uid FROM language_varieties ORDER BY language_tag"
                     ).fetchall(),
@@ -152,7 +169,7 @@ class PanLexIndexBuilderTest(unittest.TestCase):
                 metadata = dict(database.execute("SELECT key, value FROM metadata"))
                 self.assertEqual(PANLEX_LICENSE_NAME, metadata["license_name"])
                 self.assertEqual("distance-1 same-source meaning co-denotations only", metadata["translation_policy"])
-                self.assertEqual("4", metadata["relation_count"])
+                self.assertEqual("5", metadata["relation_count"])
                 self.assertEqual(64, len(metadata["source_archive_sha256"]))
                 self.assertEqual(1, database.execute("PRAGMA user_version").fetchone()[0])
 
@@ -204,6 +221,23 @@ class PanLexIndexBuilderTest(unittest.TestCase):
                 build_index(snapshot, output, ("de",))
             with self.assertRaisesRegex(ValueError, "No reviewed PanLex variety mapping"):
                 build_index(snapshot, output, ("xx",))
+
+    def test_unexpected_pinned_source_checksum_is_rejected_before_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "panlex-20190901-csv.zip"
+            output = root / "panlex.db"
+            write_snapshot(snapshot)
+
+            with self.assertRaisesRegex(ValueError, "reviewed pinned artifact"):
+                build_index(
+                    snapshot,
+                    output,
+                    ("de",),
+                    expected_source_sha256="0" * 64,
+                )
+
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

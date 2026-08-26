@@ -11,6 +11,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tools.dataset_paths import dataset_paths, dataset_root_summary
+from tools.kaikki_language_config import (
+    KAIKKI_DATASET_RELEASE_ID,
+    KAIKKI_INDEX_SCHEMA_VERSION,
+    KAIKKI_SUPPORTED_LANGUAGE_TAGS,
+)
+from tools.panlex_language_config import panlex_language_pairs
 
 PACK_FORMAT = "local-vocabulary-dictionary-pack"
 MANIFEST_SCHEMA_VERSION = 1
@@ -30,7 +36,7 @@ class PackDefinition:
     official_url: str
 
 
-PACKS = (
+CORE_PACKS = (
     PackDefinition(
         "cc-cedict", "cedict_1_0_ts_utf-8_mdbg.txt.gz", "cc-cedict.zh-en",
         "cc-cedict", "2026-08-22T08:27:42Z", 1,
@@ -52,11 +58,7 @@ PACKS = (
     PackDefinition(
         "panlex", "panlex_korean_fallback.db", "panlex.ko-fallback",
         "panlex", "2019-09-01", 1,
-        tuple(
-            pair
-            for language in ("de", "hi", "pl", "la")
-            for pair in ((language, "ko", "TRANSLATION"), ("ko", language, "TRANSLATION"))
-        ),
+        panlex_language_pairs(),
         "CC0-1.0", "PanLex Database; citation to panlex.org is recommended.",
         "https://panlex.org/",
     ),
@@ -67,6 +69,31 @@ PACKS = (
         "https://www.edrdg.org/jmdict/j_jmdict.html",
     ),
 )
+
+
+def kaikki_pack_definition(language: str) -> PackDefinition:
+    if language not in KAIKKI_SUPPORTED_LANGUAGE_TAGS:
+        raise ValueError(f"Unsupported Kaikki pack language: {language}")
+    return PackDefinition(
+        dataset="kaikki",
+        artifact=f"{language}.db",
+        pack_id=f"kaikki.{language}-en",
+        provider_id="kaikki",
+        dataset_version=KAIKKI_DATASET_RELEASE_ID,
+        dataset_schema_version=KAIKKI_INDEX_SCHEMA_VERSION,
+        language_pairs=((language, "en", "TRANSLATION"),),
+        license_id="CC-BY-SA-4.0",
+        attribution=(
+            "English Wiktionary data extracted by Wiktextract and distributed through "
+            "Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL "
+            "1.1+; this pack uses the CC BY-SA 4.0 option."
+        ),
+        official_url="https://kaikki.org/dictionary/rawdata.html",
+    )
+
+
+KAIKKI_PACKS = tuple(map(kaikki_pack_definition, KAIKKI_SUPPORTED_LANGUAGE_TAGS))
+PACKS = CORE_PACKS + KAIKKI_PACKS
 
 
 def pack_file_name(definition: PackDefinition) -> str:
@@ -160,9 +187,21 @@ def main() -> None:
         choices=[definition.dataset for definition in PACKS],
         help="Build only the selected dataset; repeat to build multiple packs",
     )
+    parser.add_argument(
+        "--kaikki-language",
+        action="append",
+        choices=KAIKKI_SUPPORTED_LANGUAGE_TAGS,
+        help="Restrict Kaikki pack builds; repeat for multiple languages",
+    )
     args = parser.parse_args()
     project_root = Path(__file__).resolve().parents[1]
-    selected = [item for item in PACKS if not args.pack or item.dataset in args.pack]
+    requested_kaikki_languages = set(args.kaikki_language or KAIKKI_SUPPORTED_LANGUAGE_TAGS)
+    selected = [
+        item
+        for item in PACKS
+        if (not args.pack or item.dataset in args.pack) and
+        (item.dataset != "kaikki" or item.artifact.removesuffix(".db") in requested_kaikki_languages)
+    ]
     resolved_root = dataset_paths(selected[0].dataset, project_root).root
     print(dataset_root_summary(resolved_root))
     report = []

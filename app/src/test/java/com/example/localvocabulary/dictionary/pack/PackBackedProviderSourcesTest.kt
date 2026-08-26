@@ -9,6 +9,8 @@ import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDi
 import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryIndexSource
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexOpenResult
 import com.example.localvocabulary.dictionary.provider.panlex.PanLexIndexSource
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiIndexOpenResult
+import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiIndexSource
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -26,5 +28,6 @@ class PackBackedProviderSourcesTest {
             KoreanBasicDictionaryIndexSource(missingResolver).open(),
         )
         assertSame(PanLexIndexOpenResult.Missing, PanLexIndexSource(missingResolver).open())
+        assertSame(KaikkiIndexOpenResult.Missing, KaikkiIndexSource(missingResolver).open("de"))
     }
 }

@@ -8,6 +8,7 @@ import com.example.localvocabulary.backup.domain.BackupReadError
 import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupSerializer
 import com.example.localvocabulary.backup.domain.BackupTagV1
+import com.example.localvocabulary.backup.domain.BackupWordbookV4
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupV1
@@ -17,6 +18,7 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyEntryValidator
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationResult
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
+import com.example.localvocabulary.vocabulary.domain.normalizeWordbookName
 import javax.inject.Inject
 import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.SerializationException
@@ -54,6 +56,9 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         val document = when (version) {
             1 -> decodeDocument<VocabularyBackupV1>(root)?.toCurrent()
             2 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
+                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
+            )
+            3 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
                 schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
             )
             CURRENT_BACKUP_SCHEMA_VERSION -> decodeDocument<VocabularyBackupV2>(root)
@@ -113,6 +118,23 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
             BackupTagV1(tag.stableId, normalized.displayName)
         }
 
+        val wordbookIds = mutableSetOf<String>()
+        val normalizedWordbookIdentities = mutableSetOf<String>()
+        val normalizedWordbooks = document.wordbooks.mapIndexed { index, wordbook ->
+            if (!isValidStableId(wordbook.stableId)) {
+                return invalid("wordbooks[$index].stableId", "유효한 stable ID가 아닙니다.")
+            }
+            if (!wordbookIds.add(wordbook.stableId)) {
+                return invalid("wordbooks[$index].stableId", "stable ID가 중복됩니다.")
+            }
+            val normalized = normalizeWordbookName(wordbook.name)
+                ?: return invalid("wordbooks[$index].name", "단어장 이름이 비어 있습니다.")
+            if (!normalizedWordbookIdentities.add(normalized.identity)) {
+                return invalid("wordbooks[$index].name", "정규화한 단어장 이름이 중복됩니다.")
+            }
+            BackupWordbookV4(wordbook.stableId, normalized.displayName)
+        }
+
         val entryIds = mutableSetOf<String>()
         val normalizedEntries = document.entries.mapIndexed { entryIndex, entry ->
             if (!isValidStableId(entry.stableId)) {
@@ -132,6 +154,18 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
             }
             if (entry.tagStableIds.any { it !in tagIds }) {
                 return invalid("entries[$entryIndex].tagStableIds", "존재하지 않는 태그를 참조합니다.")
+            }
+            if (entry.wordbookStableIds.size != entry.wordbookStableIds.distinct().size) {
+                return invalid(
+                    "entries[$entryIndex].wordbookStableIds",
+                    "단어장 참조가 중복됩니다.",
+                )
+            }
+            if (entry.wordbookStableIds.any { it !in wordbookIds }) {
+                return invalid(
+                    "entries[$entryIndex].wordbookStableIds",
+                    "존재하지 않는 단어장을 참조합니다.",
+                )
             }
 
             val senseDrafts = entry.senses.mapIndexed { senseIndex, sense ->
@@ -208,12 +242,17 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                 modifiedAtEpochMillis = entry.modifiedAtEpochMillis,
                 reading = draft.reading,
                 readingProvenance = draft.readingProvenance?.toBackupV2(),
+                wordbookStableIds = entry.wordbookStableIds,
             )
         }
 
         return BackupDecodeResult.Success(
             ValidatedBackup(
-                document.copy(tags = normalizedTags, entries = normalizedEntries),
+                document.copy(
+                    tags = normalizedTags,
+                    entries = normalizedEntries,
+                    wordbooks = normalizedWordbooks,
+                ),
             ),
         )
     }

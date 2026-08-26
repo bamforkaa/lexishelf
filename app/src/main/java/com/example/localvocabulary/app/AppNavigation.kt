@@ -30,18 +30,27 @@ import com.example.localvocabulary.feature.wordeditor.WordEditorScreen
 import com.example.localvocabulary.feature.wordeditor.WordEditorViewModel
 import com.example.localvocabulary.feature.wordlist.WordListScreen
 import com.example.localvocabulary.feature.wordlist.WordListViewModel
+import com.example.localvocabulary.feature.wordbooks.WordbookManagementScreen
+import com.example.localvocabulary.feature.wordbooks.WordbookManagementViewModel
+import com.example.localvocabulary.feature.wordbooks.WordbookDetailScreen
+import com.example.localvocabulary.feature.wordbooks.WordbookDetailViewModel
 
 private object Routes {
     const val WORDS = "words"
     const val TAGS = "tags"
+    const val WORDBOOKS = "wordbooks"
     const val SETTINGS = "settings"
     const val BACKUP = "backup"
+    const val TAG_COLLECTION = "tag/{tagId}"
+    const val WORDBOOK_COLLECTION = "wordbook/{wordbookId}"
     const val NEW_WORD = "word/new"
     const val WORD_DETAIL = "word/{entryId}"
     const val EDIT_WORD = "word/{entryId}/edit"
 
     fun detail(entryId: Long) = "word/$entryId"
     fun edit(entryId: Long) = "word/$entryId/edit"
+    fun tagCollection(tagId: Long) = "tag/$tagId"
+    fun wordbookCollection(wordbookId: Long) = "wordbook/$wordbookId"
 }
 
 @Composable
@@ -50,16 +59,42 @@ fun AppNavigation() {
 
     NavHost(navController = navController, startDestination = Routes.WORDS) {
         composable(Routes.WORDS) {
-            val viewModel = hiltViewModel<WordListViewModel>()
-            val state by viewModel.uiState.collectAsStateWithLifecycle()
-            WordListScreen(
-                state = state,
-                onAction = viewModel::onAction,
+            WordListDestination(
                 onAddWord = { navController.navigate(Routes.NEW_WORD) },
                 onOpenWord = { navController.navigate(Routes.detail(it)) },
                 onManageTags = { navController.navigate(Routes.TAGS) },
+                onManageWordbooks = { navController.navigate(Routes.WORDBOOKS) },
                 onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+
+        composable(
+            route = Routes.TAG_COLLECTION,
+            arguments = listOf(navArgument("tagId") { type = NavType.LongType }),
+        ) {
+            WordListDestination(
+                onAddWord = { navController.navigate(Routes.NEW_WORD) },
+                onOpenWord = { navController.navigate(Routes.detail(it)) },
+                onManageTags = { navController.navigate(Routes.TAGS) },
+                onManageWordbooks = { navController.navigate(Routes.WORDBOOKS) },
+                onOpenBackup = { navController.navigate(Routes.BACKUP) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.WORDBOOK_COLLECTION,
+            arguments = listOf(navArgument("wordbookId") { type = NavType.LongType }),
+        ) {
+            val viewModel = hiltViewModel<WordbookDetailViewModel>()
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            WordbookDetailScreen(
+                state = state,
+                onAction = viewModel::onAction,
+                onOpenWord = { navController.navigate(Routes.detail(it)) },
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -100,6 +135,8 @@ fun AppNavigation() {
                 onAction = viewModel::onAction,
                 onBack = { navController.popBackStack() },
                 onEdit = { navController.navigate(Routes.edit(it)) },
+                onOpenTag = { navController.navigate(Routes.tagCollection(it)) },
+                onOpenWordbook = { navController.navigate(Routes.wordbookCollection(it)) },
             )
         }
 
@@ -110,6 +147,19 @@ fun AppNavigation() {
                 state = state,
                 onAction = viewModel::onAction,
                 onBack = { navController.popBackStack() },
+                onOpenTag = { navController.navigate(Routes.tagCollection(it)) },
+            )
+        }
+
+
+        composable(Routes.WORDBOOKS) {
+            val viewModel = hiltViewModel<WordbookManagementViewModel>()
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            WordbookManagementScreen(
+                state = state,
+                onAction = viewModel::onAction,
+                onBack = { navController.popBackStack() },
+                onOpenWordbook = { navController.navigate(Routes.wordbookCollection(it)) },
             )
         }
 
@@ -144,6 +194,31 @@ fun AppNavigation() {
 }
 
 @Composable
+private fun WordListDestination(
+    onAddWord: () -> Unit,
+    onOpenWord: (Long) -> Unit,
+    onManageTags: () -> Unit,
+    onManageWordbooks: () -> Unit,
+    onOpenBackup: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onBack: (() -> Unit)? = null,
+) {
+    val viewModel = hiltViewModel<WordListViewModel>()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    WordListScreen(
+        state = state,
+        onAction = viewModel::onAction,
+        onAddWord = onAddWord,
+        onOpenWord = onOpenWord,
+        onManageTags = onManageTags,
+        onManageWordbooks = onManageWordbooks,
+        onOpenBackup = onOpenBackup,
+        onOpenSettings = onOpenSettings,
+        onBack = onBack,
+    )
+}
+
+@Composable
 private fun WordEditorDestination(
     onBack: () -> Unit,
     onSaved: (Long) -> Unit,
@@ -163,6 +238,9 @@ private fun WordEditorDestination(
                             // No browser is available; the editor remains usable.
                         }
                     }
+                }
+                is WordEditorEffect.OpenExistingEntry -> {
+                    onSaved(effect.entryId)
                 }
             }
         }

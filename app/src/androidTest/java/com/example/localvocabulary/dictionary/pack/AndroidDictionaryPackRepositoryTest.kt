@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.localvocabulary.app.DictionaryApplication
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
+import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
+import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -14,7 +18,10 @@ import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -33,6 +40,14 @@ class AndroidDictionaryPackRepositoryTest {
         codec,
     )
     private val installedPackIds = mutableSetOf<String>()
+
+    @Before
+    fun awaitApplicationPackBootstrap() = runTest {
+        val application = context.applicationContext as DictionaryApplication
+        application.bundledDictionaryPackBootstrapper.state
+            .filterIsInstance<BundledDictionaryPackBootstrapState.Complete>()
+            .first()
+    }
 
     @After
     fun removeTestPacks() = runTest {
@@ -99,6 +114,37 @@ class AndroidDictionaryPackRepositoryTest {
     }
 
     @Test
+    fun multiplePacksForOneProviderResolveByLanguagePair() {
+        val providerId = "test-provider-multipack"
+        val dePayload = "de".encodeToByteArray()
+        val nlPayload = "nl".encodeToByteArray()
+        val de = manifest("test-pack-de", providerId, "1", dePayload).copy(
+            supportedLanguagePairs = listOf(DictionaryPackLanguagePair("de", "en", "TRANSLATION")),
+        )
+        val nl = manifest("test-pack-nl", providerId, "1", nlPayload).copy(
+            supportedLanguagePairs = listOf(DictionaryPackLanguagePair("nl", "en", "TRANSLATION")),
+        )
+        installedPackIds += setOf(de.packId, nl.packId)
+
+        assertTrue(repository.install(pack(de, dePayload)) is DictionaryPackInstallResult.Installed)
+        assertTrue(repository.install(pack(nl, nlPayload)) is DictionaryPackInstallResult.Installed)
+
+        assertEquals(
+            "test-pack-de",
+            repository.activePack(DictionaryProviderId(providerId), languagePair("de"))
+                ?.manifest
+                ?.packId,
+        )
+        assertEquals(
+            "test-pack-nl",
+            repository.activePack(DictionaryProviderId(providerId), languagePair("nl"))
+                ?.manifest
+                ?.packId,
+        )
+        assertNull(repository.activePack(DictionaryProviderId(providerId), languagePair("pt")))
+    }
+
+    @Test
     fun deletingPackDoesNotDeleteUserVocabulary() = runTest {
         val database = Room.inMemoryDatabaseBuilder(context, VocabularyDatabase::class.java)
             .allowMainThreadQueries()
@@ -162,6 +208,12 @@ class AndroidDictionaryPackRepositoryTest {
     private fun sha256(payload: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(payload)
         .joinToString("") { "%02x".format(it) }
+
+    private fun languagePair(sourceLanguage: String) = DictionaryLanguagePair(
+        sourceLanguage = Bcp47LanguageTag.requireValid(sourceLanguage),
+        resultLanguage = Bcp47LanguageTag.requireValid("en"),
+        resultKind = DictionaryResultKind.TRANSLATION,
+    )
 
     private fun packRoot() = File(context.noBackupFilesDir, "dictionary-packs")
 }
