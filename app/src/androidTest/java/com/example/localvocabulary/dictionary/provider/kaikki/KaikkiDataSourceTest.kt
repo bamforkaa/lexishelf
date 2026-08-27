@@ -85,24 +85,6 @@ class KaikkiDataSourceTest {
     }
 
     @Test
-    fun legacySchemaRemainsSearchableButRawOrderFormsAreHidden() = runBlocking {
-        SQLiteDatabase.openDatabase(
-            databaseFile.absolutePath,
-            null,
-            SQLiteDatabase.OPEN_READWRITE,
-        ).use { database ->
-            database.execSQL("PRAGMA user_version = $KAIKKI_LEGACY_INDEX_SCHEMA_VERSION")
-        }
-
-        val matches = dataSource().exactLookup("Wasser", "de", 20)
-            as KaikkiLookupResult.Matches
-
-        assertEquals("water", matches.records.first().entry.senses.first().glosses.first())
-        assertTrue(matches.records.first().entry.retainedForms.isEmpty())
-        assertEquals(2, matches.records.first().entry.totalFormCount)
-    }
-
-    @Test
     fun wrongLanguageMetadataIsRejected() = runBlocking {
         val result = dataSource().exactLookup("Wasser", "nl", 20)
 
@@ -145,7 +127,7 @@ class KaikkiDataSourceTest {
 
     private companion object {
         const val nounPayload =
-            """{"w":"Wasser","p":"noun","n":["/ˈvasɐ/"],"f":[{"f":"Wässer","l":"plural"}],"fc":2,"s":[{"o":0,"i":"sense-1","g":["water"],"e":["Das Wasser ist kalt."],"x":1,"d":"neuter"},{"o":1,"i":"sense-2","g":["body of water"],"e":[],"x":0,"d":null}]}"""
+            """{"w":"Wasser","p":"noun","n":["/ˈvasɐ/"],"f":[],"fc":2,"s":[{"o":0,"i":"sense-1","g":["water"],"e":["Das Wasser ist kalt."],"x":1,"d":"neuter"},{"o":1,"i":"sense-2","g":["body of water"],"e":[],"x":0,"d":null}]}"""
         const val namePayload =
             """{"w":"Wasser","p":"name","n":[],"f":[],"fc":0,"s":[{"o":0,"i":"sense-name","g":["surname"],"x":0,"d":null}]}"""
         const val cafePayload =

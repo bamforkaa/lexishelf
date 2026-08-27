@@ -199,7 +199,7 @@ bundleDictionaryPacksInDebug=true
 debugDictionaryPackLanguages=de,vi
 ```
 
-두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. 세 번째 값은 큰 Kaikki 전체 12개 중 debug APK에 넣을 언어만 제한합니다. `installDebug` 전에 Python pack builder가 core 네 개와 선택한 Kaikki pack을 생성하며, payload/schema/manifest identity가 같은 기존 pack은 `createdAt`과 archive bytes를 바꾸지 않고 재사용합니다. 이는 반복 Gradle 실행에서 incremental APK가 obsolete 대형 asset 구간을 누적하지 않게 합니다. 첫 앱 실행에서는 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
+두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. 세 번째 값은 큰 Kaikki 전체 12개 중 debug APK에 넣을 언어만 제한합니다. `installDebug` 전에 Python pack builder가 core 네 개와 선택한 Kaikki pack을 생성하며, 첫 앱 실행에서 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
 
 현재 PowerShell session에서만 우선 적용하려면 환경 변수를 사용합니다.
 

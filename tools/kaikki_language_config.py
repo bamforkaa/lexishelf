@@ -9,8 +9,7 @@ KAIKKI_SOURCE_FILE = (
 )
 KAIKKI_SOURCE_URL = "https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz"
 KAIKKI_SOURCE_SHA256 = "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65"
-KAIKKI_INDEX_SCHEMA_VERSION = 3
-KAIKKI_FORM_SELECTION_POLICY_VERSION = "semantic-v1"
+KAIKKI_INDEX_SCHEMA_VERSION = 2
 
 # This broader set is measured before selecting the production batch. Keep it
 # explicit so an analysis run never silently grows when Kaikki adds languages.

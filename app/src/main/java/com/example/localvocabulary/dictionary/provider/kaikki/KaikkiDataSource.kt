@@ -32,7 +32,6 @@ internal class KaikkiDataSource(
                 normalizedQuery = normalizeExactKey(query),
                 resultLimit = resultLimit,
                 datasetVersion = load.datasetVersion,
-                schemaVersion = load.schemaVersion,
             )
             IndexLoad.Unavailable -> KaikkiLookupResult.DatasetUnavailable
             is IndexLoad.Invalid -> KaikkiLookupResult.MalformedDataset(load.detail)
@@ -68,12 +67,8 @@ internal class KaikkiDataSource(
             KaikkiIndexOpenResult.Missing -> IndexLoad.Unavailable
             is KaikkiIndexOpenResult.Failed -> IndexLoad.Invalid(opened.detail)
             is KaikkiIndexOpenResult.Opened -> try {
-                val schemaVersion = validate(
-                    opened.database,
-                    opened.datasetVersion,
-                    opened.expectedLanguageTag,
-                )
-                IndexLoad.Ready(opened.database, opened.datasetVersion, schemaVersion)
+                validate(opened.database, opened.datasetVersion, opened.expectedLanguageTag)
+                IndexLoad.Ready(opened.database, opened.datasetVersion)
             } catch (error: SQLiteException) {
                 opened.database.close()
                 IndexLoad.Invalid(error.message)
@@ -87,12 +82,12 @@ internal class KaikkiDataSource(
         database: SQLiteDatabase,
         expectedDatasetVersion: String,
         expectedLanguageTag: String,
-    ): Int {
+    ) {
         val schema = database.rawQuery("PRAGMA user_version", null).use { cursor ->
             check(cursor.moveToFirst()) { "Kaikki index has no schema version" }
             cursor.getInt(0)
         }
-        check(schema in SUPPORTED_INDEX_SCHEMAS) {
+        check(schema == KAIKKI_INDEX_SCHEMA_VERSION) {
             "Unsupported Kaikki index schema: $schema"
         }
         check(database.metadata("release_id") == expectedDatasetVersion) {
@@ -104,7 +99,6 @@ internal class KaikkiDataSource(
         check(database.metadata("result_language_tag") == "en") {
             "Unexpected Kaikki result language"
         }
-        return schema
     }
 
     private fun SQLiteDatabase.metadata(key: String): String = rawQuery(
@@ -120,7 +114,6 @@ internal class KaikkiDataSource(
         normalizedQuery: String,
         resultLimit: Int,
         datasetVersion: String,
-        schemaVersion: Int,
     ): KaikkiLookupResult = try {
         val matches = buildList {
             database.rawQuery(
@@ -133,10 +126,7 @@ internal class KaikkiDataSource(
                             sourceEntryId = cursor.getString(0),
                             entry = json.decodeFromString<KaikkiEntryRecord>(
                                 cursor.getBlob(1).decodeToString(),
-                            ).let { entry ->
-                                if (schemaVersion == KAIKKI_INDEX_SCHEMA_VERSION) entry
-                                else entry.copy(retainedForms = emptyList())
-                            },
+                            ),
                         ),
                     )
                 }
@@ -158,11 +148,7 @@ internal class KaikkiDataSource(
     }
 
     private sealed interface IndexLoad {
-        data class Ready(
-            val database: SQLiteDatabase,
-            val datasetVersion: String,
-            val schemaVersion: Int,
-        ) : IndexLoad
+        data class Ready(val database: SQLiteDatabase, val datasetVersion: String) : IndexLoad
         data object Unavailable : IndexLoad
         data class Invalid(val detail: String?) : IndexLoad
     }
@@ -170,10 +156,6 @@ internal class KaikkiDataSource(
     private data class IdentifiedLoad(val identity: String?, val load: IndexLoad)
 
     private companion object {
-        val SUPPORTED_INDEX_SCHEMAS = setOf(
-            KAIKKI_LEGACY_INDEX_SCHEMA_VERSION,
-            KAIKKI_INDEX_SCHEMA_VERSION,
-        )
         val WHITESPACE = Regex("\\s+")
         val LOOKUP_QUERY =
             """

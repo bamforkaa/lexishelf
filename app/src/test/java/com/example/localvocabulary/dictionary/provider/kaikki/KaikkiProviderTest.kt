@@ -67,10 +67,6 @@ class KaikkiProviderTest {
             entry.linguisticFeatures.pronunciations.single().notation,
         )
         assertEquals(9, entry.linguisticFeatures.totalInflectionCount)
-        assertEquals(
-            listOf("genitive" to "Wassers"),
-            entry.linguisticFeatures.inflections.map { it.label to it.form },
-        )
         assertEquals("de", lookup.lastLanguage)
         assertEquals("https://en.wiktionary.org/wiki/Wasser", entry.attribution.sourceUrl)
 

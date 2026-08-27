@@ -49,25 +49,6 @@ class BuildDictionaryPacksTest(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(source.read_bytes(), archive.read(definition.artifact))
 
-    def test_unchanged_pack_is_reused_without_timestamp_or_byte_churn(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "dictionary-data"
-            project = Path(temporary) / "project"
-            definition = PACKS[0]
-            source = root / definition.dataset / "source" / definition.artifact
-            source.parent.mkdir(parents=True)
-            source.write_bytes(b"stable dictionary payload")
-
-            with patch.dict(os.environ, {"LANG_DATABASE_DIR": str(root)}):
-                output, first_manifest = build_pack(definition, project)
-                first_bytes = output.read_bytes()
-                first_modified = output.stat().st_mtime_ns
-                _, second_manifest = build_pack(definition, project)
-
-            self.assertEqual(first_manifest["createdAt"], second_manifest["createdAt"])
-            self.assertEqual(first_bytes, output.read_bytes())
-            self.assertEqual(first_modified, output.stat().st_mtime_ns)
-
     def test_legacy_android_asset_is_not_a_pack_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "dictionary-data"

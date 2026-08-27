@@ -21,7 +21,6 @@ import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
 import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
-import com.example.localvocabulary.dictionary.domain.DictionaryInflection
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
@@ -104,50 +103,6 @@ class WordEditorScreenTest {
 
         composeRule.onNodeWithText("CC-CEDICT").assertIsDisplayed()
         composeRule.onAllNodesWithText("CC BY-SA 4.0", substring = true).assertCountEquals(0)
-    }
-
-    @Test
-    fun suggestionDisplaysOnlyProvidedTransientRepresentativeForms() {
-        val group = suggestionGroup("kaikki", "Kaikki / Wiktionary", "gehen")
-        val entry = group.entries.single().copy(
-            linguisticFeatures = DictionaryLinguisticFeatures(
-                inflections = listOf(
-                    DictionaryInflection("geht", "present 3sg"),
-                    DictionaryInflection("ging", "past"),
-                    DictionaryInflection("gegangen", "past participle"),
-                ),
-                totalInflectionCount = 111,
-            ),
-        )
-
-        setSuggestionContent(listOf(group.copy(entries = listOf(entry))))
-
-        composeRule.onNodeWithTag(
-            "dictionary_inflection_section",
-            useUnmergedTree = true,
-        )
-            .assert(hasTestTag("dictionary_inflection_section"))
-        composeRule.onAllNodesWithTag(
-            "dictionary_inflection_row",
-            useUnmergedTree = true,
-        ).assertCountEquals(3)
-        composeRule.onNodeWithText("present 3sg", useUnmergedTree = true)
-            .assert(hasText("present 3sg"))
-        composeRule.onNodeWithText("gegangen", useUnmergedTree = true)
-            .assert(hasText("gegangen"))
-        composeRule.onNodeWithText(
-            "원본 활용형 111",
-            substring = true,
-            useUnmergedTree = true,
-        )
-            .assert(hasText("원본 활용형 111", substring = true))
-    }
-
-    @Test
-    fun suggestionHidesFormsSectionWhenNoRepresentativeFormWasSelected() {
-        setSuggestionContent(listOf(suggestionGroup("kaikki", "Kaikki / Wiktionary", "nước")))
-
-        composeRule.onNodeWithTag("dictionary_inflection_section").assertDoesNotExist()
     }
 
     @Test

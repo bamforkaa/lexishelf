@@ -6,7 +6,6 @@ import argparse
 import hashlib
 import json
 import zipfile
-import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -105,8 +104,8 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
     paths = dataset_paths(definition.dataset, project_root)
     source = _find_artifact(definition, paths.generated, paths.source)
     paths.packs.mkdir(parents=True, exist_ok=True)
-    digest, payload_crc32 = _artifact_digests(source)
-    manifest_identity = {
+    digest = _sha256(source)
+    manifest = {
         "format": PACK_FORMAT,
         "manifestSchemaVersion": MANIFEST_SCHEMA_VERSION,
         "packId": definition.pack_id,
@@ -126,6 +125,7 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
             "licenseId": definition.license_id,
             "attribution": definition.attribution,
         },
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source": {
             "officialUrl": definition.official_url,
             "sourceVersion": definition.dataset_version,
@@ -133,19 +133,6 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
         },
     }
     output = paths.packs / pack_file_name(definition)
-    reusable = _reusable_manifest(
-        output=output,
-        expected_identity=manifest_identity,
-        payload_file_name=definition.artifact,
-        expected_payload_crc32=payload_crc32,
-    )
-    if reusable is not None:
-        return output, reusable
-
-    manifest = {
-        **manifest_identity,
-        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-    }
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.unlink(missing_ok=True)
     try:
@@ -160,42 +147,6 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
         temporary.unlink(missing_ok=True)
         raise
     return output, manifest
-
-
-def _reusable_manifest(
-    output: Path,
-    expected_identity: dict,
-    payload_file_name: str,
-    expected_payload_crc32: int,
-) -> dict | None:
-    """Return an unchanged pack when all content-defining fields still match.
-
-    Rewriting a large debug asset only to change ``createdAt`` makes Android's
-    incremental APK writer retain obsolete ZIP regions. Pack creation time is
-    metadata about the existing artifact, so preserve it until payload or any
-    manifest identity field actually changes.
-    """
-    if not output.is_file():
-        return None
-    try:
-        with zipfile.ZipFile(output, "r") as archive:
-            if set(archive.namelist()) != {"manifest.json", payload_file_name}:
-                return None
-            manifest = json.loads(archive.read("manifest.json"))
-            payload_info = archive.getinfo(payload_file_name)
-    except (OSError, KeyError, UnicodeDecodeError, json.JSONDecodeError, zipfile.BadZipFile):
-        return None
-    if not isinstance(manifest, dict) or not isinstance(manifest.get("createdAt"), str):
-        return None
-    identity = dict(manifest)
-    identity.pop("createdAt", None)
-    if identity != expected_identity:
-        return None
-    if payload_info.file_size != expected_identity["payload"]["sizeBytes"]:
-        return None
-    if payload_info.CRC != expected_payload_crc32:
-        return None
-    return manifest
 
 
 def _find_artifact(
@@ -216,14 +167,12 @@ def _find_artifact(
     return artifact
 
 
-def _artifact_digests(path: Path) -> tuple[str, int]:
+def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
-    crc32 = 0
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
-            crc32 = zlib.crc32(chunk, crc32)
-    return digest.hexdigest(), crc32
+    return digest.hexdigest()
 
 
 def _safe_version(value: str) -> str:

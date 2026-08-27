@@ -7,10 +7,6 @@ from contextlib import closing
 from pathlib import Path
 
 from tools.build_kaikki_indexes import build_indexes, normalized_exact_key
-from tools.kaikki_language_config import (
-    KAIKKI_FORM_SELECTION_POLICY_VERSION,
-    KAIKKI_INDEX_SCHEMA_VERSION,
-)
 
 
 FIXTURE_ENTRIES = (
@@ -116,10 +112,7 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             first = json.loads(rows[0][1])
             self.assertEqual("noun", first["p"])
             self.assertEqual(["/ˈvasɐ/"], first["n"])
-            self.assertEqual(
-                [{"f": "Wassers", "l": "genitive singular"}],
-                first["f"],
-            )
+            self.assertEqual("Wassers", first["f"][0]["f"])
             self.assertEqual(1, first["fc"])
             self.assertEqual(["water", "a body of water"], first["s"][0]["g"])
             self.assertEqual(3, first["s"][0]["x"])
@@ -131,15 +124,6 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertNotIn("quotation", " ".join(first["s"][0]["e"]))
             self.assertEqual("neuter", first["s"][0]["d"])
             self.assertEqual("de", metadata["language_tag"])
-            self.assertEqual(
-                KAIKKI_FORM_SELECTION_POLICY_VERSION,
-                metadata["form_selection_policy"],
-            )
-            with closing(sqlite3.connect(root / "generated" / "de.db")) as database:
-                self.assertEqual(
-                    KAIKKI_INDEX_SCHEMA_VERSION,
-                    database.execute("PRAGMA user_version").fetchone()[0],
-                )
 
     def test_unicode_normalization_and_malformed_json_are_safe(self):
         self.assertEqual("café", normalized_exact_key(" CAFE\u0301 "))

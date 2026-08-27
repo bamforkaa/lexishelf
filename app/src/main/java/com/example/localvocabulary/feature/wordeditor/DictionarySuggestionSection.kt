@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -28,7 +27,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
-import com.example.localvocabulary.dictionary.domain.DictionaryInflection
 import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.SectionHeader
@@ -151,7 +149,6 @@ private fun DictionarySuggestionEntryRow(
             }
         }
     val availableFormCount = entry.linguisticFeatures.totalInflectionCount
-    val selectedForms = entry.linguisticFeatures.inflections
     val availableExampleCount = sense?.availableExampleCount ?: 0
     val secondaryText = buildList {
         if (primaryMeaning != entry.headword) add(entry.headword)
@@ -161,7 +158,7 @@ private fun DictionarySuggestionEntryRow(
         sense?.grammaticalGender?.takeIf(String::isNotBlank)?.let(::add)
     }.joinToString(" · ")
     val availabilityText = buildList {
-        if (availableFormCount > 0) add("원본 활용형 $availableFormCount")
+        f (availableFormCount > 0) add("활용형 $availableFormCount")
         if (availableExampleCount > 0) add("예문 $availableExampleCount")
     }.joinToString(" · ")
 
@@ -199,9 +196,6 @@ private fun DictionarySuggestionEntryRow(
                     )
                 }
                 if (availabilityText.isNotBlank()) MetadataLabel(availabilityText)
-                if (selectedForms.isNotEmpty()) {
-                    DictionaryForms(selectedForms)
-                }
                 MetadataLabel(candidate.sources.joinToString(" · ") { it.providerName })
             }
             if (isSelected) {
@@ -209,38 +203,6 @@ private fun DictionarySuggestionEntryRow(
                     Icons.Default.Check,
                     contentDescription = "가져옴",
                     tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DictionaryForms(forms: List<DictionaryInflection>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("dictionary_inflection_section"),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        MetadataLabel("대표 활용형")
-        forms.forEach { form ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("dictionary_inflection_row"),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                MetadataLabel(
-                    text = form.label,
-                    modifier = Modifier.widthIn(min = 96.dp, max = 144.dp),
-                    maxLines = 2,
-                )
-                Text(
-                    text = form.form,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
                 )
             }
         }

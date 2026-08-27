@@ -10,10 +10,8 @@ python -X utf8 -m tools.report_kaikki_metadata --root D:\lang-Database
 
 The report reads the databases in SQLite read-only mode. “Present” counts entries, not senses.
 Average is per indexed entry; p95 is calculated among entries where the field is present. The
-converter retains at most eight pronunciation strings, semantically selected representative forms,
-and two eligible examples per sense. Available form/example counts are recorded before selection.
-The later schema v3 selection policy and source-level before/after distribution are documented in
-[linguistic-forms.md](linguistic-forms.md).
+converter retains at most eight pronunciation strings, 24 representative forms, and two eligible
+examples per sense. Available form/example counts are recorded before that display bound.
 
 ## Measured 2026-08-05 generated indexes
 
@@ -50,9 +48,8 @@ The current converter prefixes enPR explicitly; the reviewed batch has no `zh-pr
 | th | 1.06 / 2 / 6 | 0.00 / 1 / 1 | 1.48 / 3 / 11 | 0.185 / 5 / 29 |
 | id | 1.29 / 2 / 8 | 0.00 / 1 / 3 | 1.14 / 3 / 33 | 0.051 / 3 / 31 |
 
-Raw form labels are present for almost every form-bearing entry, but their language-specific
-shape and extreme cardinality make blind persistence unsuitable. Schema v3 now exposes a bounded
-transient representative subset; it does not change the persistence decision. General sense usage labels such
+Form labels are present for almost every retained form-bearing entry, but their language-specific
+shape and extreme cardinality make blind persistence unsuitable. General sense usage labels such
 as formal/informal/archaic are not retained by index schema v2, so runtime coverage is zero and no
 schema is inferred from raw Wiktionary internals.
 
@@ -63,7 +60,7 @@ schema is inferred from raw Wiktionary internals.
 | IPA / classified textual pronunciation | High in 8 languages; useful independently of reading | Medium: ordered 1:N, stable ID, notation, language, provenance | **Persist now** |
 | Grammatical gender | High in de/hi/pl/nl/cs and useful for noun learning | Low: optional normalized sense value plus raw fallback | **Persist now** |
 | Examples | Lower coverage but already useful and licensed subset is implemented | Existing model | **Keep current persistence** |
-| Forms / inflections | Often high coverage, but p95 929 and max 1,857 for Turkish | Schema v3 has a bounded display policy; editable ownership remains unresolved | **Transient representative forms only; defer persistence** |
+| Forms / inflections | Often high coverage, but p95 929 and max 1,857 for Turkish | High; language-specific filtering and UI policy unresolved | **Transient only; defer persistence** |
 | Usage / register labels | Not retained in the generated runtime index | Requires a reviewed whitelist and index change | **Defer** |
 | Synonym / antonym graph | Outside the compact index and current UX | High | **Reject for Task 14** |
 | Audio, etymology | Licensing/storage not reviewed for this workflow | High | **Reject for Task 14** |
