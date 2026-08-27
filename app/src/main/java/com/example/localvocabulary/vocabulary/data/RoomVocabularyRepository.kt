@@ -4,6 +4,7 @@ import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
+import com.example.localvocabulary.core.database.dao.PronunciationWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
@@ -94,11 +95,22 @@ class RoomVocabularyRepository @Inject constructor(
                             modifiedAfterImport = provenance.modifiedAfterImport,
                         )
                     },
+                    grammaticalGender = sense.grammaticalGender?.category?.name,
+                    grammaticalGenderRaw = sense.grammaticalGender?.rawValue,
                 )
             },
             tagIds = draft.tagIds,
             readingProvenance = draft.readingProvenance?.toWrite(),
             wordbookIds = draft.wordbookIds,
+            pronunciations = draft.pronunciations.map { pronunciation ->
+                PronunciationWrite(
+                    stableId = pronunciation.stableId ?: stableIdGenerator.newId(),
+                    notation = pronunciation.notation.name,
+                    value = pronunciation.value,
+                    languageTag = pronunciation.languageTag,
+                    provenance = pronunciation.provenance?.toWrite(),
+                )
+            },
         )
     }
 

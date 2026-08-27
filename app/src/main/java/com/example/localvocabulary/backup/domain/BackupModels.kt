@@ -3,7 +3,7 @@ package com.example.localvocabulary.backup.domain
 import kotlinx.serialization.Serializable
 
 const val BACKUP_FORMAT_ID = "local-vocabulary-backup"
-const val CURRENT_BACKUP_SCHEMA_VERSION = 4
+const val CURRENT_BACKUP_SCHEMA_VERSION = 5
 
 @Serializable
 data class VocabularyBackupV1(
@@ -68,6 +68,7 @@ data class BackupEntryV2(
     val reading: String = "",
     val readingProvenance: BackupDictionaryProvenanceV2? = null,
     val wordbookStableIds: List<String> = emptyList(),
+    val pronunciations: List<BackupPronunciationV5> = emptyList(),
 )
 
 @Serializable
@@ -76,7 +77,40 @@ data class BackupSenseV2(
     val partOfSpeech: String,
     val examples: List<String>,
     val provenance: BackupDictionaryProvenanceV2? = null,
+    val grammaticalGender: BackupGrammaticalGenderV5? = null,
 )
+
+@Serializable
+data class BackupPronunciationV5(
+    val stableId: String,
+    val notation: BackupPronunciationNotationV5,
+    val value: String,
+    val languageTag: String? = null,
+    val provenance: BackupDictionaryProvenanceV2? = null,
+)
+
+@Serializable
+enum class BackupPronunciationNotationV5 {
+    IPA,
+    PHONETIC,
+    ROMANIZATION,
+    OTHER,
+}
+
+@Serializable
+data class BackupGrammaticalGenderV5(
+    val category: BackupGrammaticalGenderCategoryV5,
+    val rawValue: String? = null,
+)
+
+@Serializable
+enum class BackupGrammaticalGenderCategoryV5 {
+    MASCULINE,
+    FEMININE,
+    NEUTER,
+    COMMON,
+    OTHER,
+}
 
 @Serializable
 data class BackupDictionaryProvenanceV2(
@@ -99,6 +133,8 @@ enum class BackupImportedFieldV2 {
     PART_OF_SPEECH,
     EXAMPLES,
     READING,
+    PRONUNCIATION,
+    GRAMMATICAL_GENDER,
 }
 
 class ValidatedBackup internal constructor(

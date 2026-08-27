@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.localvocabulary.core.database.dao.SenseWrite
+import com.example.localvocabulary.core.database.dao.PronunciationWrite
+import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.entity.WordbookEntity
@@ -104,6 +106,68 @@ class VocabularyDaoTest {
         assertEquals(2L, tableCount("senses"))
         assertEquals(2L, tableCount("examples"))
         assertEquals(2L, tableCount("entry_tag_cross_refs"))
+    }
+
+    @Test
+    fun pronunciationAndGenderPersistUpdateAndCascadeWithEntry() = runTest {
+        val provenance = SenseDictionaryProvenanceWrite(
+            providerId = "kaikki",
+            sourceEntryId = "enw-de-water",
+            sourceSenseId = null,
+            sourceName = "English Wiktionary via Kaikki/Wiktextract",
+            sourceUrl = "https://en.wiktionary.org/wiki/Wasser",
+            licenseName = "CC BY-SA 4.0",
+            licenseUrl = "https://creativecommons.org/licenses/by-sa/4.0/",
+            datasetVersion = "2026-08-05",
+            importedFields = setOf("PRONUNCIATION"),
+            importedAtEpochMillis = 50,
+            modifiedAfterImport = false,
+        )
+        val entryId = database.vocabularyDao().saveEntry(
+            entry = entry(headword = "Wasser"),
+            senses = listOf(
+                SenseWrite(
+                    meaning = "water",
+                    partOfSpeech = "noun",
+                    examples = listOf("Das Wasser ist kalt."),
+                    grammaticalGender = "NEUTER",
+                ),
+            ),
+            tagIds = emptySet(),
+            pronunciations = listOf(
+                PronunciationWrite("pron-ipa", "IPA", "/ˈva.sɐ/", "de", provenance),
+                PronunciationWrite("pron-other", "OTHER", "regional", "de"),
+            ),
+        )
+
+        val stored = database.vocabularyDao().observeEntry(entryId).first()!!
+        assertEquals("NEUTER", stored.senses.single().sense.grammaticalGender)
+        assertEquals(
+            listOf("/ˈva.sɐ/", "regional"),
+            stored.pronunciations.sortedBy { it.pronunciation.sortOrder }
+                .map { it.pronunciation.value },
+        )
+        assertEquals(
+            "kaikki",
+            stored.pronunciations.single { it.pronunciation.stableId == "pron-ipa" }.provenance?.providerId,
+        )
+
+        database.vocabularyDao().saveEntry(
+            entry = entry(id = entryId, headword = "Wasser", modifiedAt = 2),
+            senses = listOf(SenseWrite("water", "noun", emptyList())),
+            tagIds = emptySet(),
+            pronunciations = listOf(
+                PronunciationWrite("pron-other", "OTHER", "user value", "de"),
+            ),
+        )
+        val updated = database.vocabularyDao().observeEntry(entryId).first()!!
+        assertNull(updated.senses.single().sense.grammaticalGender)
+        assertEquals(listOf("user value"), updated.pronunciations.map { it.pronunciation.value })
+        assertEquals(0L, tableCount("pronunciation_dictionary_provenance"))
+
+        database.vocabularyDao().deleteEntry(entryId)
+        assertEquals(0L, tableCount("vocabulary_pronunciations"))
+        assertEquals(0L, tableCount("pronunciation_dictionary_provenance"))
     }
 
     @Test

@@ -4,6 +4,10 @@ import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupDecodeResult
 import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
 import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderCategoryV5
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationNotationV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationV5
 import com.example.localvocabulary.backup.domain.BackupReadError
 import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupSerializer
@@ -14,6 +18,11 @@ import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupV1
 import com.example.localvocabulary.backup.domain.VocabularyBackupV2
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryDraft
+import com.example.localvocabulary.vocabulary.domain.GrammaticalGenderCategory
+import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
+import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
+import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciationDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryValidator
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationResult
@@ -59,6 +68,9 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                 schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
             )
             3 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
+                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
+            )
+            4 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
                 schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
             )
             CURRENT_BACKUP_SCHEMA_VERSION -> decodeDocument<VocabularyBackupV2>(root)
@@ -136,6 +148,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         }
 
         val entryIds = mutableSetOf<String>()
+        val pronunciationIds = mutableSetOf<String>()
         val normalizedEntries = document.entries.mapIndexed { entryIndex, entry ->
             if (!isValidStableId(entry.stableId)) {
                 return invalid("entries[$entryIndex].stableId", "유효한 stable ID가 아닙니다.")
@@ -181,6 +194,51 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     partOfSpeech = sense.partOfSpeech,
                     examples = sense.examples,
                     provenance = provenance,
+                    grammaticalGender = sense.grammaticalGender?.let { gender ->
+                        gender.toDomainOrNull()
+                            ?: return invalid(
+                                "entries[$entryIndex].senses[$senseIndex].grammaticalGender",
+                                "Grammatical gender is invalid.",
+                            )
+                    },
+                )
+            }
+            val pronunciationDrafts = entry.pronunciations.mapIndexed {
+                    pronunciationIndex, pronunciation ->
+                if (!isValidStableId(pronunciation.stableId)) {
+                    return invalid(
+                        "entries[$entryIndex].pronunciations[$pronunciationIndex].stableId",
+                        "Pronunciation stable ID is invalid.",
+                    )
+                }
+                if (!pronunciationIds.add(pronunciation.stableId)) {
+                    return invalid(
+                        "entries[$entryIndex].pronunciations[$pronunciationIndex].stableId",
+                        "Pronunciation stable ID is duplicated.",
+                    )
+                }
+                val provenance = pronunciation.provenance?.let {
+                    validateProvenance(it)
+                        ?: return invalid(
+                            "entries[$entryIndex].pronunciations[$pronunciationIndex].provenance",
+                            "Pronunciation provenance is invalid.",
+                        )
+                }
+                if (
+                    provenance != null &&
+                    provenance.importedFields != setOf(ImportedDictionaryField.PRONUNCIATION)
+                ) {
+                    return invalid(
+                        "entries[$entryIndex].pronunciations[$pronunciationIndex].provenance",
+                        "Pronunciation provenance may describe only PRONUNCIATION.",
+                    )
+                }
+                VocabularyPronunciationDraft(
+                    stableId = pronunciation.stableId,
+                    notation = PronunciationNotation.valueOf(pronunciation.notation.name),
+                    value = pronunciation.value,
+                    languageTag = pronunciation.languageTag,
+                    provenance = provenance,
                 )
             }
             val readingProvenance = entry.readingProvenance?.let {
@@ -216,6 +274,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     tagIds = emptySet(),
                     reading = entry.reading,
                     readingProvenance = readingProvenance,
+                    pronunciations = pronunciationDrafts,
                 ),
             )
             val draft = when (validation) {
@@ -234,6 +293,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                         partOfSpeech = sense.partOfSpeech,
                         examples = sense.examples,
                         provenance = sense.provenance?.toBackupV2(),
+                        grammaticalGender = sense.grammaticalGender?.toBackupV5(),
                     )
                 },
                 notes = draft.notes,
@@ -243,6 +303,17 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                 reading = draft.reading,
                 readingProvenance = draft.readingProvenance?.toBackupV2(),
                 wordbookStableIds = entry.wordbookStableIds,
+                pronunciations = draft.pronunciations.map { pronunciation ->
+                    BackupPronunciationV5(
+                        stableId = requireNotNull(pronunciation.stableId),
+                        notation = BackupPronunciationNotationV5.valueOf(
+                            pronunciation.notation.name,
+                        ),
+                        value = pronunciation.value,
+                        languageTag = pronunciation.languageTag,
+                        provenance = pronunciation.provenance?.toBackupV2(),
+                    )
+                },
             )
         }
 
@@ -298,3 +369,17 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         val STABLE_ID = Regex("[A-Za-z0-9._:-]{1,128}")
     }
 }
+
+private fun BackupGrammaticalGenderV5.toDomainOrNull(): VocabularyGrammaticalGender? =
+    runCatching {
+        VocabularyGrammaticalGender(
+            category = GrammaticalGenderCategory.valueOf(category.name),
+            rawValue = rawValue?.trim()?.takeIf(String::isNotEmpty),
+        )
+    }.getOrNull()
+
+private fun VocabularyGrammaticalGender.toBackupV5(): BackupGrammaticalGenderV5 =
+    BackupGrammaticalGenderV5(
+        category = BackupGrammaticalGenderCategoryV5.valueOf(category.name),
+        rawValue = rawValue,
+    )

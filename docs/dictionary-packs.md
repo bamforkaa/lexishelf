@@ -104,7 +104,7 @@ Kaikki 언어 옵션을 생략하면 production-selected 12개 Kaikki pack을 �
 }
 ```
 
-`manifestSchemaVersion`은 pack envelope version이고 provider dataset SQLite의 `datasetSchemaVersion`, user Room schema v5, JSON backup schema v4와 서로 독립적입니다.
+`manifestSchemaVersion`은 pack envelope version이고 provider dataset SQLite의 `datasetSchemaVersion`, user Room schema v6, JSON backup schema v5와 서로 독립적입니다.
 
 ## 설치, update, rollback
 

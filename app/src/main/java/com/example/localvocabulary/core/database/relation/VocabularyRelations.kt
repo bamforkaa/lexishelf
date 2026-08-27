@@ -9,8 +9,10 @@ import com.example.localvocabulary.core.database.entity.ExampleEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.SenseEntity
+import com.example.localvocabulary.core.database.entity.PronunciationDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.VocabularyPronunciationEntity
 import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
 import com.example.localvocabulary.core.database.entity.WordbookEntity
 
@@ -34,6 +36,53 @@ data class SenseWithExamples(
     val provenanceFields: List<SenseDictionaryProvenanceFieldEntity> = emptyList(),
 )
 
+data class PronunciationWithProvenance(
+    @Embedded
+    val pronunciation: VocabularyPronunciationEntity,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "pronunciation_id",
+    )
+    val provenance: PronunciationDictionaryProvenanceEntity? = null,
+)
+
+/** List rows deliberately omit pronunciation relations; editor/detail loads use the full type. */
+data class VocabularyListEntryWithDetails(
+    @Embedded
+    val entry: VocabularyEntryEntity,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "entry_id",
+    )
+    val entryProvenance: List<EntryDictionaryProvenanceEntity> = emptyList(),
+    @Relation(
+        entity = SenseEntity::class,
+        parentColumn = "id",
+        entityColumn = "entry_id",
+    )
+    val senses: List<SenseWithExamples>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = EntryTagCrossRef::class,
+            parentColumn = "entry_id",
+            entityColumn = "tag_id",
+        ),
+    )
+    val tags: List<TagEntity>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = EntryWordbookCrossRef::class,
+            parentColumn = "entry_id",
+            entityColumn = "wordbook_id",
+        ),
+    )
+    val wordbooks: List<WordbookEntity> = emptyList(),
+)
+
 data class VocabularyEntryWithDetails(
     @Embedded
     val entry: VocabularyEntryEntity,
@@ -42,6 +91,12 @@ data class VocabularyEntryWithDetails(
         entityColumn = "entry_id",
     )
     val entryProvenance: List<EntryDictionaryProvenanceEntity> = emptyList(),
+    @Relation(
+        entity = VocabularyPronunciationEntity::class,
+        parentColumn = "id",
+        entityColumn = "entry_id",
+    )
+    val pronunciations: List<PronunciationWithProvenance> = emptyList(),
     @Relation(
         entity = SenseEntity::class,
         parentColumn = "id",

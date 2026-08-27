@@ -43,6 +43,7 @@ import com.example.localvocabulary.core.ui.component.SectionHeader
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.feature.language.LanguagePickerField
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -129,7 +130,7 @@ fun WordEditorScreen(
                     OutlinedTextField(
                         value = state.reading,
                         onValueChange = { onAction(WordEditorAction.ReadingChanged(it)) },
-                        label = { Text("읽기 / 발음") },
+                        label = { Text("읽기 / 표기") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("reading"),
                     )
@@ -142,6 +143,21 @@ fun WordEditorScreen(
                             },
                             modifier = Modifier.testTag("reading_provenance"),
                         )
+                    }
+                    if (state.pronunciations.isNotEmpty()) {
+                        Text("발음", style = MaterialTheme.typography.titleMedium)
+                        state.pronunciations.forEach { pronunciation ->
+                            PronunciationEditor(
+                                pronunciation = pronunciation,
+                                onAction = onAction,
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = { onAction(WordEditorAction.AddPronunciation) },
+                        modifier = Modifier.testTag("add_pronunciation"),
+                    ) {
+                        Text("+ 발음 추가")
                     }
                     state.externalDictionaryReference?.let { reference ->
                         TextButton(
@@ -408,6 +424,49 @@ private fun SenseEditorSection(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (sense.isGrammaticalGenderVisible) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = sense.grammaticalGender,
+                    onValueChange = {
+                        onAction(WordEditorAction.GrammaticalGenderChanged(sense.key, it))
+                    },
+                    label = { Text("문법 성") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).testTag("grammatical_gender"),
+                )
+                IconButton(
+                    onClick = {
+                        onAction(
+                            WordEditorAction.GrammaticalGenderVisibilityChanged(
+                                sense.key,
+                                false,
+                            ),
+                        )
+                    },
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "문법 성 삭제",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        } else {
+            TextButton(
+                onClick = {
+                    onAction(
+                        WordEditorAction.GrammaticalGenderVisibilityChanged(sense.key, true),
+                    )
+                },
+            ) {
+                Text("+ 문법 성 추가")
+            }
+        }
         Text("예문", style = MaterialTheme.typography.labelMedium)
         sense.examples.forEach { example ->
             Row(
@@ -444,6 +503,80 @@ private fun SenseEditorSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PronunciationEditor(
+    pronunciation: EditablePronunciation,
+    onAction: (WordEditorAction) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            PronunciationNotation.entries.forEach { notation ->
+                FilterChip(
+                    selected = pronunciation.notation == notation,
+                    onClick = {
+                        onAction(
+                            WordEditorAction.PronunciationNotationChanged(
+                                pronunciation.key,
+                                notation,
+                            ),
+                        )
+                    },
+                    label = { Text(notation.displayLabel()) },
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = pronunciation.value,
+                onValueChange = {
+                    onAction(
+                        WordEditorAction.PronunciationValueChanged(pronunciation.key, it),
+                    )
+                },
+                label = { Text(pronunciation.notation.displayLabel()) },
+                singleLine = true,
+                modifier = Modifier.weight(1f).testTag("pronunciation"),
+            )
+            IconButton(
+                onClick = {
+                    onAction(WordEditorAction.RemovePronunciation(pronunciation.key))
+                },
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "발음 삭제",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        pronunciation.provenance?.let { provenance ->
+            MetadataLabel(
+                buildString {
+                    append(provenance.sourceName)
+                    append("에서 가져온 발음")
+                    if (provenance.modifiedAfterImport) append(" · 수정됨")
+                },
+                modifier = Modifier.testTag("pronunciation_provenance"),
+            )
+        }
+    }
+}
+
+private fun PronunciationNotation.displayLabel(): String = when (this) {
+    PronunciationNotation.IPA -> "IPA"
+    PronunciationNotation.PHONETIC -> "음성 표기"
+    PronunciationNotation.ROMANIZATION -> "로마자 표기"
+    PronunciationNotation.OTHER -> "기타"
+}
+
 @Composable
 private fun ErrorText(message: String, modifier: Modifier = Modifier) {
     Text(
@@ -460,4 +593,6 @@ private fun validationMessage(error: VocabularyValidationError): String = when (
     VocabularyValidationError.InvalidLanguageTag -> "유효한 BCP 47 언어 태그를 입력하세요."
     VocabularyValidationError.MissingSense -> "뜻을 하나 이상 추가하세요."
     is VocabularyValidationError.MissingMeaning -> "뜻 ${error.senseIndex + 1}의 의미를 입력하세요."
+    is VocabularyValidationError.InvalidPronunciationLanguageTag ->
+        "발음의 BCP 47 언어 태그가 올바르지 않습니다."
 }

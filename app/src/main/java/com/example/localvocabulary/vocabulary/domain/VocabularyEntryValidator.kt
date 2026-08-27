@@ -8,6 +8,8 @@ sealed interface VocabularyValidationError {
     data object InvalidLanguageTag : VocabularyValidationError
     data object MissingSense : VocabularyValidationError
     data class MissingMeaning(val senseIndex: Int) : VocabularyValidationError
+    data class InvalidPronunciationLanguageTag(val pronunciationIndex: Int) :
+        VocabularyValidationError
 }
 
 sealed interface VocabularyValidationResult {
@@ -24,6 +26,7 @@ data class ValidatedVocabularyDraft(
     val tagIds: Set<Long>,
     val reading: String = "",
     val readingProvenance: DictionaryProvenance? = null,
+    val pronunciations: List<VocabularyPronunciationDraft> = emptyList(),
     val wordbookIds: Set<Long> = emptySet(),
 )
 
@@ -55,6 +58,24 @@ object VocabularyEntryValidator {
             )
         }
 
+        val pronunciationIdentities = mutableSetOf<Triple<PronunciationNotation, String, String?>>()
+        val pronunciations = draft.pronunciations.mapIndexedNotNull { index, pronunciation ->
+            val value = pronunciation.value.trim()
+            if (value.isEmpty()) return@mapIndexedNotNull null
+            val pronunciationLanguage = pronunciation.languageTag?.let { rawLanguage ->
+                normalizeLanguageTag(rawLanguage) ?: return VocabularyValidationResult.Invalid(
+                    VocabularyValidationError.InvalidPronunciationLanguageTag(index),
+                )
+            }
+            val identity = Triple(pronunciation.notation, value, pronunciationLanguage)
+            if (!pronunciationIdentities.add(identity)) return@mapIndexedNotNull null
+            pronunciation.copy(
+                stableId = pronunciation.stableId?.trim()?.takeIf(String::isNotEmpty),
+                value = value,
+                languageTag = pronunciationLanguage,
+            )
+        }
+
         return VocabularyValidationResult.Valid(
             ValidatedVocabularyDraft(
                 id = draft.id,
@@ -65,6 +86,7 @@ object VocabularyEntryValidator {
                 tagIds = draft.tagIds,
                 reading = draft.reading.trim(),
                 readingProvenance = draft.readingProvenance,
+                pronunciations = pronunciations,
                 wordbookIds = draft.wordbookIds,
             ),
         )

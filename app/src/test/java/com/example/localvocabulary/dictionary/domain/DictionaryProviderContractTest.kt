@@ -153,6 +153,8 @@ class DictionaryProviderContractTest {
         assertEquals("ja", mapped.seed.draft.languageTag)
         assertEquals("\u3058\u3057\u3087", mapped.seed.draft.reading)
         assertEquals("test definition", mapped.seed.draft.senses.single().meaning)
+        assertEquals("test gender", mapped.seed.draft.senses.single().grammaticalGender?.displayValue())
+        assertEquals("dʑiɕo", mapped.seed.draft.pronunciations.single().value)
         assertEquals(provider.descriptor.id, mapped.seed.source.providerId)
         assertEquals("fake-entry-1", mapped.seed.source.sourceEntryId)
         assertEquals(provider.descriptor.attribution, mapped.seed.source.attribution)
@@ -164,6 +166,8 @@ class DictionaryProviderContractTest {
                 DictionaryContentField.PART_OF_SPEECH,
                 DictionaryContentField.EXAMPLE,
                 DictionaryContentField.READING,
+                DictionaryContentField.PRONUNCIATION_TEXT,
+                DictionaryContentField.GRAMMATICAL_GENDER,
             ),
             mapped.seed.copiedProviderFields,
         )

@@ -16,10 +16,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
 import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
+import com.example.localvocabulary.dictionary.domain.DictionaryInflection
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
@@ -30,6 +32,7 @@ import com.example.localvocabulary.dictionary.reference.ExternalDictionaryRefere
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -60,23 +63,22 @@ class WordEditorScreenTest {
     }
 
     @Test
-    fun dictionarySuggestionsDisplayResultsGroupedByProvider() {
+    fun dictionarySuggestionsDisplayResultLanguageAndSourceMetadata() {
+        val groups = listOf(
+            suggestionGroup("alpha", "Alpha Dictionary", "你好"),
+            suggestionGroup("beta", "Beta Dictionary", "您好"),
+        )
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(
-                            suggestionGroup("alpha", "Alpha Dictionary", "你好"),
-                            suggestionGroup("beta", "Beta Dictionary", "您好"),
-                        ),
-                    ),
+                    state = suggestionState(groups),
                     onAction = {},
                 )
             }
         }
 
         composeRule.onNodeWithTag("dictionary_suggestions").assertIsDisplayed()
+        composeRule.onNodeWithText(LanguageDisplayNameResolver.resolve("en").name).assertIsDisplayed()
         composeRule.onNodeWithText("Alpha Dictionary").assertIsDisplayed()
         composeRule.onNodeWithText("你好").assertIsDisplayed()
         composeRule.onNodeWithText("Beta Dictionary").assertIsDisplayed()
@@ -84,27 +86,68 @@ class WordEditorScreenTest {
     }
 
     @Test
-    fun suggestionDisplaysCompactLicenseAttribution() {
+    fun suggestionDisplaysCompactSourceWithoutRepeatingLicense() {
+        val group = suggestionGroup(
+            providerId = "cc-cedict",
+            providerName = "CC-CEDICT",
+            headword = "你好",
+            licenseShortName = "CC BY-SA 4.0",
+        )
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(
-                            suggestionGroup(
-                                providerId = "cc-cedict",
-                                providerName = "CC-CEDICT",
-                                headword = "你好",
-                                licenseShortName = "CC BY-SA 4.0",
-                            ),
-                        ),
-                    ),
+                    state = suggestionState(listOf(group)),
                     onAction = {},
                 )
             }
         }
 
-        composeRule.onNodeWithText("CC-CEDICT · CC BY-SA 4.0").assertIsDisplayed()
+        composeRule.onNodeWithText("CC-CEDICT").assertIsDisplayed()
+        composeRule.onAllNodesWithText("CC BY-SA 4.0", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun suggestionDisplaysOnlyProvidedTransientRepresentativeForms() {
+        val group = suggestionGroup("kaikki", "Kaikki / Wiktionary", "gehen")
+        val entry = group.entries.single().copy(
+            linguisticFeatures = DictionaryLinguisticFeatures(
+                inflections = listOf(
+                    DictionaryInflection("geht", "present 3sg"),
+                    DictionaryInflection("ging", "past"),
+                    DictionaryInflection("gegangen", "past participle"),
+                ),
+                totalInflectionCount = 111,
+            ),
+        )
+
+        setSuggestionContent(listOf(group.copy(entries = listOf(entry))))
+
+        composeRule.onNodeWithTag(
+            "dictionary_inflection_section",
+            useUnmergedTree = true,
+        )
+            .assert(hasTestTag("dictionary_inflection_section"))
+        composeRule.onAllNodesWithTag(
+            "dictionary_inflection_row",
+            useUnmergedTree = true,
+        ).assertCountEquals(3)
+        composeRule.onNodeWithText("present 3sg", useUnmergedTree = true)
+            .assert(hasText("present 3sg"))
+        composeRule.onNodeWithText("gegangen", useUnmergedTree = true)
+            .assert(hasText("gegangen"))
+        composeRule.onNodeWithText(
+            "원본 활용형 111",
+            substring = true,
+            useUnmergedTree = true,
+        )
+            .assert(hasText("원본 활용형 111", substring = true))
+    }
+
+    @Test
+    fun suggestionHidesFormsSectionWhenNoRepresentativeFormWasSelected() {
+        setSuggestionContent(listOf(suggestionGroup("kaikki", "Kaikki / Wiktionary", "nước")))
+
+        composeRule.onNodeWithTag("dictionary_inflection_section").assertDoesNotExist()
     }
 
     @Test
@@ -112,10 +155,7 @@ class WordEditorScreenTest {
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(jmDictSuggestionGroup()),
-                    ),
+                    state = suggestionState(listOf(jmDictSuggestionGroup())),
                     onAction = {},
                 )
             }
@@ -138,14 +178,12 @@ class WordEditorScreenTest {
     fun suggestionRowsAreClickableAndSelectionIsVisible() {
         var selected: ExternalDictionaryEntry? = null
         val group = suggestionGroup("alpha", "Alpha Dictionary", "你好")
+        val synthesizedKey = DictionarySuggestionSynthesizer.synthesize(listOf(group))
+            .single().candidates.single().key
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(group),
-                        selectedSuggestionKeys = setOf(group.entries.single().suggestionKey()),
-                    ),
+                    state = suggestionState(listOf(group), setOf(synthesizedKey)),
                     onAction = { action ->
                         if (action is WordEditorAction.DictionarySuggestionSelected) {
                             selected = action.entry
@@ -163,17 +201,15 @@ class WordEditorScreenTest {
     @Test
     fun koreanBasicPanLexAndCcCedictRowsUseTheSameGenericTapAction() {
         val selectedProviderIds = mutableListOf<String>()
+        val groups = listOf(
+            suggestionGroup("korean-basic-dictionary", "한국어기초사전", "먹다"),
+            suggestionGroup("panlex", "PanLex", "배우다"),
+            suggestionGroup("cc-cedict", "CC-CEDICT", "你好"),
+        )
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(
-                            suggestionGroup("korean-basic-dictionary", "한국어기초사전", "먹다"),
-                            suggestionGroup("panlex", "PanLex", "배우다"),
-                            suggestionGroup("cc-cedict", "CC-CEDICT", "你好"),
-                        ),
-                    ),
+                    state = suggestionState(groups),
                     onAction = { action ->
                         if (action is WordEditorAction.DictionarySuggestionSelected) {
                             selectedProviderIds += action.entry.providerId.value
@@ -210,6 +246,34 @@ class WordEditorScreenTest {
         }
 
         composeRule.onNodeWithTag("dictionary_suggestion_content").assertDoesNotExist()
+        composeRule.onNodeWithTag("dictionary_suggestion_list").assertDoesNotExist()
+    }
+
+    @Test
+    fun identicalCandidateShowsOneRowWithBothSources() {
+        val groups = listOf(
+            suggestionGroup("korean-basic-dictionary", "한국어기초사전", "먹다"),
+            suggestionGroup("panlex", "PanLex", "먹다"),
+        )
+
+        setSuggestionContent(groups)
+
+        composeRule.onAllNodesWithTag("dictionary_suggestion_row").assertCountEquals(1)
+        composeRule.onNodeWithText("한국어기초사전 · PanLex").assertIsDisplayed()
+    }
+
+    @Test
+    fun synthesizedVisibleCountControlsScrollThreshold() {
+        val groups = listOf(
+            suggestionGroup("alpha", "Alpha", "duplicate"),
+            suggestionGroup("beta", "Beta", "duplicate"),
+            suggestionGroupWithRows("gamma", "Gamma", 3),
+        )
+
+        setSuggestionContent(groups)
+
+        composeRule.onAllNodesWithTag("dictionary_suggestion_row").assertCountEquals(4)
+        composeRule.onNodeWithTag("dictionary_suggestion_content").assertIsDisplayed()
         composeRule.onNodeWithTag("dictionary_suggestion_list").assertDoesNotExist()
     }
 
@@ -273,7 +337,7 @@ class WordEditorScreenTest {
         setSuggestionContent(
             listOf(
                 suggestionGroupWithRows("korean", "Korean", 2),
-                suggestionGroupWithRows("english", "English", 3),
+                suggestionGroupWithRows("english", "English", 3, rowPrefix = "english-word"),
             ),
         )
 
@@ -289,11 +353,8 @@ class WordEditorScreenTest {
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(
-                            suggestionGroupWithRows("alpha", "Alpha", 10),
-                        ),
+                    state = suggestionState(
+                        listOf(suggestionGroupWithRows("alpha", "Alpha", 10)),
                     ),
                     onAction = { action ->
                         if (action is WordEditorAction.DictionarySuggestionSelected) {
@@ -314,10 +375,7 @@ class WordEditorScreenTest {
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = listOf(jmDictSuggestionGroup()),
-                    ),
+                    state = suggestionState(listOf(jmDictSuggestionGroup())),
                     onAction = { action ->
                         if (action is WordEditorAction.DictionarySuggestionSelected) {
                             selected += action.entry
@@ -375,6 +433,44 @@ class WordEditorScreenTest {
         composeRule.onNode(hasScrollAction())
             .performScrollToNode(hasTestTag("sense_provenance"))
         composeRule.onNodeWithText("CC-CEDICT 기반 · 수정됨").assertIsDisplayed()
+    }
+
+    @Test
+    fun pronunciationAndGenderEditorsAppearOnlyWhenValuesExist() {
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        headword = "Wasser",
+                        languageTag = "de",
+                        pronunciations = listOf(
+                            EditablePronunciation(
+                                key = 10,
+                                notation = PronunciationNotation.IPA,
+                                value = "/ˈvasɐ/",
+                                languageTag = "de",
+                            ),
+                        ),
+                        senses = listOf(
+                            EditableSense(
+                                key = 20,
+                                meaning = "water",
+                                grammaticalGender = "neuter",
+                                isGrammaticalGenderVisible = true,
+                            ),
+                        ),
+                    ),
+                    onAction = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("pronunciation"))
+        composeRule.onNodeWithTag("pronunciation").assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("grammatical_gender"))
+        composeRule.onNodeWithTag("grammatical_gender").assertIsDisplayed()
     }
 
     @Test
@@ -597,15 +693,16 @@ class WordEditorScreenTest {
         providerId: String,
         providerName: String,
         rowCount: Int,
+        rowPrefix: String = "word",
     ): DictionarySuggestionGroup {
-        val template = suggestionGroup(providerId, providerName, "word1")
+        val template = suggestionGroup(providerId, providerName, "${rowPrefix}1")
         val templateEntry = template.entries.single()
         val templateSense = templateEntry.senses.single()
         return template.copy(
             entries = (1..rowCount).map { index ->
                 templateEntry.copy(
                     sourceEntryId = "$providerId:$index",
-                    headword = "word$index",
+                    headword = "$rowPrefix$index",
                     senses = listOf(
                         templateSense.copy(
                             meanings = listOf(
@@ -622,15 +719,22 @@ class WordEditorScreenTest {
         composeRule.setContent {
             LocalVocabularyTheme {
                 DictionarySuggestionSection(
-                    state = WordEditorUiState(
-                        isLoading = false,
-                        dictionarySuggestionGroups = groups,
-                    ),
+                    state = suggestionState(groups),
                     onAction = {},
                 )
             }
         }
     }
+
+    private fun suggestionState(
+        groups: List<DictionarySuggestionGroup>,
+        selectedSuggestionKeys: Set<String> = emptySet(),
+    ) = WordEditorUiState(
+        isLoading = false,
+        dictionarySuggestionGroups = groups,
+        synthesizedSuggestionGroups = DictionarySuggestionSynthesizer.synthesize(groups),
+        selectedSuggestionKeys = selectedSuggestionKeys,
+    )
 
     private fun jmDictSuggestionGroup() = DictionarySuggestionGroup(
         providerId = DictionaryProviderId("jmdict"),

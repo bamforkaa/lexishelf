@@ -254,7 +254,16 @@ data class DictionaryReading(
 data class DictionaryPronunciation(
     val text: String? = null,
     val audio: DictionaryAudio? = null,
+    val notation: DictionaryPronunciationNotation = DictionaryPronunciationNotation.OTHER,
+    val language: Bcp47LanguageTag? = null,
 )
+
+enum class DictionaryPronunciationNotation {
+    IPA,
+    PHONETIC,
+    ROMANIZATION,
+    OTHER,
+}
 
 data class DictionaryAudio(
     val uri: String,

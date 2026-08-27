@@ -5,6 +5,7 @@ import com.example.localvocabulary.dictionary.domain.DictionaryExample
 import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryPronunciation
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
@@ -27,7 +28,23 @@ internal fun KaikkiMatch.toExternalEntry(
     headword = entry.headword,
     sourceLanguage = sourceLanguage,
     linguisticFeatures = DictionaryLinguisticFeatures(
-        pronunciations = entry.pronunciations.map { DictionaryPronunciation(text = it) },
+        pronunciations = entry.pronunciations.map { value ->
+            if (value.startsWith(EN_PR_PREFIX)) {
+                DictionaryPronunciation(
+                    text = value.removePrefix(EN_PR_PREFIX),
+                    notation = DictionaryPronunciationNotation.PHONETIC,
+                    language = sourceLanguage,
+                )
+            } else {
+                // The reviewed twelve-language converter emits only IPA here; zh-pron is not
+                // part of this provider batch and must gain an explicit marker before expansion.
+                DictionaryPronunciation(
+                    text = value,
+                    notation = DictionaryPronunciationNotation.IPA,
+                    language = sourceLanguage,
+                )
+            }
+        },
         inflections = entry.retainedForms.map { form ->
             DictionaryInflection(form = form.form, label = form.label)
         },
@@ -58,6 +75,8 @@ internal fun KaikkiMatch.toExternalEntry(
     ),
 )
 }
+
+private const val EN_PR_PREFIX = "enPR: "
 
 private fun String.wikiPathSegment(): String = URLEncoder
     .encode(this, StandardCharsets.UTF_8.toString())

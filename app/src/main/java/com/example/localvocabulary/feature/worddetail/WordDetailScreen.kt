@@ -34,6 +34,7 @@ import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.ScreenStatePane
 import com.example.localvocabulary.core.ui.component.SectionHeader
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -110,6 +111,26 @@ fun WordDetailScreen(
                                 )
                             }
                         }
+                        if (state.entry.pronunciations.isNotEmpty()) {
+                            SectionHeader("발음")
+                            state.entry.pronunciations.forEach { pronunciation ->
+                                Text(
+                                    "${pronunciation.notation.detailLabel()} · ${pronunciation.value}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                pronunciation.provenance?.let { provenance ->
+                                    MetadataLabel(
+                                        buildString {
+                                            append(provenance.sourceName)
+                                            append("에서 가져온 발음")
+                                            if (provenance.modifiedAfterImport) {
+                                                append(" · 수정됨")
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
                         val language = LanguageDisplayNameResolver.resolve(state.entry.languageTag)
                         MetadataLabel("언어 · ${language.name} · ${language.languageTag}")
                         if (state.entry.wordbooks.isNotEmpty()) {
@@ -167,7 +188,17 @@ fun WordDetailScreen(
                                 modifier = Modifier.testTag("sense_provenance"),
                             )
                         }
-                        if (sense.partOfSpeech.isNotBlank()) MetadataLabel("품사 · ${sense.partOfSpeech}")
+                        if (
+                            sense.partOfSpeech.isNotBlank() ||
+                            sense.grammaticalGender != null
+                        ) {
+                            MetadataLabel(
+                                listOfNotNull(
+                                    sense.partOfSpeech.takeIf(String::isNotBlank),
+                                    sense.grammaticalGender?.displayValue(),
+                                ).joinToString(" · "),
+                            )
+                        }
                         sense.examples.forEach { example ->
                             Text("예문 · ${example.text}", style = MaterialTheme.typography.bodyMedium)
                         }
@@ -206,4 +237,11 @@ fun WordDetailScreen(
             },
         )
     }
+}
+
+private fun PronunciationNotation.detailLabel(): String = when (this) {
+    PronunciationNotation.IPA -> "IPA"
+    PronunciationNotation.PHONETIC -> "음성 표기"
+    PronunciationNotation.ROMANIZATION -> "로마자 표기"
+    PronunciationNotation.OTHER -> "기타 발음"
 }

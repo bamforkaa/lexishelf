@@ -85,7 +85,7 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 - 이 앱과 generated pack은 CC BY-SA 4.0 재사용 경로를 선택하고 source entry URL, Kaikki/Wiktextract attribution, release/license를 provenance에 보존한다. local persistence/redistribution/cache의 `PERMITTED`는 attribution/ShareAlike 조건을 지워 주는 값이 아니다.
 - Wiktextract 프로그램의 MIT license는 parser software에 대한 것이며 extracted Wiktionary data의 license를 대체하지 않는다.
 - Wiktionary는 외부 source의 quotation/text/image/sound에 별도 조건이나 fair use가 있을 수 있다고 경고한다. Kaikki `examples` 중 `type=example`이고 `ref`가 없는 contributor-authored usage text만 선택한 CC BY-SA 4.0 경로로 index에 넣고, `quotation`, `ref`가 있는 attributed text와 audio/image/media URL은 제외한다. import한 example은 enclosing sense의 source entry/sense/license provenance를 공유한다.
-- raw POS와 normalized generic POS를 분리하고 pronunciation/forms/gender를 transient result로 표시한다. explicit row tap만 English gloss와 허용된 POS를 generic mapper로 가져오며 refresh는 user data를 갱신하지 않는다.
+- raw POS와 normalized generic POS를 분리한다. pronunciation/gender/forms는 검색 결과에 표시하되 explicit row tap에서 허용된 English gloss/POS/example과 textual pronunciation/gender만 generic mapper로 가져오고 forms는 transient로 유지한다. refresh는 저장된 user data를 갱신하지 않는다. 실제 field coverage와 결정은 [linguistic-metadata.md](linguistic-metadata.md)에 있다.
 - provider ID는 `kaikki`, 첫 지원 pair는 `de|hi|pl|nl|pt|tr|cs|sv|uk|vi|th|id → en`이다. 후보 coverage, 선택/제외 근거, pack 크기와 QA key는 [kaikki-dataset.md](kaikki-dataset.md)에 있다.
 
 미결정 사항:

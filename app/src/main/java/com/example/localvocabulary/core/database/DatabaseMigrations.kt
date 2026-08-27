@@ -135,3 +135,53 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE senses ADD COLUMN grammatical_gender TEXT")
+        database.execSQL("ALTER TABLE senses ADD COLUMN grammatical_gender_raw TEXT")
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS vocabulary_pronunciations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                stable_id TEXT NOT NULL,
+                entry_id INTEGER NOT NULL,
+                notation TEXT NOT NULL,
+                value TEXT NOT NULL,
+                language_tag TEXT,
+                sort_order INTEGER NOT NULL,
+                FOREIGN KEY(entry_id) REFERENCES vocabulary_entries(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_vocabulary_pronunciations_entry_id " +
+                "ON vocabulary_pronunciations(entry_id)",
+        )
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_vocabulary_pronunciations_stable_id " +
+                "ON vocabulary_pronunciations(stable_id)",
+        )
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS pronunciation_dictionary_provenance (
+                pronunciation_id INTEGER NOT NULL,
+                provider_id TEXT NOT NULL,
+                source_entry_id TEXT,
+                source_sense_id TEXT,
+                source_name TEXT NOT NULL,
+                source_url TEXT,
+                license_name TEXT NOT NULL,
+                license_url TEXT,
+                dataset_version TEXT,
+                imported_at_epoch_millis INTEGER NOT NULL,
+                modified_after_import INTEGER NOT NULL,
+                PRIMARY KEY(pronunciation_id),
+                FOREIGN KEY(pronunciation_id) REFERENCES vocabulary_pronunciations(id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+    }
+}

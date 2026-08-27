@@ -199,7 +199,7 @@ bundleDictionaryPacksInDebug=true
 debugDictionaryPackLanguages=de,vi
 ```
 
-두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. 세 번째 값은 큰 Kaikki 전체 12개 중 debug APK에 넣을 언어만 제한합니다. `installDebug` 전에 Python pack builder가 core 네 개와 선택한 Kaikki pack을 생성하며, 첫 앱 실행에서 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
+두 번째 값은 Manual QA용 debug APK에만 pack을 포함하는 opt-in입니다. 세 번째 값은 큰 Kaikki 전체 12개 중 debug APK에 넣을 언어만 제한합니다. `installDebug` 전에 Python pack builder가 core 네 개와 선택한 Kaikki pack을 생성하며, payload/schema/manifest identity가 같은 기존 pack은 `createdAt`과 archive bytes를 바꾸지 않고 재사용합니다. 이는 반복 Gradle 실행에서 incremental APK가 obsolete 대형 asset 구간을 누적하지 않게 합니다. 첫 앱 실행에서는 production pack 검증과 activation이 완료될 때까지 짧은 준비 화면을 표시합니다. release APK에는 dataset을 포함하지 않습니다.
 
 현재 PowerShell session에서만 우선 적용하려면 환경 변수를 사용합니다.
 
@@ -349,7 +349,7 @@ full asset 계측 test의 강제 첫 복사는 531ms, 첫 open + `食べる` exa
 
 ## 2026-08-23 Task 9 dictionary pack 검증
 
-Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payload를 분리했을 당시 base APK는 18,466,693 bytes, AndroidTest APK는 1,289,772 bytes였습니다. 이 수치는 당시 빌드 기록이며 현재 데이터 모델은 Room schema v5, JSON backup schema v4입니다.
+Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payload를 분리했을 당시 base APK는 18,466,693 bytes, AndroidTest APK는 1,289,772 bytes였습니다. 이 수치는 당시 빌드 기록입니다. 현재 데이터 모델은 Room schema v6, JSON backup schema v5입니다.
 
 | 명령 | 실제 결과 |
 | --- | --- |
@@ -380,4 +380,4 @@ Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payl
 | `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone_Test`에서 92개 발견 / 실패 0 / optional staged-pack 2개 건너뜀 |
 | opt-in real PanLex pack 계측 | 성공, production install/activation 4,906ms / 첫 `nl → ko` exact query 15ms |
 
-수동 QA AVD는 연결하지 않았습니다. Test AVD만 headless로 시작했고, 전체 suite 후 opt-in pack test를 별도로 실행했습니다. Room schema v5와 backup schema v4는 변경하지 않았습니다.
+수동 QA AVD는 연결하지 않았습니다. Test AVD만 headless로 시작했고, 전체 suite 후 opt-in pack test를 별도로 실행했습니다. 당시 Task 11에서는 Room schema v5와 backup schema v4를 변경하지 않았습니다.

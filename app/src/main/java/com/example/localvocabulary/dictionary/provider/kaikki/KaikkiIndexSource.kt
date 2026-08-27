@@ -71,4 +71,5 @@ internal interface KaikkiDatabaseSource {
 
 internal const val KAIKKI_RELEASE_ID = "enwiktionary-2026-08-05"
 internal const val KAIKKI_EXTRACTION_DATE = "2026-08-23"
-internal const val KAIKKI_INDEX_SCHEMA_VERSION = 2
+internal const val KAIKKI_INDEX_SCHEMA_VERSION = 3
+internal const val KAIKKI_LEGACY_INDEX_SCHEMA_VERSION = 2

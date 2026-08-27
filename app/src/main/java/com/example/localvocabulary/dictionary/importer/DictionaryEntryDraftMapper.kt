@@ -3,11 +3,15 @@ package com.example.localvocabulary.dictionary.importer
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
 import com.example.localvocabulary.dictionary.domain.DictionaryContentField
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryDraft
+import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
+import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciationDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 
 data class DictionarySourceReference(
@@ -58,6 +62,36 @@ object DictionaryEntryDraftMapper {
         }?.also {
             copiedFields += DictionaryContentField.READING
         }.orEmpty()
+        val pronunciations = if (
+            licenseName != null &&
+            policy.permitsExportableVocabularyCopy(DictionaryContentField.PRONUNCIATION_TEXT)
+        ) {
+            entry.linguisticFeatures.pronunciations.mapNotNull { pronunciation ->
+                val value = pronunciation.text?.trim()?.takeIf(String::isNotEmpty)
+                    ?: return@mapNotNull null
+                copiedFields += DictionaryContentField.PRONUNCIATION_TEXT
+                VocabularyPronunciationDraft(
+                    notation = pronunciation.notation.toVocabularyNotation(),
+                    value = value,
+                    languageTag = pronunciation.language?.value ?: entry.sourceLanguage.value,
+                    provenance = DictionaryProvenance(
+                        providerId = entry.providerId.value,
+                        sourceEntryId = entry.sourceEntryId,
+                        sourceSenseId = null,
+                        sourceName = entry.attribution.sourceName,
+                        sourceUrl = entry.attribution.sourceUrl,
+                        licenseName = licenseName,
+                        licenseUrl = entry.attribution.licenseUrl,
+                        datasetVersion = entry.datasetVersion,
+                        importedFields = setOf(ImportedDictionaryField.PRONUNCIATION),
+                        importedAtEpochMillis = importedAtEpochMillis,
+                        modifiedAfterImport = false,
+                    ),
+                )
+            }
+        } else {
+            emptyList()
+        }
         val senses = if (licenseName == null) {
             emptyList()
         } else {
@@ -100,6 +134,15 @@ object DictionaryEntryDraftMapper {
                 } else {
                     emptyList()
                 }
+                val grammaticalGender = sense.grammaticalGender?.takeIf {
+                    it.isNotBlank() &&
+                        policy.permitsExportableVocabularyCopy(
+                            DictionaryContentField.GRAMMATICAL_GENDER,
+                        )
+                }?.let(VocabularyGrammaticalGender::parse)?.also {
+                    copiedFields += DictionaryContentField.GRAMMATICAL_GENDER
+                    senseFields += DictionaryContentField.GRAMMATICAL_GENDER
+                }
 
                 VocabularySenseDraft(
                     meaning = meanings.joinToString("; "),
@@ -118,6 +161,7 @@ object DictionaryEntryDraftMapper {
                         importedAtEpochMillis = importedAtEpochMillis,
                         modifiedAfterImport = false,
                     ),
+                    grammaticalGender = grammaticalGender,
                 )
             }
         }
@@ -145,6 +189,7 @@ object DictionaryEntryDraftMapper {
             } else {
                 null
             },
+            pronunciations = pronunciations,
         )
         if (senses.isEmpty()) {
             return DictionaryEntryDraftMappingResult.ReferenceOnly(
@@ -177,6 +222,17 @@ object DictionaryEntryDraftMapper {
         DictionaryContentField.PART_OF_SPEECH -> ImportedDictionaryField.PART_OF_SPEECH
         DictionaryContentField.EXAMPLE -> ImportedDictionaryField.EXAMPLES
         DictionaryContentField.READING -> ImportedDictionaryField.READING
+        DictionaryContentField.PRONUNCIATION_TEXT -> ImportedDictionaryField.PRONUNCIATION
+        DictionaryContentField.GRAMMATICAL_GENDER ->
+            ImportedDictionaryField.GRAMMATICAL_GENDER
         else -> error("Field $this is not stored at vocabulary sense level")
     }
+
+    private fun DictionaryPronunciationNotation.toVocabularyNotation(): PronunciationNotation =
+        when (this) {
+            DictionaryPronunciationNotation.IPA -> PronunciationNotation.IPA
+            DictionaryPronunciationNotation.PHONETIC -> PronunciationNotation.PHONETIC
+            DictionaryPronunciationNotation.ROMANIZATION -> PronunciationNotation.ROMANIZATION
+            DictionaryPronunciationNotation.OTHER -> PronunciationNotation.OTHER
+        }
 }

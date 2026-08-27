@@ -6,6 +6,10 @@ import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
 import com.example.localvocabulary.backup.domain.BackupEntryV2
 import com.example.localvocabulary.backup.domain.BackupImportedFieldV2
 import com.example.localvocabulary.backup.domain.BackupReadError
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderCategoryV5
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationNotationV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationV5
 import com.example.localvocabulary.backup.domain.BackupSenseV2
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.BackupWordbookV4
@@ -104,6 +108,79 @@ class KotlinxBackupSerializerTest {
 
         assertEquals("たべる", decoded.backup.document.entries.single().reading)
         assertEquals(readingProvenance, decoded.backup.document.entries.single().readingProvenance)
+    }
+
+    @Test
+    fun `schema v5 round trip preserves pronunciation identity gender and provenance`() {
+        val pronunciationProvenance = provenance().copy(
+            providerId = "kaikki",
+            sourceEntryId = "enw-de-entry",
+            sourceSenseId = null,
+            sourceName = "English Wiktionary via Kaikki/Wiktextract",
+            importedFields = listOf(BackupImportedFieldV2.PRONUNCIATION),
+            modifiedAfterImport = true,
+        )
+        val senseProvenance = pronunciationProvenance.copy(
+            sourceSenseId = "sense-1",
+            importedFields = listOf(
+                BackupImportedFieldV2.GRAMMATICAL_GENDER,
+                BackupImportedFieldV2.MEANING,
+            ),
+        )
+        val original = backup(
+            entries = listOf(
+                entry(
+                    headword = "Wasser",
+                    languageTag = "de",
+                    senses = listOf(
+                        BackupSenseV2(
+                            meaning = "water",
+                            partOfSpeech = "noun",
+                            examples = listOf("Das Wasser ist kalt."),
+                            provenance = senseProvenance,
+                            grammaticalGender = BackupGrammaticalGenderV5(
+                                BackupGrammaticalGenderCategoryV5.NEUTER,
+                            ),
+                        ),
+                    ),
+                ).copy(
+                    pronunciations = listOf(
+                        BackupPronunciationV5(
+                            stableId = "pronunciation-1",
+                            notation = BackupPronunciationNotationV5.IPA,
+                            value = "/ˈvasɐ/",
+                            languageTag = "de",
+                            provenance = pronunciationProvenance,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val decoded = serializer.decode(serializer.encode(original)) as BackupDecodeResult.Success
+        val restored = decoded.backup.document.entries.single()
+
+        assertEquals(original, decoded.backup.document)
+        assertEquals("pronunciation-1", restored.pronunciations.single().stableId)
+        assertEquals(
+            BackupGrammaticalGenderCategoryV5.NEUTER,
+            restored.senses.single().grammaticalGender?.category,
+        )
+        assertTrue(requireNotNull(restored.pronunciations.single().provenance).modifiedAfterImport)
+        assertTrue(requireNotNull(restored.senses.single().provenance).modifiedAfterImport)
+    }
+
+    @Test
+    fun `schema v4 imports with empty linguistic metadata`() {
+        val oldJson = serializer.encode(backup(entries = listOf(entry(headword = "old"))))
+            .replace("\"schemaVersion\": 5", "\"schemaVersion\": 4")
+            .replace(",\n      \"pronunciations\": []", "")
+
+        val decoded = serializer.decode(oldJson) as BackupDecodeResult.Success
+
+        assertEquals(CURRENT_BACKUP_SCHEMA_VERSION, decoded.backup.document.schemaVersion)
+        assertTrue(decoded.backup.document.entries.single().pronunciations.isEmpty())
+        assertNull(decoded.backup.document.entries.single().senses.single().grammaticalGender)
     }
 
     @Test
@@ -237,7 +314,7 @@ class KotlinxBackupSerializerTest {
     @Test
     fun `schema v3 imports with empty wordbooks`() {
         val oldJson = serializer.encode(backup(entries = listOf(entry(headword = "old"))))
-            .replace("\"schemaVersion\": 4", "\"schemaVersion\": 3")
+            .replace("\"schemaVersion\": 5", "\"schemaVersion\": 3")
             .replace(",\n  \"wordbooks\": []", "")
             .replace(",\n      \"wordbookStableIds\": []", "")
 

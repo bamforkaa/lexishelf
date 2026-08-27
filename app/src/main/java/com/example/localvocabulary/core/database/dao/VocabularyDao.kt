@@ -13,14 +13,27 @@ import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.VocabularyPronunciationEntity
+import com.example.localvocabulary.core.database.entity.PronunciationDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
+import com.example.localvocabulary.core.database.relation.VocabularyListEntryWithDetails
 import kotlinx.coroutines.flow.Flow
 
 data class SenseWrite(
     val meaning: String,
     val partOfSpeech: String,
     val examples: List<String>,
+    val provenance: SenseDictionaryProvenanceWrite? = null,
+    val grammaticalGender: String? = null,
+    val grammaticalGenderRaw: String? = null,
+)
+
+data class PronunciationWrite(
+    val stableId: String,
+    val notation: String,
+    val value: String,
+    val languageTag: String?,
     val provenance: SenseDictionaryProvenanceWrite? = null,
 )
 
@@ -79,7 +92,7 @@ interface VocabularyDao {
         tagId: Long?,
         wordbookId: Long? = null,
         languageTag: String? = null,
-    ): Flow<List<VocabularyEntryWithDetails>>
+    ): Flow<List<VocabularyListEntryWithDetails>>
 
     @Query("SELECT DISTINCT language_tag FROM vocabulary_entries ORDER BY language_tag ASC")
     fun observeLanguages(): Flow<List<String>>
@@ -135,6 +148,17 @@ interface VocabularyDao {
     @Insert
     suspend fun insertEntryProvenance(provenance: EntryDictionaryProvenanceEntity)
 
+    @Query("DELETE FROM vocabulary_pronunciations WHERE entry_id = :entryId")
+    suspend fun deletePronunciations(entryId: Long)
+
+    @Insert
+    suspend fun insertPronunciation(pronunciation: VocabularyPronunciationEntity): Long
+
+    @Insert
+    suspend fun insertPronunciationProvenance(
+        provenance: PronunciationDictionaryProvenanceEntity,
+    )
+
     @Query("DELETE FROM entry_tag_cross_refs WHERE entry_id = :entryId")
     suspend fun deleteEntryTags(entryId: Long)
 
@@ -154,6 +178,7 @@ interface VocabularyDao {
         tagIds: Set<Long>,
         readingProvenance: SenseDictionaryProvenanceWrite? = null,
         wordbookIds: Set<Long> = emptySet(),
+        pronunciations: List<PronunciationWrite> = emptyList(),
     ): Long {
         val entryId = if (entry.id == 0L) {
             insertEntry(entry)
@@ -182,6 +207,36 @@ interface VocabularyDao {
                 ),
             )
         }
+        deletePronunciations(entryId)
+        pronunciations.forEachIndexed { index, pronunciation ->
+            val pronunciationId = insertPronunciation(
+                VocabularyPronunciationEntity(
+                    stableId = pronunciation.stableId,
+                    entryId = entryId,
+                    notation = pronunciation.notation,
+                    value = pronunciation.value,
+                    languageTag = pronunciation.languageTag,
+                    sortOrder = index,
+                ),
+            )
+            pronunciation.provenance?.let { provenance ->
+                insertPronunciationProvenance(
+                    PronunciationDictionaryProvenanceEntity(
+                        pronunciationId = pronunciationId,
+                        providerId = provenance.providerId,
+                        sourceEntryId = provenance.sourceEntryId,
+                        sourceSenseId = provenance.sourceSenseId,
+                        sourceName = provenance.sourceName,
+                        sourceUrl = provenance.sourceUrl,
+                        licenseName = provenance.licenseName,
+                        licenseUrl = provenance.licenseUrl,
+                        datasetVersion = provenance.datasetVersion,
+                        importedAtEpochMillis = provenance.importedAtEpochMillis,
+                        modifiedAfterImport = provenance.modifiedAfterImport,
+                    ),
+                )
+            }
+        }
         senses.forEachIndexed { senseIndex, sense ->
             val senseId = insertSense(
                 SenseEntity(
@@ -189,6 +244,8 @@ interface VocabularyDao {
                     meaning = sense.meaning,
                     partOfSpeech = sense.partOfSpeech,
                     sortOrder = senseIndex,
+                    grammaticalGender = sense.grammaticalGender,
+                    grammaticalGenderRaw = sense.grammaticalGenderRaw,
                 ),
             )
             insertExamples(

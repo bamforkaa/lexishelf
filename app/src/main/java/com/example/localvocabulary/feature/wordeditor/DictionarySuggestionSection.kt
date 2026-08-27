@@ -2,18 +2,16 @@ package com.example.localvocabulary.feature.wordeditor
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -28,12 +26,13 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
+import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
+import com.example.localvocabulary.dictionary.domain.DictionaryInflection
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.SectionHeader
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DictionarySuggestionSection(
     state: WordEditorUiState,
@@ -50,19 +49,6 @@ internal fun DictionarySuggestionSection(
             title = "사전 제안",
             supportingText = "뜻을 누를 때만 내 단어에 가져옵니다.",
         )
-        if (state.dictionaryLanguageOptions.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.dictionaryLanguageOptions.forEach { option ->
-                    FilterChip(
-                        selected = state.selectedDictionaryLanguageOptionKey == option.key,
-                        onClick = {
-                            onAction(WordEditorAction.DictionaryLanguagePairSelected(option.key))
-                        },
-                        label = { Text(option.label()) },
-                    )
-                }
-            }
-        }
         state.dictionarySuggestionMessage?.let { message ->
             Text(
                 message,
@@ -73,9 +59,9 @@ internal fun DictionarySuggestionSection(
         if (state.isDictionarySearchInProgress) {
             CircularProgressIndicator(modifier = Modifier.testTag("dictionary_suggestions_loading"))
         }
-        val rows = state.dictionarySuggestionGroups.toRows()
+        val rows = state.synthesizedSuggestionGroups.toRows()
         if (rows.isNotEmpty()) {
-            val selectableRowCount = rows.count { it is DictionarySuggestionRow.Entry }
+            val selectableRowCount = rows.count { it is DictionarySuggestionRow.Candidate }
             if (selectableRowCount <= MAX_VISIBLE_SELECTABLE_ROWS) {
                 Column(
                     modifier = Modifier
@@ -119,23 +105,28 @@ private fun DictionarySuggestionRowContent(
     onAction: (WordEditorAction) -> Unit,
 ) {
     when (row) {
-        is DictionarySuggestionRow.ProviderHeader -> {
+        is DictionarySuggestionRow.LanguageHeader -> {
             Text(
                 row.label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 12.dp, bottom = 2.dp),
             )
         }
         is DictionarySuggestionRow.Message -> {
-            Text(row.text, style = MaterialTheme.typography.bodySmall)
+            val displayText = if (row.providerName in row.text) {
+                row.text
+            } else {
+                "${row.providerName} · ${row.text}"
+            }
+            Text(displayText, style = MaterialTheme.typography.bodySmall)
         }
-        is DictionarySuggestionRow.Entry -> {
+        is DictionarySuggestionRow.Candidate -> {
             DictionarySuggestionEntryRow(
-                entry = row.entry,
-                isSelected = row.entry.suggestionKey() in state.selectedSuggestionKeys,
+                candidate = row.candidate,
+                isSelected = row.candidate.key in state.selectedSuggestionKeys,
                 onClick = {
-                    onAction(WordEditorAction.DictionarySuggestionSelected(row.entry))
+                    onAction(WordEditorAction.DictionarySuggestionSelected(row.candidate.primaryEntry))
                 },
             )
         }
@@ -144,30 +135,33 @@ private fun DictionarySuggestionRowContent(
 
 @Composable
 private fun DictionarySuggestionEntryRow(
-    entry: ExternalDictionaryEntry,
+    candidate: SynthesizedSuggestionCandidate,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val entry = candidate.primaryEntry
     val sense = entry.senses.singleOrNull()
-    val meanings = sense?.meanings.orEmpty()
-    val primaryMeaning = meanings.joinToString(separator = "; ") { it.text }
-        .ifBlank { entry.headword }
-    val resultLanguages = meanings.map { it.language.value }.distinct().joinToString()
+    val primaryMeaning = candidate.displayMeaning
     val readings = listOfNotNull(entry.linguisticFeatures.reading) +
         entry.linguisticFeatures.alternativeReadings
     val pronunciations = entry.linguisticFeatures.pronunciations
-        .mapNotNull { it.text?.takeIf(String::isNotBlank) }
+        .mapNotNull { pronunciation ->
+            pronunciation.text?.takeIf(String::isNotBlank)?.let { text ->
+                "${pronunciation.notation.suggestionLabel()} $text"
+            }
+        }
     val availableFormCount = entry.linguisticFeatures.totalInflectionCount
+    val selectedForms = entry.linguisticFeatures.inflections
     val availableExampleCount = sense?.availableExampleCount ?: 0
     val secondaryText = buildList {
         if (primaryMeaning != entry.headword) add(entry.headword)
-        if (readings.isNotEmpty()) add(readings.joinToString { it.text })
-        if (pronunciations.isNotEmpty()) add(pronunciations.joinToString())
+        if (readings.isNotEmpty()) add("읽기 ${readings.joinToString { it.text }}")
+        if (pronunciations.isNotEmpty()) add("발음 ${pronunciations.joinToString()}")
         sense?.partOfSpeech?.takeIf(String::isNotBlank)?.let(::add)
         sense?.grammaticalGender?.takeIf(String::isNotBlank)?.let(::add)
     }.joinToString(" · ")
     val availabilityText = buildList {
-        if (availableFormCount > 0) add("활용형 $availableFormCount")
+        if (availableFormCount > 0) add("원본 활용형 $availableFormCount")
         if (availableExampleCount > 0) add("예문 $availableExampleCount")
     }.joinToString(" · ")
 
@@ -205,7 +199,10 @@ private fun DictionarySuggestionEntryRow(
                     )
                 }
                 if (availabilityText.isNotBlank()) MetadataLabel(availabilityText)
-                if (resultLanguages.isNotBlank()) MetadataLabel(resultLanguages)
+                if (selectedForms.isNotEmpty()) {
+                    DictionaryForms(selectedForms)
+                }
+                MetadataLabel(candidate.sources.joinToString(" · ") { it.providerName })
             }
             if (isSelected) {
                 Icon(
@@ -218,34 +215,87 @@ private fun DictionarySuggestionEntryRow(
     }
 }
 
+@Composable
+private fun DictionaryForms(forms: List<DictionaryInflection>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("dictionary_inflection_section"),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        MetadataLabel("대표 활용형")
+        forms.forEach { form ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("dictionary_inflection_row"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                MetadataLabel(
+                    text = form.label,
+                    modifier = Modifier.widthIn(min = 96.dp, max = 144.dp),
+                    maxLines = 2,
+                )
+                Text(
+                    text = form.form,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+private fun DictionaryPronunciationNotation.suggestionLabel(): String = when (this) {
+    DictionaryPronunciationNotation.IPA -> "IPA"
+    DictionaryPronunciationNotation.PHONETIC -> "발음"
+    DictionaryPronunciationNotation.ROMANIZATION -> "로마자"
+    DictionaryPronunciationNotation.OTHER -> "발음"
+}
+
 private sealed interface DictionarySuggestionRow {
     val key: String
 
-    data class ProviderHeader(override val key: String, val label: String) : DictionarySuggestionRow
-    data class Message(override val key: String, val text: String) : DictionarySuggestionRow
-    data class Entry(override val key: String, val entry: ExternalDictionaryEntry) :
+    data class LanguageHeader(override val key: String, val label: String) : DictionarySuggestionRow
+    data class Message(
+        override val key: String,
+        val providerName: String,
+        val text: String,
+    ) : DictionarySuggestionRow
+    data class Candidate(
+        override val key: String,
+        val candidate: SynthesizedSuggestionCandidate,
+    ) :
         DictionarySuggestionRow
 }
 
-private fun List<DictionarySuggestionGroup>.toRows(): List<DictionarySuggestionRow> {
+private fun List<SynthesizedSuggestionGroup>.toRows(): List<DictionarySuggestionRow> {
     val groups = this
     return buildList {
         groups.forEach { group ->
-            val license = group.entries.firstOrNull()?.attribution?.licenseShortName
             add(
-                DictionarySuggestionRow.ProviderHeader(
-                    key = "${group.providerId.value}|header",
-                    label = listOfNotNull(group.providerName, license).joinToString(" · "),
+                DictionarySuggestionRow.LanguageHeader(
+                    key = "${group.resultLanguage?.value.orEmpty()}|header",
+                    label = group.resultLanguage?.let {
+                        LanguageDisplayNameResolver.resolve(it.value).name
+                    } ?: "기타",
                 ),
             )
-            group.message?.let {
-                add(DictionarySuggestionRow.Message("${group.providerId.value}|message", it))
-            }
-            group.selectableEntries().forEachIndexed { index, entry ->
+            group.messages.forEach { message ->
                 add(
-                    DictionarySuggestionRow.Entry(
-                        key = "${group.providerId.value}|$index|${entry.suggestionKey()}",
-                        entry = entry,
+                    DictionarySuggestionRow.Message(
+                        key = message.key,
+                        providerName = message.providerName,
+                        text = message.text,
+                    ),
+                )
+            }
+            group.candidates.forEach { candidate ->
+                add(
+                    DictionarySuggestionRow.Candidate(
+                        key = candidate.key,
+                        candidate = candidate,
                     ),
                 )
             }
@@ -290,12 +340,4 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
             )
         }
     }
-}
-
-private fun DictionaryLanguagePairOption.label(): String {
-    val kind = when (languagePair.resultKind) {
-        DictionaryResultKind.MONOLINGUAL_DEFINITION -> "정의"
-        DictionaryResultKind.TRANSLATION -> "번역"
-    }
-    return "${languagePair.sourceLanguage.value} → ${languagePair.resultLanguage.value} · $kind"
 }

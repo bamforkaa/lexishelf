@@ -12,11 +12,18 @@ import com.example.localvocabulary.core.database.entity.SenseEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.SenseDictionaryProvenanceFieldEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
+import com.example.localvocabulary.core.database.entity.VocabularyPronunciationEntity
+import com.example.localvocabulary.core.database.entity.PronunciationDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
+import com.example.localvocabulary.core.database.relation.VocabularyListEntryWithDetails
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
+import com.example.localvocabulary.vocabulary.domain.GrammaticalGenderCategory
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
+import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
+import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciationDraft
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -154,6 +161,49 @@ class RoomVocabularyRepositoryTest {
     }
 
     @Test
+    fun `repository maps pronunciation stable identity and grammatical gender`() = runTest {
+        val dao = FakeVocabularyDao()
+        val stableIds = ArrayDeque(listOf("entry-id", "pronunciation-id"))
+        val repository = RoomVocabularyRepository(
+            dao,
+            TimeProvider { 500 },
+            StableIdGenerator { stableIds.removeFirst() },
+        )
+
+        repository.save(
+            ValidatedVocabularyDraft(
+                id = null,
+                headword = "Wasser",
+                languageTag = "de",
+                senses = listOf(
+                    VocabularySenseDraft(
+                        meaning = "water",
+                        partOfSpeech = "noun",
+                        examples = emptyList(),
+                        grammaticalGender = VocabularyGrammaticalGender(
+                            GrammaticalGenderCategory.NEUTER,
+                        ),
+                    ),
+                ),
+                notes = "",
+                tagIds = emptySet(),
+                pronunciations = listOf(
+                    VocabularyPronunciationDraft(
+                        notation = PronunciationNotation.IPA,
+                        value = "/ˈvasɐ/",
+                        languageTag = "de",
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("NEUTER", dao.savedSenses.single().grammaticalGender)
+        assertEquals("pronunciation-id", dao.savedPronunciations.single().stableId)
+        assertEquals("IPA", dao.savedPronunciations.single().notation)
+        assertEquals("/ˈvasɐ/", dao.savedPronunciations.single().value)
+    }
+
+    @Test
     fun `search treats SQL wildcard characters as literal user text`() {
         val dao = FakeVocabularyDao()
         val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "unused" })
@@ -171,6 +221,7 @@ private class FakeVocabularyDao(
 ) : VocabularyDao {
     val savedSenses = mutableListOf<SenseWrite>()
     val savedTagIds = mutableSetOf<Long>()
+    val savedPronunciations = mutableListOf<VocabularyPronunciationEntity>()
     var observedQuery: String? = null
     var observedTagId: Long? = null
     private var nextSenseId = 1L
@@ -180,7 +231,7 @@ private class FakeVocabularyDao(
         tagId: Long?,
         wordbookId: Long?,
         languageTag: String?,
-    ): Flow<List<VocabularyEntryWithDetails>> {
+    ): Flow<List<VocabularyListEntryWithDetails>> {
         observedQuery = query
         observedTagId = tagId
         return flowOf(emptyList())
@@ -227,7 +278,13 @@ private class FakeVocabularyDao(
     }
 
     override suspend fun insertSense(sense: SenseEntity): Long {
-        savedSenses += SenseWrite(sense.meaning, sense.partOfSpeech, emptyList())
+        savedSenses += SenseWrite(
+            meaning = sense.meaning,
+            partOfSpeech = sense.partOfSpeech,
+            examples = emptyList(),
+            grammaticalGender = sense.grammaticalGender,
+            grammaticalGenderRaw = sense.grammaticalGenderRaw,
+        )
         return nextSenseId++
     }
 
@@ -271,6 +328,22 @@ private class FakeVocabularyDao(
     override suspend fun deleteEntryProvenance(entryId: Long) = Unit
 
     override suspend fun insertEntryProvenance(provenance: EntryDictionaryProvenanceEntity) = Unit
+
+    override suspend fun deletePronunciations(entryId: Long) {
+        savedPronunciations.clear()
+    }
+
+    override suspend fun insertPronunciation(
+        pronunciation: VocabularyPronunciationEntity,
+    ): Long {
+        val id = (savedPronunciations.size + 1).toLong()
+        savedPronunciations += pronunciation.copy(id = id)
+        return id
+    }
+
+    override suspend fun insertPronunciationProvenance(
+        provenance: PronunciationDictionaryProvenanceEntity,
+    ) = Unit
 
     override suspend fun deleteEntryTags(entryId: Long) {
         savedTagIds.clear()

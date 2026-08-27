@@ -8,6 +8,7 @@ import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryPermission
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.DictionaryQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.DictionarySearchResult
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMapper
@@ -42,7 +43,7 @@ class KaikkiProviderTest {
     }
 
     @Test
-    fun `rich result maps gloss and normalized POS while metadata stays transient`() = runTest {
+    fun `rich result imports pronunciation and gender while forms stay transient`() = runTest {
         val lookup = RecordingLookup(
             KaikkiLookupResult.Matches(listOf(match()), isTruncated = false),
         )
@@ -61,7 +62,15 @@ class KaikkiProviderTest {
             entry.senses.single().examples.map { it.text },
         )
         assertEquals(listOf("/ˈvasɐ/"), entry.linguisticFeatures.pronunciations.map { it.text })
+        assertEquals(
+            DictionaryPronunciationNotation.IPA,
+            entry.linguisticFeatures.pronunciations.single().notation,
+        )
         assertEquals(9, entry.linguisticFeatures.totalInflectionCount)
+        assertEquals(
+            listOf("genitive" to "Wassers"),
+            entry.linguisticFeatures.inflections.map { it.label to it.form },
+        )
         assertEquals("de", lookup.lastLanguage)
         assertEquals("https://en.wiktionary.org/wiki/Wasser", entry.attribution.sourceUrl)
 
@@ -81,7 +90,44 @@ class KaikkiProviderTest {
             com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.EXAMPLES in
                 provenance.importedFields,
         )
+        assertEquals("neuter", sense.grammaticalGender?.displayValue())
+        assertTrue(
+            com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
+                .GRAMMATICAL_GENDER in provenance.importedFields,
+        )
+        val pronunciation = mapping.seed.draft.pronunciations.single()
+        assertEquals("/ˈvasɐ/", pronunciation.value)
+        assertEquals("de", pronunciation.languageTag)
+        assertEquals("kaikki", pronunciation.provenance?.providerId)
+        assertTrue(
+            com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.PRONUNCIATION in
+                requireNotNull(pronunciation.provenance).importedFields,
+        )
+        assertTrue(
+            DictionaryContentField.PRONUNCIATION_TEXT in mapping.seed.copiedProviderFields,
+        )
+        assertTrue(
+            DictionaryContentField.GRAMMATICAL_GENDER in mapping.seed.copiedProviderFields,
+        )
+        assertFalse(DictionaryContentField.INFLECTION in mapping.seed.copiedProviderFields)
         assertFalse(provenance.modifiedAfterImport)
+    }
+
+    @Test
+    fun `enPR is typed as phonetic rather than IPA`() = runTest {
+        val source = match().copy(
+            entry = match().entry.copy(pronunciations = listOf("enPR: wô-tər")),
+        )
+        val entry = (
+            provider(RecordingLookup(KaikkiLookupResult.Matches(listOf(source), false)))
+                .search(query("Wasser", "de", "en")) as DictionarySearchResult.Success
+            ).page.entries.single()
+
+        assertEquals(
+            DictionaryPronunciationNotation.PHONETIC,
+            entry.linguisticFeatures.pronunciations.single().notation,
+        )
+        assertEquals("wô-tər", entry.linguisticFeatures.pronunciations.single().text)
     }
 
     @Test

@@ -86,25 +86,25 @@ python -X utf8 -m tools.build_dictionary_packs --pack kaikki --kaikki-language d
 
 | pair / pack ID | indexed entries | entries with eligible examples | DB bytes | pack bytes |
 | --- | ---: | ---: | ---: | ---: |
-| `de → en` / `kaikki.de-en` | 369,967 | 8,110 | 304,447,488 | 46,517,945 |
-| `hi → en` / `kaikki.hi-en` | 38,856 | 3,756 | 34,914,304 | 6,417,826 |
-| `pl → en` / `kaikki.pl-en` | 197,832 | 6,582 | 190,668,800 | 30,112,533 |
-| `nl → en` / `kaikki.nl-en` | 145,878 | 4,740 | 101,761,024 | 17,411,446 |
-| `pt → en` / `kaikki.pt-en` | 445,173 | 3,144 | 171,732,992 | 41,882,607 |
-| `tr → en` / `kaikki.tr-en` | 45,617 | 1,975 | 78,929,920 | 7,552,835 |
-| `cs → en` / `kaikki.cs-en` | 72,027 | 4,548 | 112,893,952 | 12,759,507 |
-| `sv → en` / `kaikki.sv-en` | 312,058 | 9,843 | 146,935,808 | 29,671,592 |
-| `uk → en` / `kaikki.uk-en` | 59,433 | 2,917 | 136,470,528 | 13,216,728 |
-| `vi → en` / `kaikki.vi-en` | 46,170 | 6,449 | 17,539,072 | 5,788,359 |
-| `th → en` / `kaikki.th-en` | 20,939 | 1,862 | 10,752,000 | 2,981,359 |
-| `id → en` / `kaikki.id-en` | 39,662 | 1,352 | 15,286,272 | 4,971,010 |
-| total | 1,793,612 | 55,278 | 1,322,332,160 | 219,283,747 |
+| `de → en` / `kaikki.de-en` | 369,967 | 8,110 | 147,476,480 | 36,732,025 |
+| `hi → en` / `kaikki.hi-en` | 38,856 | 3,756 | 18,321,408 | 4,927,192 |
+| `pl → en` / `kaikki.pl-en` | 197,832 | 6,582 | 72,261,632 | 21,935,826 |
+| `nl → en` / `kaikki.nl-en` | 145,878 | 4,740 | 47,034,368 | 14,359,038 |
+| `pt → en` / `kaikki.pt-en` | 445,173 | 3,144 | 142,696,448 | 39,933,975 |
+| `tr → en` / `kaikki.tr-en` | 45,617 | 1,975 | 15,765,504 | 4,817,383 |
+| `cs → en` / `kaikki.cs-en` | 72,027 | 4,548 | 24,186,880 | 7,465,096 |
+| `sv → en` / `kaikki.sv-en` | 312,058 | 9,843 | 91,308,032 | 26,429,658 |
+| `uk → en` / `kaikki.uk-en` | 59,433 | 2,917 | 25,755,648 | 7,506,649 |
+| `vi → en` / `kaikki.vi-en` | 46,170 | 6,449 | 16,785,408 | 5,600,242 |
+| `th → en` / `kaikki.th-en` | 20,939 | 1,862 | 9,203,712 | 2,698,555 |
+| `id → en` / `kaikki.id-en` | 39,662 | 1,352 | 14,446,592 | 4,824,410 |
+| total | 1,793,612 | 55,278 | 625,242,112 | 177,230,049 |
 
-Pack bytes are the observed 2026-08-26 build. Payload bytes/SHA-256 are stable; the ZIP size can vary by a few bytes because `manifest.createdAt` records the build time.
+Pack bytes are the observed 2026-08-28 schema v3 build. Payload bytes/SHA-256 are stable. The builder now reuses an existing archive when payload and content-defining manifest fields match, preserving `createdAt` and preventing large incremental debug APKs from accumulating obsolete asset regions.
 
-DB index schema v2에는 stable hashed source entry ID, normalized headword index, deterministic source order와 compact JSON payload만 둔다. payload는 headword, raw/normalized POS mapping source, 최대 8개 textual IPA/enPR/`zh-pron`, 최대 24개 대표 form과 전체 form count, sense/gloss 순서, source sense ID, gender, import 가능한 usage example text/count를 보존한다. homograph/etymology entry는 합치지 않는다.
+DB index schema v3에는 stable hashed source entry ID, normalized headword index, deterministic source order와 compact JSON payload만 둔다. payload는 headword, raw/normalized POS mapping source, 최대 8개 textual IPA/enPR/`zh-pron`, 언어/POS별 semantic-v1 policy가 고른 대표 form과 정제된 raw form count, sense/gloss 순서, source sense ID, gender, import 가능한 usage example text/count를 보존한다. homograph/etymology entry는 합치지 않는다. v2 pack은 runtime에서 뜻과 나머지 metadata를 계속 읽지만 raw-order first-24 forms는 표시하지 않는다. 자세한 policy는 [linguistic-forms.md](linguistic-forms.md)에 있다.
 
-Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 source text만 원본 순서대로 sense당 최대 2개 보존한다. `quotation`, attributed text, example translation, audio/media URL, category, related-word graph, raw template와 full etymology는 저장하지 않는다. pronunciation과 forms는 provider result의 transient metadata다. 사용자가 row를 눌렀을 때만 generic mapper가 English gloss/POS/example을 같은 sense contribution으로 가져오며 provenance의 imported fields에 `EXAMPLES`를 기록한다.
+Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 source text만 원본 순서대로 sense당 최대 2개 보존한다. `quotation`, attributed text, example translation, audio/media URL, category, related-word graph, raw template와 full etymology는 저장하지 않는다. 사용자가 row를 눌렀을 때만 generic mapper가 English gloss/POS/example, textual pronunciation과 grammatical gender를 각 field provenance와 함께 가져온다. forms는 provider result의 transient metadata로 유지한다. 실측 coverage와 저장 결정은 [linguistic-metadata.md](linguistic-metadata.md)에 있다.
 
 ## 실제 exact QA key
 
@@ -127,9 +127,9 @@ Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 so
 
 ## 성능과 무결성
 
-Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 12.1 schema v2의 선택 12개 rebuild는 `583.65s`였고 filtered source 합계는 `308,748,758` bytes다. 모든 selected DB의 schema는 2, `PRAGMA quick_check`는 `ok`, sense당 retained example 최대값은 2였으며 모든 pack의 ZIP CRC와 manifest dataset schema 2 검사는 통과했다. 기존 exact index/query 구조는 바뀌지 않았다.
+Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 15 schema v3의 선택 12개 full rebuild는 `630.67s`였고 filtered source 합계는 `308,748,758` bytes다. 모든 selected DB의 schema는 3이고 `form_selection_policy=semantic-v1` metadata를 가진다. sense당 retained example 최대값은 2이며 pack manifest도 dataset schema 3을 선언한다. 기존 exact index/query 구조는 바뀌지 않았다.
 
-Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 이 구성의 final debug APK는 `266,959,600` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser` exact query의 첫 datasource lookup은 full-suite 실행 로그 기준 `7ms`였다(별도 targeted run은 `13ms`). release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
+Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle한다. Task 15 preflight의 incremental APK는 `266,959,605` bytes였지만 ZIP entry가 아닌 약 44MiB의 stale packaging 공간이 있었고, 조사 DB/test fixture는 active entry에 없었다. `clean assembleDebug` 후 schema v3 form 축소까지 반영한 APK는 `223,014,116` bytes(정상 ZIP overhead 99,302 bytes)다. active 용량은 PanLex, 한국어기초사전, Kaikki de, JMdict, Kaikki vi, CC-CEDICT의 의도한 6개 debug pack이 지배한다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser` exact query의 첫 datasource lookup은 기존 full-suite 실행 로그 기준 `7ms`였다(별도 targeted run은 `13ms`). release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
 
 ## 라이선스와 attribution
 

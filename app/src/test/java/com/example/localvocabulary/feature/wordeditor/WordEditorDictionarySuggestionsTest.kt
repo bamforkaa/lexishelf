@@ -18,6 +18,8 @@ import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryQuery
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciation
+import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.DictionarySearchPage
 import com.example.localvocabulary.dictionary.domain.DictionarySearchResult
@@ -33,10 +35,14 @@ import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.domain.ExampleSentence
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
+import com.example.localvocabulary.vocabulary.domain.GrammaticalGenderCategory
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
+import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
+import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciation
 import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
@@ -152,7 +158,130 @@ class WordEditorDictionarySuggestionsTest {
     }
 
     @Test
-    fun `Japanese to Korean and Japanese to English providers coexist as distinct choices`() = runTest {
+    fun `identical multi provider candidate imports one deterministic primary contribution`() = runTest {
+        val panLex = suggestionProvider(
+            id = "panlex",
+            displayName = "PanLex",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val koreanBasic = suggestionProvider(
+            id = "korean-basic-dictionary",
+            displayName = "한국어기초사전",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        )
+        val viewModel = createViewModel(providers = listOf(panLex, koreanBasic))
+        runCurrent()
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+
+        val candidate = viewModel.uiState.value.synthesizedSuggestionGroups
+            .single().candidates.single()
+        assertEquals(
+            listOf("한국어기초사전", "PanLex"),
+            candidate.sources.map { it.providerName },
+        )
+        assertEquals("korean-basic-dictionary", candidate.primarySource.providerId.value)
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(candidate.primaryEntry))
+
+        val imported = viewModel.uiState.value
+        assertEquals(listOf("provider meaning"), imported.senses.map { it.meaning }.filter(String::isNotBlank))
+        assertEquals("korean-basic-dictionary", imported.senses.single().provenance?.providerId)
+        assertEquals(setOf(candidate.key), imported.selectedSuggestionKeys)
+    }
+
+    @Test
+    fun `Kaikki example richness selects Kaikki provenance through existing import pipeline`() = runTest {
+        val fallback = suggestionProvider(
+            id = "fallback",
+            displayName = "Fallback",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        ) { success(it, includeExample = false) }
+        val kaikki = suggestionProvider(
+            id = "kaikki",
+            displayName = "Kaikki / Wiktionary",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        ) { success(it, includeLinguisticMetadata = true) }
+        val viewModel = createViewModel(providers = listOf(fallback, kaikki))
+        runCurrent()
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+
+        val candidate = viewModel.uiState.value.synthesizedSuggestionGroups
+            .single().candidates.single()
+        assertEquals("kaikki", candidate.primarySource.providerId.value)
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(candidate.primaryEntry))
+
+        val importedSense = viewModel.uiState.value.senses.single()
+        assertEquals(listOf("provider example"), importedSense.examples.map { it.text })
+        assertEquals("kaikki", importedSense.provenance?.providerId)
+        assertTrue(ImportedDictionaryField.EXAMPLES in importedSense.provenance!!.importedFields)
+        assertEquals("neuter", importedSense.grammaticalGender)
+        assertEquals("/test/", viewModel.uiState.value.pronunciations.single().value)
+        assertEquals(
+            PronunciationNotation.IPA,
+            viewModel.uiState.value.pronunciations.single().notation,
+        )
+    }
+
+    @Test
+    fun `unchanged pronunciation and gender are removed on second suggestion tap`() = runTest {
+        val provider = suggestionProvider(
+            id = "kaikki",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        ) { success(it, includeLinguisticMetadata = true) }
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        assertEquals(1, viewModel.uiState.value.pronunciations.size)
+        assertEquals("neuter", viewModel.uiState.value.senses.single().grammaticalGender)
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+
+        assertTrue(viewModel.uiState.value.pronunciations.isEmpty())
+        assertEquals("", viewModel.uiState.value.senses.single().grammaticalGender)
+        assertFalse(viewModel.uiState.value.senses.single().isGrammaticalGenderVisible)
+    }
+
+    @Test
+    fun `headword cleanup preserves user edited provider pronunciation and gender`() = runTest {
+        val provider = suggestionProvider(
+            id = "kaikki",
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        ) { success(it, includeLinguisticMetadata = true) }
+        val viewModel = createViewModel(providers = listOf(provider))
+        runCurrent()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        runCurrent()
+        val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
+        viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
+        val pronunciationKey = viewModel.uiState.value.pronunciations.single().key
+        val senseKey = viewModel.uiState.value.senses.single().key
+        viewModel.onAction(
+            WordEditorAction.PronunciationValueChanged(pronunciationKey, "/user/"),
+        )
+        viewModel.onAction(WordEditorAction.GrammaticalGenderChanged(senseKey, "common"))
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("再见"))
+
+        val state = viewModel.uiState.value
+        assertEquals("/user/", state.pronunciations.single().value)
+        assertNull(state.pronunciations.single().provenance)
+        assertEquals("common", state.senses.single().grammaticalGender)
+        assertNull(state.senses.single().provenance)
+    }
+
+    @Test
+    fun `Japanese Korean and English results are searched together and Korean stays first`() = runTest {
         val korean = RecordingSuggestionProvider(
             id = "korean-basic-dictionary",
             displayName = "Korean Basic Dictionary",
@@ -176,27 +305,26 @@ class WordEditorDictionarySuggestionsTest {
         val state = viewModel.uiState.value
         assertEquals(
             setOf(JAPANESE_TO_KOREAN, JAPANESE_TO_ENGLISH),
-            state.dictionaryLanguageOptions.map { it.languagePair }.toSet(),
+            state.dictionaryLanguagePairs.toSet(),
         )
         assertEquals(
             listOf(JAPANESE_TO_KOREAN, JAPANESE_TO_ENGLISH),
-            state.dictionaryLanguageOptions.map { it.languagePair },
+            state.dictionaryLanguagePairs,
         )
-        assertEquals(JAPANESE_TO_KOREAN.stableKey(), state.selectedDictionaryLanguageOptionKey)
-        val englishOption = state.dictionaryLanguageOptions
-            .single { it.languagePair == JAPANESE_TO_ENGLISH }
-        viewModel.onAction(WordEditorAction.DictionaryLanguagePairSelected(englishOption.key))
         viewModel.onAction(WordEditorAction.HeadwordChanged("食べる"))
         advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
         runCurrent()
 
-        assertTrue(korean.queries.isEmpty())
+        assertEquals(listOf(JAPANESE_TO_KOREAN), korean.queries.map { it.languagePair })
         assertEquals(listOf(JAPANESE_TO_ENGLISH), jmdict.queries.map { it.languagePair })
-        assertEquals("JMdict", viewModel.uiState.value.dictionarySuggestionGroups.single().providerName)
+        assertEquals(
+            listOf("ko", "en"),
+            viewModel.uiState.value.synthesizedSuggestionGroups.map { it.resultLanguage?.value },
+        )
     }
 
     @Test
-    fun `English remains selected when Korean result provider is absent`() = runTest {
+    fun `English remains available when Korean result provider is absent`() = runTest {
         val jmdict = RecordingSuggestionProvider(
             id = "jmdict",
             displayName = "JMdict",
@@ -212,9 +340,8 @@ class WordEditorDictionarySuggestionsTest {
 
         assertEquals(
             listOf(JAPANESE_TO_ENGLISH),
-            viewModel.uiState.value.dictionaryLanguageOptions.map { it.languagePair },
+            viewModel.uiState.value.dictionaryLanguagePairs,
         )
-        assertEquals(JAPANESE_TO_ENGLISH.stableKey(), viewModel.uiState.value.selectedDictionaryLanguageOptionKey)
     }
 
     @Test
@@ -249,6 +376,10 @@ class WordEditorDictionarySuggestionsTest {
             groups.single { it.providerId.value == "unavailable" }
                 .message.orEmpty().contains("Unavailable Dictionary"),
         )
+        val synthesized = viewModel.uiState.value.synthesizedSuggestionGroups.single()
+        assertEquals(1, synthesized.candidates.size)
+        assertEquals("available", synthesized.candidates.single().primarySource.providerId.value)
+        assertTrue(synthesized.messages.single().text.contains("Unavailable Dictionary"))
     }
 
     @Test
@@ -302,7 +433,7 @@ class WordEditorDictionarySuggestionsTest {
         )
         assertEquals("test.dictionary", state.senses.single().provenance?.providerId)
         assertFalse(state.senses.single().provenance!!.modifiedAfterImport)
-        assertSame(result, state.dictionaryReference)
+        assertEquals(result, state.dictionaryReference)
     }
 
     @Test
@@ -438,7 +569,7 @@ class WordEditorDictionarySuggestionsTest {
         val second = suggestionProvider(
             id = "second.dictionary",
             importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
-        )
+        ) { success(it, meaning = "second provider meaning") }
         val viewModel = createViewModel(providers = listOf(first, second))
         runCurrent()
         viewModel.onAction(WordEditorAction.HeadwordChanged("你好"))
@@ -496,7 +627,7 @@ class WordEditorDictionarySuggestionsTest {
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
 
         assertEquals("", viewModel.uiState.value.senses.single().meaning)
-        assertSame(result, viewModel.uiState.value.dictionaryReference)
+        assertEquals(result, viewModel.uiState.value.dictionaryReference)
 
         viewModel.onAction(WordEditorAction.MeaningChanged(-1, "사용자가 쓴 뜻"))
         viewModel.onAction(WordEditorAction.Save)
@@ -587,8 +718,28 @@ class WordEditorDictionarySuggestionsTest {
 
     @Test
     fun `automatic search and explicit use do not replace an existing saved entry`() = runTest {
-        val provider = suggestionProvider(importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS)
-        val repository = SuggestionVocabularyRepository(initialEntry = savedEntry())
+        val provider = suggestionProvider(
+            importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+        ) { success(it, includeLinguisticMetadata = true) }
+        val saved = savedEntry().copy(
+            pronunciations = listOf(
+                VocabularyPronunciation(
+                    id = 80,
+                    stableId = "manual-pronunciation",
+                    notation = PronunciationNotation.IPA,
+                    value = "/manual/",
+                    languageTag = "zh-Hans",
+                ),
+            ),
+            senses = savedEntry().senses.map {
+                it.copy(
+                    grammaticalGender = VocabularyGrammaticalGender(
+                        GrammaticalGenderCategory.COMMON,
+                    ),
+                )
+            },
+        )
+        val repository = SuggestionVocabularyRepository(initialEntry = saved)
         val viewModel = createViewModel(
             repository = repository,
             providers = listOf(provider),
@@ -599,6 +750,8 @@ class WordEditorDictionarySuggestionsTest {
         val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
         assertEquals("saved meaning", viewModel.uiState.value.senses.single().meaning)
         assertEquals("user reading", viewModel.uiState.value.reading)
+        assertEquals(listOf("/manual/"), viewModel.uiState.value.pronunciations.map { it.value })
+        assertEquals("common", viewModel.uiState.value.senses.single().grammaticalGender)
 
         viewModel.onAction(WordEditorAction.DictionarySuggestionSelected(result))
 
@@ -610,6 +763,8 @@ class WordEditorDictionarySuggestionsTest {
         assertEquals("test.dictionary", state.senses.last().provenance?.providerId)
         assertEquals("saved note", state.notes)
         assertEquals("user reading", state.reading)
+        assertEquals(listOf("/manual/", "/test/"), state.pronunciations.map { it.value })
+        assertEquals("common", state.senses.first().grammaticalGender)
         assertEquals(setOf(9L), state.selectedTagIds)
     }
 
@@ -653,8 +808,9 @@ class WordEditorDictionarySuggestionsTest {
         advanceUntilIdle()
         val result = viewModel.uiState.value.dictionarySuggestionGroups.single().entries.single()
         val selectedState = viewModel.uiState.value
-        assertEquals(setOf(result.suggestionKey()), selectedState.selectedSuggestionKeys)
-        assertEquals(result.suggestionKey(), selectedState.senses.single().importSuggestionKey)
+        val synthesizedKey = selectedState.synthesizedSuggestionGroups.single().candidates.single().key
+        assertEquals(setOf(synthesizedKey), selectedState.selectedSuggestionKeys)
+        assertEquals(synthesizedKey, selectedState.senses.single().importSuggestionKey)
         assertEquals("provider meaning", selectedState.senses.single().meaning)
         assertEquals("saved note", selectedState.notes)
 
@@ -766,6 +922,8 @@ private class RecordingSuggestionProvider(
     fun success(
         query: DictionaryQuery,
         meaning: String = "provider meaning",
+        includeExample: Boolean = true,
+        includeLinguisticMetadata: Boolean = false,
     ): DictionarySearchResult = DictionarySearchResult.Success(
         DictionarySearchPage(
             entries = listOf(
@@ -776,6 +934,17 @@ private class RecordingSuggestionProvider(
                     sourceLanguage = query.languagePair.sourceLanguage,
                     linguisticFeatures = DictionaryLinguisticFeatures(
                         reading = DictionaryReading("provider reading"),
+                        pronunciations = if (includeLinguisticMetadata) {
+                            listOf(
+                                DictionaryPronunciation(
+                                    text = "/test/",
+                                    notation = DictionaryPronunciationNotation.IPA,
+                                    language = query.languagePair.sourceLanguage,
+                                ),
+                            )
+                        } else {
+                            emptyList()
+                        },
                     ),
                     senses = listOf(
                         ExternalDictionarySense(
@@ -787,12 +956,19 @@ private class RecordingSuggestionProvider(
                                 ),
                             ),
                             partOfSpeech = "noun",
-                            examples = listOf(
-                                DictionaryExample(
-                                    text = "provider example",
-                                    language = query.languagePair.sourceLanguage,
-                                ),
-                            ),
+                            grammaticalGender = "neuter".takeIf {
+                                includeLinguisticMetadata
+                            },
+                            examples = if (includeExample) {
+                                listOf(
+                                    DictionaryExample(
+                                        text = "provider example",
+                                        language = query.languagePair.sourceLanguage,
+                                    ),
+                                )
+                            } else {
+                                emptyList()
+                            },
                         ),
                     ),
                     attribution = descriptor.attribution,

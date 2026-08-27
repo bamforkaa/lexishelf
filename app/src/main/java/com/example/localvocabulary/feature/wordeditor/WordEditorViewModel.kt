@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
+import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
@@ -21,7 +22,10 @@ import com.example.localvocabulary.settings.SettingsRepository
 import com.example.localvocabulary.vocabulary.domain.TagRepository
 import com.example.localvocabulary.vocabulary.domain.SaveTagResult
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryDraft
+import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
+import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciationDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryValidator
 import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
@@ -61,6 +65,20 @@ data class SuggestionSenseContribution(
     val meaning: String,
     val partOfSpeech: String,
     val exampleTextsByKey: Map<Long, String>,
+    val grammaticalGender: String,
+)
+
+data class EditablePronunciation(
+    val key: Long,
+    val stableId: String? = null,
+    val notation: PronunciationNotation = PronunciationNotation.IPA,
+    val value: String = "",
+    val languageTag: String? = null,
+    val provenance: DictionaryProvenance? = null,
+    val suggestionKeys: Set<String> = emptySet(),
+    val sessionSuggestionKeys: Set<String> = emptySet(),
+    val importedValue: String? = null,
+    val isUserEdited: Boolean = false,
 )
 
 data class EditableSense(
@@ -71,6 +89,8 @@ data class EditableSense(
     val provenance: DictionaryProvenance? = null,
     val importSuggestionKey: String? = null,
     val sessionContribution: SuggestionSenseContribution? = null,
+    val grammaticalGender: String = "",
+    val isGrammaticalGenderVisible: Boolean = false,
 )
 
 data class WordEditorUiState(
@@ -85,6 +105,7 @@ data class WordEditorUiState(
     val isReadingUserEdited: Boolean = false,
     val readingSuggestionKeys: Set<String> = emptySet(),
     val sessionReadingSuggestionKeys: Set<String> = emptySet(),
+    val pronunciations: List<EditablePronunciation> = emptyList(),
     val senses: List<EditableSense> = listOf(EditableSense(-1)),
     val notes: String = "",
     val availableTags: List<VocabularyTag> = emptyList(),
@@ -101,12 +122,13 @@ data class WordEditorUiState(
     val wordbookCreationError: String? = null,
     val wordbookCreationMessage: String? = null,
     val isCreatingWordbook: Boolean = false,
-    val dictionaryLanguageOptions: List<DictionaryLanguagePairOption> = emptyList(),
-    val selectedDictionaryLanguageOptionKey: String? = null,
+    val dictionaryLanguagePairs: List<DictionaryLanguagePair> = emptyList(),
     val isDictionarySearchInProgress: Boolean = false,
     val dictionarySuggestionGroups: List<DictionarySuggestionGroup> = emptyList(),
+    val synthesizedSuggestionGroups: List<SynthesizedSuggestionGroup> = emptyList(),
     val dictionarySuggestionMessage: String? = null,
     val dictionaryReference: ExternalDictionaryEntry? = null,
+    val dictionaryReferenceSuggestionKey: String? = null,
     val externalDictionaryReference: ExternalDictionaryReference? = null,
     val selectedSuggestionKeys: Set<String> = emptySet(),
     val validationError: VocabularyValidationError? = null,
@@ -120,7 +142,16 @@ sealed interface WordEditorAction {
     data class LanguageTagChanged(val value: String) : WordEditorAction
     data class UserLanguageAdded(val languageTag: String) : WordEditorAction
     data class ReadingChanged(val value: String) : WordEditorAction
-    data class DictionaryLanguagePairSelected(val key: String) : WordEditorAction
+    data object AddPronunciation : WordEditorAction
+    data class RemovePronunciation(val pronunciationKey: Long) : WordEditorAction
+    data class PronunciationValueChanged(
+        val pronunciationKey: Long,
+        val value: String,
+    ) : WordEditorAction
+    data class PronunciationNotationChanged(
+        val pronunciationKey: Long,
+        val notation: PronunciationNotation,
+    ) : WordEditorAction
     data class DictionarySuggestionSelected(
         val entry: ExternalDictionaryEntry,
     ) : WordEditorAction
@@ -130,6 +161,11 @@ sealed interface WordEditorAction {
     data class RemoveSense(val senseKey: Long) : WordEditorAction
     data class MeaningChanged(val senseKey: Long, val value: String) : WordEditorAction
     data class PartOfSpeechChanged(val senseKey: Long, val value: String) : WordEditorAction
+    data class GrammaticalGenderChanged(val senseKey: Long, val value: String) : WordEditorAction
+    data class GrammaticalGenderVisibilityChanged(
+        val senseKey: Long,
+        val visible: Boolean,
+    ) : WordEditorAction
     data class AddExample(val senseKey: Long) : WordEditorAction
     data class RemoveExample(val senseKey: Long, val exampleKey: Long) : WordEditorAction
     data class ExampleChanged(
@@ -207,6 +243,7 @@ class WordEditorViewModel @Inject constructor(
                             it.copy(
                                 isDictionarySearchInProgress = false,
                                 dictionarySuggestionGroups = emptyList(),
+                                synthesizedSuggestionGroups = emptyList(),
                             )
                         }
                     }
@@ -242,7 +279,11 @@ class WordEditorViewModel @Inject constructor(
                     } else {
                         clearSessionDictionaryContributions()
                     }
-                    state.copy(headword = action.value, dictionaryReference = null)
+                    state.copy(
+                        headword = action.value,
+                        dictionaryReference = null,
+                        dictionaryReferenceSuggestionKey = null,
+                    )
                 }
                 refreshExternalDictionaryReference()
                 scheduleDictionarySuggestions()
@@ -262,8 +303,50 @@ class WordEditorViewModel @Inject constructor(
                     isReadingUserEdited = true,
                 )
             }
-            is WordEditorAction.DictionaryLanguagePairSelected -> {
-                selectDictionaryLanguagePair(action.key)
+            WordEditorAction.AddPronunciation -> updateForm {
+                copy(
+                    pronunciations = pronunciations + EditablePronunciation(
+                        key = newKey(),
+                        languageTag = VocabularyEntryValidator.normalizeLanguageTag(languageTag),
+                    ),
+                )
+            }
+            is WordEditorAction.RemovePronunciation -> updateForm {
+                copy(
+                    pronunciations = pronunciations.filterNot {
+                        it.key == action.pronunciationKey
+                    },
+                )
+            }
+            is WordEditorAction.PronunciationValueChanged -> updateForm {
+                copy(
+                    pronunciations = pronunciations.map { pronunciation ->
+                        if (pronunciation.key == action.pronunciationKey) {
+                            pronunciation.copy(
+                                value = action.value,
+                                provenance = pronunciation.provenance?.markModified(),
+                                isUserEdited = true,
+                            )
+                        } else {
+                            pronunciation
+                        }
+                    },
+                )
+            }
+            is WordEditorAction.PronunciationNotationChanged -> updateForm {
+                copy(
+                    pronunciations = pronunciations.map { pronunciation ->
+                        if (pronunciation.key == action.pronunciationKey) {
+                            pronunciation.copy(
+                                notation = action.notation,
+                                provenance = pronunciation.provenance?.markModified(),
+                                isUserEdited = true,
+                            )
+                        } else {
+                            pronunciation
+                        }
+                    },
+                )
             }
             is WordEditorAction.DictionarySuggestionSelected -> {
                 selectDictionarySuggestion(action.entry)
@@ -287,6 +370,19 @@ class WordEditorViewModel @Inject constructor(
             is WordEditorAction.PartOfSpeechChanged -> updateSense(action.senseKey) {
                 copy(partOfSpeech = action.value)
             }
+            is WordEditorAction.GrammaticalGenderChanged -> updateSense(action.senseKey) {
+                copy(
+                    grammaticalGender = action.value,
+                    isGrammaticalGenderVisible = true,
+                )
+            }
+            is WordEditorAction.GrammaticalGenderVisibilityChanged ->
+                updateSense(action.senseKey) {
+                    copy(
+                        grammaticalGender = if (action.visible) grammaticalGender else "",
+                        isGrammaticalGenderVisible = action.visible,
+                    )
+                }
             is WordEditorAction.AddExample -> updateSense(action.senseKey) {
                 copy(examples = examples + EditableExample(newKey()))
             }
@@ -478,6 +574,18 @@ class WordEditorViewModel @Inject constructor(
                             reading = entry.reading,
                             readingProvenance = entry.readingProvenance,
                             isReadingUserEdited = true,
+                            pronunciations = entry.pronunciations.map { pronunciation ->
+                                EditablePronunciation(
+                                    key = pronunciation.id,
+                                    stableId = pronunciation.stableId,
+                                    notation = pronunciation.notation,
+                                    value = pronunciation.value,
+                                    languageTag = pronunciation.languageTag,
+                                    provenance = pronunciation.provenance,
+                                    isUserEdited = pronunciation.provenance == null ||
+                                        pronunciation.provenance.modifiedAfterImport,
+                                )
+                            },
                             senses = entry.senses.map { sense ->
                                 EditableSense(
                                     key = sense.id,
@@ -486,6 +594,11 @@ class WordEditorViewModel @Inject constructor(
                                     examples = sense.examples.map { EditableExample(it.id, it.text) }
                                         .ifEmpty { listOf(EditableExample(newKey())) },
                                     provenance = sense.provenance,
+                                    grammaticalGender = sense.grammaticalGender
+                                        ?.displayValue()
+                                        .orEmpty(),
+                                    isGrammaticalGenderVisible =
+                                        sense.grammaticalGender != null,
                                 )
                             },
                             notes = entry.notes,
@@ -511,51 +624,27 @@ class WordEditorViewModel @Inject constructor(
         val state = mutableUiState.value
         val sourceLanguage = Bcp47LanguageTag.parse(state.languageTag)
         val descriptors = dictionaryProviderRegistry.descriptors()
-        val options = sourceLanguage?.let { source ->
+        val languagePairs = sourceLanguage?.let { source ->
             descriptors
                 .flatMap(DictionaryProviderDescriptor::supportedLanguagePairs)
                 .filter { it.sourceLanguage == source }
                 .distinct()
                 .sortedWith(DictionaryResultLanguagePreference.comparator)
-                .map { pair ->
-                    DictionaryLanguagePairOption(
-                        key = pair.stableKey(),
-                        languagePair = pair,
-                        providerCount = descriptors.count { pair in it.supportedLanguagePairs },
-                    )
-                }
         }.orEmpty()
-        val selectedKey = state.selectedDictionaryLanguageOptionKey
-            ?.takeIf { key -> options.any { it.key == key } }
-            ?: options.firstOrNull()?.key
         val message = when {
             state.languageTag.isBlank() -> null
             sourceLanguage == null -> "유효한 BCP 47 원문 언어 태그를 입력하면 사전을 검색합니다."
-            options.isEmpty() -> "현재 원문 언어를 지원하는 사전 공급원이 없습니다."
+            languagePairs.isEmpty() -> "현재 원문 언어를 지원하는 사전 공급원이 없습니다."
             else -> null
         }
         mutableUiState.update {
             it.copy(
-                dictionaryLanguageOptions = options,
-                selectedDictionaryLanguageOptionKey = selectedKey,
+                dictionaryLanguagePairs = languagePairs,
                 dictionarySuggestionGroups = emptyList(),
+                synthesizedSuggestionGroups = emptyList(),
                 dictionarySuggestionMessage = message,
                 dictionaryReference = null,
-            )
-        }
-        scheduleDictionarySuggestions()
-    }
-
-    private fun selectDictionaryLanguagePair(key: String) {
-        val state = mutableUiState.value
-        if (state.dictionaryLanguageOptions.none { it.key == key }) return
-        if (state.selectedDictionaryLanguageOptionKey == key) return
-        mutableUiState.update {
-            it.clearSessionDictionaryContributions().copy(
-                selectedDictionaryLanguageOptionKey = key,
-                dictionarySuggestionGroups = emptyList(),
-                dictionarySuggestionMessage = null,
-                dictionaryReference = null,
+                dictionaryReferenceSuggestionKey = null,
             )
         }
         scheduleDictionarySuggestions()
@@ -563,21 +652,19 @@ class WordEditorViewModel @Inject constructor(
 
     private fun scheduleDictionarySuggestions() {
         val state = mutableUiState.value
-        val pair = state.dictionaryLanguageOptions
-            .firstOrNull { it.key == state.selectedDictionaryLanguageOptionKey }
-            ?.languagePair
         val request = DictionarySuggestionRequest(
             query = state.headword.trim(),
-            languagePair = pair,
+            languagePairs = state.dictionaryLanguagePairs,
         )
         if (request == dictionarySuggestionRequests.value) return
         mutableUiState.update {
             it.copy(
                 isDictionarySearchInProgress = false,
                 dictionarySuggestionGroups = emptyList(),
+                synthesizedSuggestionGroups = emptyList(),
                 dictionarySuggestionMessage = when {
                     request.query.isBlank() -> it.dictionarySuggestionMessage
-                    pair == null -> it.dictionarySuggestionMessage
+                    request.languagePairs.isEmpty() -> it.dictionarySuggestionMessage
                     else -> null
                 },
             )
@@ -586,19 +673,23 @@ class WordEditorViewModel @Inject constructor(
     }
 
     private suspend fun searchDictionarySuggestions(request: DictionarySuggestionRequest) {
-        val languagePair = requireNotNull(request.languagePair)
-        val query = DictionaryQuery(
-            text = request.query,
-            languagePair = languagePair,
-            resultLimit = DICTIONARY_RESULT_LIMIT,
-        )
-        val descriptors = dictionaryProviderRegistry.descriptorsSupporting(query)
-        if (descriptors.isEmpty()) {
+        val searches = request.languagePairs.flatMap { languagePair ->
+            val query = DictionaryQuery(
+                text = request.query,
+                languagePair = languagePair,
+                resultLimit = DICTIONARY_RESULT_LIMIT,
+            )
+            dictionaryProviderRegistry.descriptorsSupporting(query).map { descriptor ->
+                descriptor to query
+            }
+        }
+        if (searches.isEmpty()) {
             if (dictionarySuggestionRequests.value == request) {
                 mutableUiState.update {
                     it.copy(
                         isDictionarySearchInProgress = false,
                         dictionarySuggestionGroups = emptyList(),
+                        synthesizedSuggestionGroups = emptyList(),
                         dictionarySuggestionMessage = "선택한 언어 조합을 지원하는 사전이 없습니다.",
                     )
                 }
@@ -610,17 +701,19 @@ class WordEditorViewModel @Inject constructor(
             it.copy(isDictionarySearchInProgress = true, dictionarySuggestionMessage = null)
         }
         val groups = coroutineScope {
-            descriptors.mapNotNull { descriptor ->
+            searches.mapNotNull { (descriptor, query) ->
                 dictionaryProviderRegistry.find(descriptor.id)?.let { provider ->
                     async { searchProviderSafely(descriptor, provider, query) }
                 }
             }.map { it.await() }
         }
         if (dictionarySuggestionRequests.value != request) return
+        val synthesizedGroups = DictionarySuggestionSynthesizer.synthesize(groups)
         mutableUiState.update { state ->
-            state.restoreSuggestionOwnership(groups).copy(
+            state.restoreSuggestionOwnership(synthesizedGroups).copy(
                 isDictionarySearchInProgress = false,
                 dictionarySuggestionGroups = groups,
+                synthesizedSuggestionGroups = synthesizedGroups,
                 dictionarySuggestionMessage = null,
             )
         }
@@ -628,6 +721,7 @@ class WordEditorViewModel @Inject constructor(
 
     private fun searchProvider(
         descriptor: DictionaryProviderDescriptor,
+        query: DictionaryQuery,
         result: DictionarySearchResult,
     ): DictionarySuggestionGroup = when (result) {
         is DictionarySearchResult.Success -> DictionarySuggestionGroup(
@@ -639,11 +733,13 @@ class WordEditorViewModel @Inject constructor(
             } else {
                 null
             },
+            languagePair = query.languagePair,
         )
         is DictionarySearchResult.Failure -> DictionarySuggestionGroup(
             providerId = descriptor.id,
             providerName = descriptor.displayName,
             message = result.error.toSuggestionMessage(descriptor.displayName),
+            languagePair = query.languagePair,
         )
     }
 
@@ -652,7 +748,7 @@ class WordEditorViewModel @Inject constructor(
         provider: DictionaryProvider,
         query: DictionaryQuery,
     ): DictionarySuggestionGroup = try {
-        searchProvider(descriptor, provider.search(query))
+        searchProvider(descriptor, query, provider.search(query))
     } catch (error: CancellationException) {
         throw error
     } catch (error: Exception) {
@@ -660,18 +756,25 @@ class WordEditorViewModel @Inject constructor(
             providerId = descriptor.id,
             providerName = descriptor.displayName,
             message = error.message ?: "${descriptor.displayName} 검색에 실패했습니다.",
+            languagePair = query.languagePair,
         )
     }
 
     private fun selectDictionarySuggestion(entry: ExternalDictionaryEntry) {
-        val suggestionKey = entry.suggestionKey()
+        val rawKey = entry.suggestionKey()
+        val candidate = mutableUiState.value.synthesizedSuggestionGroups
+            .asSequence()
+            .flatMap { it.candidates.asSequence() }
+            .firstOrNull { it.primaryEntry.suggestionKey() == rawKey }
+            ?: return
+        val suggestionKey = candidate.key
         if (suggestionKey in mutableUiState.value.selectedSuggestionKeys) {
             deselectDictionarySuggestion(suggestionKey)
             return
         }
         when (
             val mapping = DictionaryEntryDraftMapper.map(
-                entry = entry,
+                entry = candidate.primaryEntry,
                 importedAtEpochMillis = timeProvider.currentTimeMillis(),
             )
         ) {
@@ -680,6 +783,7 @@ class WordEditorViewModel @Inject constructor(
                     .takeIf { senses -> senses.any { it.hasContent() } }
                     ?.let { toEditableSenses(it, suggestionKey) }
                     .orEmpty()
+                val seededPronunciations = mapping.seed.draft.pronunciations
                 mutableUiState.update { state ->
                     val acceptsReading = !state.isReadingUserEdited && state.reading.isBlank() &&
                         mapping.seed.draft.reading.isNotBlank()
@@ -704,6 +808,10 @@ class WordEditorViewModel @Inject constructor(
                         } else {
                             state.readingProvenance
                         },
+                        pronunciations = state.pronunciations.withSuggestionPronunciations(
+                            seededPronunciations,
+                            suggestionKey,
+                        ),
                         readingSuggestionKeys = if (acceptsReading || sharesReading) {
                             state.readingSuggestionKeys + suggestionKey
                         } else {
@@ -715,6 +823,7 @@ class WordEditorViewModel @Inject constructor(
                             state.sessionReadingSuggestionKeys
                         },
                         dictionaryReference = mapping.seed.transientEntry,
+                        dictionaryReferenceSuggestionKey = suggestionKey,
                         selectedSuggestionKeys = state.selectedSuggestionKeys + suggestionKey,
                     )
                 }
@@ -722,6 +831,7 @@ class WordEditorViewModel @Inject constructor(
             is DictionaryEntryDraftMappingResult.ReferenceOnly -> mutableUiState.update {
                 it.copy(
                     dictionaryReference = mapping.transientEntry,
+                    dictionaryReferenceSuggestionKey = suggestionKey,
                     selectedSuggestionKeys = it.selectedSuggestionKeys + suggestionKey,
                 )
             }
@@ -733,6 +843,42 @@ class WordEditorViewModel @Inject constructor(
             val remainingSelectedKeys = state.selectedSuggestionKeys - suggestionKey
             val remainingReadingKeys = state.readingSuggestionKeys - suggestionKey
             val remainingSessionReadingKeys = state.sessionReadingSuggestionKeys - suggestionKey
+            val retainedPronunciations = state.pronunciations.mapNotNull { pronunciation ->
+                if (suggestionKey !in pronunciation.suggestionKeys) {
+                    return@mapNotNull pronunciation
+                }
+                val remainingOwners = pronunciation.suggestionKeys - suggestionKey
+                val remainingSessionOwners = pronunciation.sessionSuggestionKeys - suggestionKey
+                if (remainingOwners.isNotEmpty()) {
+                    val replacement = pronunciationProvenanceForSelection(
+                        pronunciation,
+                        remainingOwners,
+                    )
+                    pronunciation.copy(
+                        provenance = replacement?.let {
+                            if (pronunciation.provenance?.modifiedAfterImport == true) {
+                                it.markModified()
+                            } else {
+                                it
+                            }
+                        } ?: pronunciation.provenance,
+                        suggestionKeys = remainingOwners,
+                        sessionSuggestionKeys = remainingSessionOwners,
+                    )
+                } else if (
+                    pronunciation.isUserEdited ||
+                    pronunciation.provenance?.modifiedAfterImport == true
+                ) {
+                    pronunciation.copy(
+                        provenance = null,
+                        suggestionKeys = emptySet(),
+                        sessionSuggestionKeys = emptySet(),
+                        importedValue = null,
+                    )
+                } else {
+                    null
+                }
+            }
             val retainedSenses = state.senses.mapNotNull { sense ->
                 val provenance = sense.provenance
                 if (sense.importSuggestionKey != suggestionKey || provenance == null) {
@@ -767,6 +913,7 @@ class WordEditorViewModel @Inject constructor(
             }
             state.copy(
                 senses = retainedSenses,
+                pronunciations = retainedPronunciations,
                 reading = if (removesReading && !keepEditedReading) "" else state.reading,
                 readingProvenance = if (removesReading) null else replacementReadingProvenance,
                 readingSuggestionKeys = remainingReadingKeys,
@@ -776,10 +923,17 @@ class WordEditorViewModel @Inject constructor(
                 } else {
                     state.isReadingUserEdited
                 },
-                dictionaryReference = if (state.dictionaryReference?.suggestionKey() == suggestionKey) {
+                dictionaryReference = if (state.dictionaryReferenceSuggestionKey == suggestionKey) {
                     null
                 } else {
                     state.dictionaryReference
+                },
+                dictionaryReferenceSuggestionKey = if (
+                    state.dictionaryReferenceSuggestionKey == suggestionKey
+                ) {
+                    null
+                } else {
+                    state.dictionaryReferenceSuggestionKey
                 },
                 selectedSuggestionKeys = remainingSelectedKeys,
             )
@@ -788,14 +942,14 @@ class WordEditorViewModel @Inject constructor(
 
     private fun readingProvenanceForSelection(
         selectedKeys: Set<String>,
-    ): DictionaryProvenance? = mutableUiState.value.dictionarySuggestionGroups
+    ): DictionaryProvenance? = mutableUiState.value.synthesizedSuggestionGroups
         .asSequence()
-        .flatMap { it.selectableEntries().asSequence() }
-        .filter { it.suggestionKey() in selectedKeys }
+        .flatMap { it.candidates.asSequence() }
+        .filter { it.key in selectedKeys }
         .mapNotNull { candidate ->
             when (
                 val mapped = DictionaryEntryDraftMapper.map(
-                    candidate,
+                    candidate.primaryEntry,
                     importedAtEpochMillis = 0,
                 )
             ) {
@@ -806,21 +960,47 @@ class WordEditorViewModel @Inject constructor(
         }
         .firstOrNull()
 
+    private fun pronunciationProvenanceForSelection(
+        pronunciation: EditablePronunciation,
+        selectedKeys: Set<String>,
+    ): DictionaryProvenance? = mutableUiState.value.synthesizedSuggestionGroups
+        .asSequence()
+        .flatMap { it.candidates.asSequence() }
+        .filter { it.key in selectedKeys }
+        .flatMap { it.sources.asSequence() }
+        .mapNotNull { source ->
+            when (
+                val mapped = DictionaryEntryDraftMapper.map(
+                    source.entry,
+                    importedAtEpochMillis = 0,
+                )
+            ) {
+                is DictionaryEntryDraftMappingResult.Ready -> mapped.seed.draft.pronunciations
+                    .firstOrNull { pronunciation.sameValueAs(it) }
+                    ?.provenance
+                is DictionaryEntryDraftMappingResult.ReferenceOnly -> null
+            }
+        }
+        .firstOrNull()
+
     private fun WordEditorUiState.restoreSuggestionOwnership(
-        groups: List<DictionarySuggestionGroup>,
+        groups: List<SynthesizedSuggestionGroup>,
     ): WordEditorUiState {
         var restoredSenses = senses
+        var restoredPronunciations = pronunciations
         val restoredSelections = selectedSuggestionKeys.toMutableSet()
         val restoredReadingOwners = readingSuggestionKeys.toMutableSet()
 
         groups.asSequence()
-            .flatMap { it.selectableEntries().asSequence() }
+            .flatMap { it.candidates.asSequence() }
             .forEach { candidate ->
-                val key = candidate.suggestionKey()
-                val mapping = DictionaryEntryDraftMapper.map(candidate, importedAtEpochMillis = 0)
-                if (mapping !is DictionaryEntryDraftMappingResult.Ready) return@forEach
-
-                val candidateProvenances = mapping.seed.draft.senses.mapNotNull { it.provenance }
+                val key = candidate.key
+                val mappings = candidate.sources.mapNotNull { source ->
+                    DictionaryEntryDraftMapper.map(source.entry, importedAtEpochMillis = 0)
+                        as? DictionaryEntryDraftMappingResult.Ready
+                }
+                val candidateProvenances = mappings.flatMap { it.seed.draft.senses }
+                    .mapNotNull { it.provenance }
                 var ownsPersistedContent = false
                 restoredSenses = restoredSenses.map { sense ->
                     val matches = sense.provenance?.let { existing ->
@@ -839,14 +1019,34 @@ class WordEditorViewModel @Inject constructor(
                 }
 
                 val ownsReading = readingProvenance?.let { existing ->
-                    mapping.seed.draft.readingProvenance?.let(existing::hasSameSourceAs)
+                    mappings.mapNotNull { it.seed.draft.readingProvenance }
+                        .any(existing::hasSameSourceAs)
                 } == true
                 if (ownsReading) restoredReadingOwners += key
-                if (ownsPersistedContent || ownsReading) restoredSelections += key
+                val mappedPronunciations = mappings.flatMap { it.seed.draft.pronunciations }
+                var ownsPronunciation = false
+                restoredPronunciations = restoredPronunciations.map { pronunciation ->
+                    val matches = mappedPronunciations.any { mapped ->
+                        pronunciation.sameValueAs(mapped) &&
+                            pronunciation.provenance?.let { existing ->
+                                mapped.provenance?.let(existing::hasSameSourceAs)
+                            } == true
+                    }
+                    if (matches) {
+                        ownsPronunciation = true
+                        pronunciation.copy(suggestionKeys = pronunciation.suggestionKeys + key)
+                    } else {
+                        pronunciation
+                    }
+                }
+                if (ownsPersistedContent || ownsReading || ownsPronunciation) {
+                    restoredSelections += key
+                }
             }
 
         return copy(
             senses = restoredSenses,
+            pronunciations = restoredPronunciations,
             selectedSuggestionKeys = restoredSelections,
             readingSuggestionKeys = restoredReadingOwners,
         )
@@ -880,12 +1080,24 @@ class WordEditorViewModel @Inject constructor(
                         partOfSpeech = sense.partOfSpeech,
                         examples = sense.examples.map { it.text },
                         provenance = sense.provenance,
+                        grammaticalGender = VocabularyGrammaticalGender.parse(
+                            sense.grammaticalGender,
+                        ),
                     )
                 },
                 notes = state.notes,
                 tagIds = state.selectedTagIds,
                 reading = state.reading,
                 readingProvenance = state.readingProvenance,
+                pronunciations = state.pronunciations.map { pronunciation ->
+                    VocabularyPronunciationDraft(
+                        stableId = pronunciation.stableId,
+                        notation = pronunciation.notation,
+                        value = pronunciation.value,
+                        languageTag = pronunciation.languageTag,
+                        provenance = pronunciation.provenance,
+                    )
+                },
                 wordbookIds = state.selectedWordbookIds,
             ),
         )
@@ -990,13 +1202,51 @@ class WordEditorViewModel @Inject constructor(
                 examples = editableExamples.ifEmpty { listOf(EditableExample(newKey())) },
                 provenance = sense.provenance,
                 importSuggestionKey = suggestionKey,
+                grammaticalGender = sense.grammaticalGender?.displayValue().orEmpty(),
+                isGrammaticalGenderVisible = sense.grammaticalGender != null,
                 sessionContribution = SuggestionSenseContribution(
                     meaning = sense.meaning,
                     partOfSpeech = sense.partOfSpeech,
                     exampleTextsByKey = editableExamples.associate { it.key to it.text },
+                    grammaticalGender = sense.grammaticalGender?.displayValue().orEmpty(),
                 ),
             )
         }.ifEmpty { listOf(EditableSense(newKey())) }
+
+    private fun List<EditablePronunciation>.withSuggestionPronunciations(
+        imported: List<VocabularyPronunciationDraft>,
+        suggestionKey: String,
+    ): List<EditablePronunciation> {
+        val result = toMutableList()
+        imported.forEach { pronunciation ->
+            val existingIndex = result.indexOfFirst { it.sameValueAs(pronunciation) }
+            val existing = result.getOrNull(existingIndex)
+            if (existing == null) {
+                result += EditablePronunciation(
+                    key = newKey(),
+                    stableId = pronunciation.stableId,
+                    notation = pronunciation.notation,
+                    value = pronunciation.value,
+                    languageTag = pronunciation.languageTag,
+                    provenance = pronunciation.provenance,
+                    suggestionKeys = setOf(suggestionKey),
+                    sessionSuggestionKeys = setOf(suggestionKey),
+                    importedValue = pronunciation.value,
+                )
+            } else if (!existing.isUserEdited && existing.provenance != null) {
+                result[existingIndex] = existing.copy(
+                    suggestionKeys = existing.suggestionKeys + suggestionKey,
+                    sessionSuggestionKeys = existing.sessionSuggestionKeys + suggestionKey,
+                )
+            }
+        }
+        return result
+    }
+
+    private fun EditablePronunciation.sameValueAs(
+        other: VocabularyPronunciationDraft,
+    ): Boolean = notation == other.notation && value == other.value &&
+        languageTag == other.languageTag
 
     private fun WordEditorUiState.clearSessionDictionaryContributions(): WordEditorUiState {
         val retainedSenses = senses.mapNotNull { sense ->
@@ -1011,11 +1261,26 @@ class WordEditorViewModel @Inject constructor(
         val hasSessionReading = sessionReadingSuggestionKeys.isNotEmpty()
         return copy(
             senses = retainedSenses,
+            pronunciations = pronunciations.mapNotNull { pronunciation ->
+                if (pronunciation.sessionSuggestionKeys.isEmpty()) {
+                    pronunciation.copy(suggestionKeys = emptySet())
+                } else if (pronunciation.isUserEdited) {
+                    pronunciation.copy(
+                        provenance = null,
+                        suggestionKeys = emptySet(),
+                        sessionSuggestionKeys = emptySet(),
+                        importedValue = null,
+                    )
+                } else {
+                    null
+                }
+            },
             reading = if (hasSessionReading && !isReadingUserEdited) "" else reading,
             readingProvenance = if (hasSessionReading) null else readingProvenance,
             readingSuggestionKeys = emptySet(),
             sessionReadingSuggestionKeys = emptySet(),
             dictionaryReference = null,
+            dictionaryReferenceSuggestionKey = null,
             selectedSuggestionKeys = emptySet(),
         )
     }
@@ -1033,6 +1298,11 @@ class WordEditorViewModel @Inject constructor(
                 it == contribution.partOfSpeech
             }.orEmpty(),
             examples = retainedExamples,
+            grammaticalGender = grammaticalGender.takeUnless {
+                it == contribution.grammaticalGender
+            }.orEmpty(),
+            isGrammaticalGenderVisible = grammaticalGender.isNotBlank() &&
+                grammaticalGender != contribution.grammaticalGender,
             provenance = null,
             importSuggestionKey = null,
             sessionContribution = null,
@@ -1041,14 +1311,16 @@ class WordEditorViewModel @Inject constructor(
     }
 
     private fun EditableSense.hasContent(): Boolean =
-        meaning.isNotBlank() || partOfSpeech.isNotBlank() || examples.any { it.text.isNotBlank() }
+        meaning.isNotBlank() || partOfSpeech.isNotBlank() || grammaticalGender.isNotBlank() ||
+            examples.any { it.text.isNotBlank() }
 
     private fun VocabularySenseDraft.hasContent(): Boolean =
-        meaning.isNotBlank() || partOfSpeech.isNotBlank() || examples.any(String::isNotBlank)
+        meaning.isNotBlank() || partOfSpeech.isNotBlank() || grammaticalGender != null ||
+            examples.any(String::isNotBlank)
 
     private fun EditableSense.isBlankPlaceholder(): Boolean =
         provenance == null && meaning.isBlank() && partOfSpeech.isBlank() &&
-            examples.all { it.text.isBlank() }
+            grammaticalGender.isBlank() && examples.all { it.text.isBlank() }
 
     private fun DictionaryProviderError.toSuggestionMessage(providerName: String): String =
         when (this) {

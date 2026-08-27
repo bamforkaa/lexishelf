@@ -19,6 +19,7 @@ import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
+import com.example.localvocabulary.core.database.dao.PronunciationWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.entity.WordbookEntity
@@ -67,7 +68,10 @@ class RoomVocabularyBackupRepositoryTest {
                     "사전 / 詞典",
                     "名詞",
                     listOf("彼は辞書を引いた。", "他查了词典。"),
-                    provenanceWrite(modified = true),
+                    provenanceWrite(modified = true).copy(
+                        importedFields = setOf("MEANING", "GRAMMATICAL_GENDER"),
+                    ),
+                    grammaticalGender = "NEUTER",
                 ),
                 SenseWrite("lexicon", "noun", listOf("café naïve façade")),
             ),
@@ -85,6 +89,21 @@ class RoomVocabularyBackupRepositoryTest {
                 importedFields = setOf("READING"),
             ),
             wordbookIds = setOf(studyWordbookId, travelWordbookId),
+            pronunciations = listOf(
+                PronunciationWrite(
+                    stableId = "pronunciation-ja-1",
+                    notation = "IPA",
+                    value = "/dʑiɕo/",
+                    languageTag = "ja",
+                    provenance = provenanceWrite(modified = true).copy(
+                        providerId = "kaikki",
+                        sourceEntryId = "enw-ja-entry",
+                        sourceSenseId = null,
+                        sourceName = "English Wiktionary via Kaikki/Wiktextract",
+                        importedFields = setOf("PRONUNCIATION"),
+                    ),
+                ),
+            ),
         )
         insertEntry(
             stableId = "entry-arabic",
@@ -116,7 +135,14 @@ class RoomVocabularyBackupRepositoryTest {
         assertEquals(200L, japanese.entry.modifiedAtEpochMillis)
         assertEquals("じしょ", japanese.entry.reading)
         assertEquals("cc-cedict", senses.first().provenance?.providerId)
-        assertEquals(setOf("MEANING"), senses.first().provenanceFields.map { it.field }.toSet())
+        assertEquals(
+            setOf("MEANING", "GRAMMATICAL_GENDER"),
+            senses.first().provenanceFields.map { it.field }.toSet(),
+        )
+        assertEquals("NEUTER", senses.first().sense.grammaticalGender)
+        assertEquals("/dʑiɕo/", japanese.pronunciations.single().pronunciation.value)
+        assertEquals("pronunciation-ja-1", japanese.pronunciations.single().pronunciation.stableId)
+        assertEquals("kaikki", japanese.pronunciations.single().provenance?.providerId)
         assertEquals("jmdict", japanese.entryProvenance.single().providerId)
         assertEquals("READING", japanese.entryProvenance.single().field)
         assertTrue(senses.first().provenance!!.modifiedAfterImport)
@@ -350,6 +376,7 @@ class RoomVocabularyBackupRepositoryTest {
         reading: String = "",
         readingProvenance: SenseDictionaryProvenanceWrite? = null,
         wordbookIds: Set<Long> = emptySet(),
+        pronunciations: List<PronunciationWrite> = emptyList(),
     ): Long = database.vocabularyDao().saveEntry(
         entry = VocabularyEntryEntity(
             backupId = stableId,
@@ -364,6 +391,7 @@ class RoomVocabularyBackupRepositoryTest {
         tagIds = tagIds,
         readingProvenance = readingProvenance,
         wordbookIds = wordbookIds,
+        pronunciations = pronunciations,
     )
 
     private fun decode(json: String): ValidatedBackup =

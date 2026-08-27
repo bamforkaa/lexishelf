@@ -15,6 +15,8 @@ import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.entity.EntryWordbookCrossRef
 import com.example.localvocabulary.core.database.entity.WordbookEntity
+import com.example.localvocabulary.core.database.entity.VocabularyPronunciationEntity
+import com.example.localvocabulary.core.database.entity.PronunciationDictionaryProvenanceEntity
 
 @Database(
     entities = [
@@ -28,8 +30,10 @@ import com.example.localvocabulary.core.database.entity.WordbookEntity
         EntryDictionaryProvenanceEntity::class,
         WordbookEntity::class,
         EntryWordbookCrossRef::class,
+        VocabularyPronunciationEntity::class,
+        PronunciationDictionaryProvenanceEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class VocabularyDatabase : RoomDatabase() {

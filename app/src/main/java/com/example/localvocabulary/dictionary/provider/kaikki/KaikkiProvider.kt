@@ -141,10 +141,10 @@ class KaikkiProvider @Inject internal constructor(
                     fieldOverrides = mapOf(
                         DictionaryContentField.AUDIO to PROHIBITED_AUDIO_POLICY,
                     ),
-                    note = "Glosses, normalized POS, and at most two source-ordered example " +
-                        "texts per sense may be explicitly imported with sense provenance. " +
-                        "Audio/media remain excluded; pronunciation and forms remain transient " +
-                        "suggestion metadata.",
+                    note = "Glosses, normalized POS, grammatical gender, textual pronunciation, " +
+                        "and at most two source-ordered example texts per sense may be explicitly " +
+                        "imported with field provenance. Audio/media remain excluded; forms " +
+                        "remain transient suggestion metadata.",
                 ),
             ),
             dataset = DictionaryDatasetMetadata(

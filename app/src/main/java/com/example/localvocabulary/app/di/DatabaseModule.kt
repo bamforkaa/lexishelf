@@ -11,6 +11,7 @@ import com.example.localvocabulary.core.database.MIGRATION_1_2
 import com.example.localvocabulary.core.database.MIGRATION_2_3
 import com.example.localvocabulary.core.database.MIGRATION_3_4
 import com.example.localvocabulary.core.database.MIGRATION_4_5
+import com.example.localvocabulary.core.database.MIGRATION_5_6
 import com.example.localvocabulary.core.database.dao.TagDao
 import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.dao.WordbookDao
@@ -31,7 +32,13 @@ object DatabaseModule {
             context,
             VocabularyDatabase::class.java,
             "vocabulary.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+        ).addMigrations(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+        ).build()
 
     @Provides
     fun provideVocabularyDao(database: VocabularyDatabase): VocabularyDao = database.vocabularyDao()

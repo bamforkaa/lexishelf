@@ -16,6 +16,7 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
+import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
 import com.example.localvocabulary.vocabulary.domain.SaveWordbookResult
 import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
@@ -87,6 +88,42 @@ class WordEditorViewModelTest {
         assertEquals(WordEditorEffect.Saved(42), savedEffect.await())
         assertEquals(42L, viewModel.uiState.value.entryId)
         assertFalse(viewModel.uiState.value.isSaving)
+    }
+
+    @Test
+    fun `manual pronunciation and grammatical gender are saved as separate fields`() = runTest {
+        val repository = RecordingVocabularyRepository(savedId = 42)
+        val viewModel = createViewModel(repository = repository)
+        advanceUntilIdle()
+        val savedEffect = async(start = CoroutineStart.UNDISPATCHED) { viewModel.effects.first() }
+        viewModel.onAction(WordEditorAction.HeadwordChanged("Wasser"))
+        viewModel.onAction(WordEditorAction.LanguageTagChanged("de"))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "water"))
+        viewModel.onAction(WordEditorAction.AddPronunciation)
+        val pronunciationKey = viewModel.uiState.value.pronunciations.single().key
+        viewModel.onAction(
+            WordEditorAction.PronunciationValueChanged(pronunciationKey, "  /ˈvasɐ/  "),
+        )
+        viewModel.onAction(
+            WordEditorAction.PronunciationNotationChanged(
+                pronunciationKey,
+                PronunciationNotation.IPA,
+            ),
+        )
+        viewModel.onAction(
+            WordEditorAction.GrammaticalGenderVisibilityChanged(-1, true),
+        )
+        viewModel.onAction(WordEditorAction.GrammaticalGenderChanged(-1, "neuter"))
+
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+
+        val draft = repository.savedDrafts.single()
+        assertEquals("/ˈvasɐ/", draft.pronunciations.single().value)
+        assertEquals(PronunciationNotation.IPA, draft.pronunciations.single().notation)
+        assertEquals("de", draft.pronunciations.single().languageTag)
+        assertEquals("neuter", draft.senses.single().grammaticalGender?.displayValue())
+        assertEquals(WordEditorEffect.Saved(42), savedEffect.await())
     }
 
     @Test

@@ -4,6 +4,10 @@ import androidx.room.withTransaction
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
 import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderCategoryV5
+import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationNotationV5
+import com.example.localvocabulary.backup.domain.BackupPronunciationV5
 import com.example.localvocabulary.backup.domain.BackupImportPreview
 import com.example.localvocabulary.backup.domain.BackupImportResult
 import com.example.localvocabulary.backup.domain.BackupSenseV2
@@ -17,6 +21,7 @@ import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
+import com.example.localvocabulary.core.database.dao.PronunciationWrite
 import com.example.localvocabulary.core.database.entity.TagEntity
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.core.database.entity.WordbookEntity
@@ -65,6 +70,12 @@ class RoomVocabularyBackupRepository @Inject constructor(
                                     modifiedAfterImport = provenance.modifiedAfterImport,
                                 ).toBackupV2()
                             },
+                            grammaticalGender = sense.sense.grammaticalGender?.let { category ->
+                                BackupGrammaticalGenderV5(
+                                    category = BackupGrammaticalGenderCategoryV5.valueOf(category),
+                                    rawValue = sense.sense.grammaticalGenderRaw,
+                                )
+                            },
                         )
                     },
                     notes = relation.entry.notes,
@@ -92,6 +103,37 @@ class RoomVocabularyBackupRepository @Inject constructor(
                             ).toBackupV2()
                         },
                     wordbookStableIds = relation.wordbooks.map { it.backupId }.sorted(),
+                    pronunciations = relation.pronunciations
+                        .sortedBy { it.pronunciation.sortOrder }
+                        .map { pronunciationRelation ->
+                            val pronunciation = pronunciationRelation.pronunciation
+                            BackupPronunciationV5(
+                                stableId = pronunciation.stableId,
+                                notation = BackupPronunciationNotationV5.valueOf(
+                                    pronunciation.notation,
+                                ),
+                                value = pronunciation.value,
+                                languageTag = pronunciation.languageTag,
+                                provenance = pronunciationRelation.provenance?.let { provenance ->
+                                    com.example.localvocabulary.vocabulary.domain.DictionaryProvenance(
+                                        providerId = provenance.providerId,
+                                        sourceEntryId = provenance.sourceEntryId,
+                                        sourceSenseId = provenance.sourceSenseId,
+                                        sourceName = provenance.sourceName,
+                                        sourceUrl = provenance.sourceUrl,
+                                        licenseName = provenance.licenseName,
+                                        licenseUrl = provenance.licenseUrl,
+                                        datasetVersion = provenance.datasetVersion,
+                                        importedFields = setOf(
+                                            com.example.localvocabulary.vocabulary.domain
+                                                .ImportedDictionaryField.PRONUNCIATION,
+                                        ),
+                                        importedAtEpochMillis = provenance.importedAtEpochMillis,
+                                        modifiedAfterImport = provenance.modifiedAfterImport,
+                                    ).toBackupV2()
+                                },
+                            )
+                        },
                 )
             }
         VocabularyBackupV2(
@@ -182,6 +224,8 @@ class RoomVocabularyBackupRepository @Inject constructor(
                                 modifiedAfterImport = provenance.modifiedAfterImport,
                             )
                         },
+                        grammaticalGender = sense.grammaticalGender?.category?.name,
+                        grammaticalGenderRaw = sense.grammaticalGender?.rawValue,
                     )
                 },
                 tagIds = entry.tagStableIds.mapTo(mutableSetOf()) { stableId ->
@@ -206,6 +250,29 @@ class RoomVocabularyBackupRepository @Inject constructor(
                     checkNotNull(localWordbookIds[stableId]) {
                         "Validated wordbook reference is missing"
                     }
+                },
+                pronunciations = entry.pronunciations.map { pronunciation ->
+                    PronunciationWrite(
+                        stableId = pronunciation.stableId,
+                        notation = pronunciation.notation.name,
+                        value = pronunciation.value,
+                        languageTag = pronunciation.languageTag,
+                        provenance = pronunciation.provenance?.toDomain()?.let { provenance ->
+                            SenseDictionaryProvenanceWrite(
+                                providerId = provenance.providerId,
+                                sourceEntryId = provenance.sourceEntryId,
+                                sourceSenseId = provenance.sourceSenseId,
+                                sourceName = provenance.sourceName,
+                                sourceUrl = provenance.sourceUrl,
+                                licenseName = provenance.licenseName,
+                                licenseUrl = provenance.licenseUrl,
+                                datasetVersion = provenance.datasetVersion,
+                                importedFields = setOf("PRONUNCIATION"),
+                                importedAtEpochMillis = provenance.importedAtEpochMillis,
+                                modifiedAfterImport = provenance.modifiedAfterImport,
+                            )
+                        },
+                    )
                 },
             )
         }

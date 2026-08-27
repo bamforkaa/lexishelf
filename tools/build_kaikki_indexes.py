@@ -17,10 +17,12 @@ from pathlib import Path
 from typing import BinaryIO, Iterable, Mapping
 
 from tools.dataset_paths import dataset_paths, dataset_root_summary
+from tools.kaikki_form_selection import select_kaikki_forms
 from tools.kaikki_language_config import (
     KAIKKI_CANDIDATE_LANGUAGE_TAGS,
     KAIKKI_DATASET_RELEASE_ID,
     KAIKKI_EXTRACTION_DATE,
+    KAIKKI_FORM_SELECTION_POLICY_VERSION,
     KAIKKI_INDEX_SCHEMA_VERSION,
     KAIKKI_SOURCE_FILE,
     KAIKKI_SOURCE_SHA256,
@@ -32,9 +34,7 @@ _WHITESPACE = re.compile(r"\s+")
 _GENDER_TAGS = frozenset(
     {"masculine", "feminine", "neuter", "common-gender"}
 )
-_INTERNAL_FORM_TAGS = frozenset({"table-tags", "inflection-template"})
 _MAX_PRONUNCIATIONS = 8
-_MAX_FORMS = 24
 _MAX_EXAMPLES_PER_SENSE = 2
 
 
@@ -203,6 +203,7 @@ def _open_language_output(
             ("language_tag", language),
             ("result_language_tag", "en"),
             ("source_sha256", source_digest),
+            ("form_selection_policy", KAIKKI_FORM_SELECTION_POLICY_VERSION),
         ),
     )
     database.commit()
@@ -289,9 +290,14 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
     if not senses:
         return
 
-    pronunciations = _pronunciations(raw_entry.get("sounds"))
-    forms, form_count = _forms(raw_entry.get("forms"), headword)
     raw_pos = _text(raw_entry.get("pos"))
+    pronunciations = _pronunciations(raw_entry.get("sounds"))
+    forms, form_count = _forms(
+        raw_entry.get("forms"),
+        language_tag=output.tag,
+        part_of_speech=raw_pos,
+        headword=headword,
+    )
     entry_id = _stable_entry_id(
         output.tag,
         headword,
@@ -373,28 +379,23 @@ def _pronunciations(value: object) -> list[str]:
     return result
 
 
-def _forms(value: object, headword: str) -> tuple[list[dict[str, str]], int]:
-    if not isinstance(value, list):
-        return [], 0
-    retained: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    total = 0
-    for raw_form in value:
-        if not isinstance(raw_form, dict):
-            continue
-        form = _text(raw_form.get("form"))
-        tags = _strings(raw_form.get("tags"))
-        if not form or form == "-" or _INTERNAL_FORM_TAGS.intersection(tags):
-            continue
-        label = ", ".join(tags)
-        key = (form, label)
-        if key in seen:
-            continue
-        seen.add(key)
-        total += 1
-        if len(retained) < _MAX_FORMS and not (form == headword and not label):
-            retained.append({"f": form, "l": label})
-    return retained, total
+def _forms(
+    value: object,
+    language_tag: str,
+    part_of_speech: str,
+    headword: str,
+) -> tuple[list[dict[str, str]], int]:
+    selection = select_kaikki_forms(
+        language_tag=language_tag,
+        part_of_speech=part_of_speech,
+        lemma=headword,
+        raw_forms=value,
+    )
+    retained = [
+        {"f": form.text, "l": form.label}
+        for form in selection.forms
+    ]
+    return retained, selection.raw_form_count
 
 
 def _examples(value: object) -> tuple[list[str], int]:

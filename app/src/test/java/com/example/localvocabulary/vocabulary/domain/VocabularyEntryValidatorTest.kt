@@ -1,6 +1,7 @@
 package com.example.localvocabulary.vocabulary.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -90,6 +91,30 @@ class VocabularyEntryValidatorTest {
             VocabularyValidationResult.Invalid(VocabularyValidationError.MissingMeaning(1)),
             result,
         )
+    }
+
+    @Test
+    fun `grammatical gender normalizes known values and retains unknown raw values`() {
+        assertEquals(
+            GrammaticalGenderCategory.MASCULINE,
+            VocabularyGrammaticalGender.parse(" masculine ")?.category,
+        )
+        assertEquals(
+            GrammaticalGenderCategory.FEMININE,
+            VocabularyGrammaticalGender.parse("FEMININE")?.category,
+        )
+        assertEquals(
+            GrammaticalGenderCategory.NEUTER,
+            VocabularyGrammaticalGender.parse("neuter")?.category,
+        )
+        assertEquals(
+            GrammaticalGenderCategory.COMMON,
+            VocabularyGrammaticalGender.parse("common-gender")?.category,
+        )
+        val combined = VocabularyGrammaticalGender.parse("feminine, masculine")
+        assertEquals(GrammaticalGenderCategory.OTHER, combined?.category)
+        assertEquals("feminine, masculine", combined?.rawValue)
+        assertNull(VocabularyGrammaticalGender.parse("  "))
     }
 
     private fun validDraft(

@@ -2,13 +2,13 @@
 
 ## 범위와 안전 원칙
 
-canonical backup은 앱의 vocabulary aggregate를 담는 UTF-8 JSON입니다. 단어, BCP 47 언어 태그, reading, 순서가 있는 뜻/품사/예문, 메모, 서로 분리된 Wordbook/Tag와 각 다대다 관계, 생성·수정 시간을 포함합니다. schema v4는 v3 provenance 의미를 유지하면서 Wordbook을 추가합니다. 직접 작성한 field에는 provenance가 없습니다. 현재 domain model에는 favorite와 review metadata가 없어 backup에도 존재하지 않습니다.
+canonical backup은 앱의 vocabulary aggregate를 담는 UTF-8 JSON입니다. 단어, BCP 47 언어 태그, reading, 순서가 있는 발음과 뜻/품사/문법 성/예문, 메모, 서로 분리된 Wordbook/Tag와 각 다대다 관계, 생성·수정 시간을 포함합니다. schema v5는 v4에 stable pronunciation과 sense grammatical gender를 추가합니다. 직접 작성한 field에는 provenance가 없습니다. 현재 domain model에는 favorite와 review metadata가 없어 backup에도 존재하지 않습니다.
 
 DataStore 설정, API key, credential, secret, Android 설정, Room 내부 PK는 포함하지 않습니다. 앱에는 인터넷 또는 공용 저장소 권한이 없으며 Android Storage Access Framework(SAF)의 시스템 파일 선택기로 사용자가 읽고 쓸 문서를 직접 선택합니다.
 
 ## Stable ID
 
-Room의 auto-generated `Long` PK는 한 DB 안의 관계 연결에 적합하지만 DB를 새로 만들면 달라질 수 있어 영구 백업 식별자로 사용하지 않습니다. 단어, Tag, Wordbook에는 별도의 opaque `stableId`가 있습니다.
+Room의 auto-generated `Long` PK는 한 DB 안의 관계 연결에 적합하지만 DB를 새로 만들면 달라질 수 있어 영구 백업 식별자로 사용하지 않습니다. 단어, pronunciation, Tag, Wordbook에는 별도의 opaque `stableId`가 있습니다.
 
 - 신규 데이터: UUID 문자열
 - Room v1에서 v2로 migration되는 기존 데이터: row마다 생성한 고유 32자리 lowercase hex 문자열
@@ -17,14 +17,14 @@ Room의 auto-generated `Long` PK는 한 DB 안의 관계 연결에 적합하지�
 
 이 방식은 동일 백업을 반복 import할 때만 같은 항목을 확실히 찾으며, 내용이 비슷하다는 이유로 사용자의 다른 항목을 자동 덮어쓰지 않습니다.
 
-## Backup schema version 4
+## Backup schema version 5
 
-Room schema version과 backup schema version은 독립적입니다. 현재 Room은 version 5이고 canonical JSON은 `schemaVersion: 4`입니다. v4는 최상위 `wordbooks`와 entry `wordbookStableIds`를 추가합니다. schema v1/v2/v3 import도 계속 지원하며 Wordbook은 빈 상태로 해석합니다. v1/v2의 reading/provenance 호환 규칙도 유지합니다.
+Room schema version과 backup schema version은 독립적입니다. 현재 Room은 version 6이고 canonical JSON은 `schemaVersion: 5`입니다. v5는 entry `pronunciations`와 sense `grammaticalGender`를 추가합니다. schema v1/v2/v3/v4 import도 계속 지원하며 새 필드는 빈 상태로 해석합니다. v4의 Wordbook과 v1/v2의 reading/provenance 호환 규칙도 유지합니다.
 
 ```json
 {
   "format": "local-vocabulary-backup",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "exportedAtEpochMillis": 1787331600000,
   "tags": [
     {
@@ -50,7 +50,8 @@ Room schema version과 backup schema version은 독립적입니다. 현재 Room�
           "examples": [
             "I checked the dictionary."
           ],
-          "provenance": null
+          "provenance": null,
+          "grammaticalGender": null
         }
       ],
       "notes": "사용자가 작성한 메모",
@@ -59,6 +60,17 @@ Room schema version과 backup schema version은 독립적입니다. 현재 Room�
       ],
       "wordbookStableIds": [
         "wordbook-jlpt-n2"
+      ],
+      "reading": "",
+      "readingProvenance": null,
+      "pronunciations": [
+        {
+          "stableId": "pronunciation-entry-1",
+          "notation": "IPA",
+          "value": "/ˈdɪk.ʃən.er.i/",
+          "languageTag": "en",
+          "provenance": null
+        }
       ],
       "createdAtEpochMillis": 1787331000000,
       "modifiedAtEpochMillis": 1787331300000
@@ -69,7 +81,7 @@ Room schema version과 backup schema version은 독립적입니다. 현재 Room�
 
 배열 순서 중 의미가 있는 것은 `entries[].senses`와 각 sense의 `examples`입니다. 분류 관계는 `tagStableIds`와 `wordbookStableIds`로 나타내며 각각 최상위 목록의 ID를 가리켜야 합니다. canonical export는 Wordbook/Tag/entry/relation ID를 stable ID 순서로 정렬합니다.
 
-Provider-derived sense의 `provenance`는 다음 구조입니다. `importedFields`는 현재 sense-level 저장 모델에서 실제 복사된 `MEANING`, `PART_OF_SPEECH`, `EXAMPLES`만 허용합니다.
+Provider-derived sense와 pronunciation의 `provenance`는 다음 구조입니다. `importedFields`는 실제 복사된 `MEANING`, `PART_OF_SPEECH`, `EXAMPLES`, `GRAMMATICAL_GENDER`, `READING`, `PRONUNCIATION`을 해당 저장 위치에 맞게 허용합니다.
 
 ```json
 {
@@ -87,7 +99,7 @@ Provider-derived sense의 `provenance`는 다음 구조입니다. `importedField
 }
 ```
 
-이 metadata는 provider 원문을 user-authored text로 위장하지 않고 attribution과 수정 사실을 복원하기 위한 최소 정보입니다. API key, credential, dataset binary, transient reading/pinyin은 포함하지 않습니다.
+이 metadata는 provider 원문을 user-authored text로 위장하지 않고 attribution과 수정 사실을 복원하기 위한 최소 정보입니다. API key, credential, dataset binary, transient forms는 포함하지 않습니다.
 
 `provenance`는 optional이며 없거나 null이면 user-authored sense입니다. 존재할 때는 provenance 구조의 필수 값과 imported field를 모두 검증합니다. 빈 DB는 빈 `tags`, `wordbooks`, `entries` 배열로 표현합니다. JSON의 unknown field도 현재는 거부합니다.
 
@@ -97,7 +109,7 @@ Provider-derived sense의 `provenance`는 다음 구조입니다. `importedField
 
 1. 선택한 URI를 최대 25 MiB까지 읽고 malformed UTF-8을 거부합니다.
 2. JSON root object를 parsing합니다.
-3. `schemaVersion`을 먼저 확인합니다. 1, 2, 3, 4를 지원합니다.
+3. `schemaVersion`을 먼저 확인합니다. 1, 2, 3, 4, 5를 지원합니다.
 4. 해당 version DTO 전체를 strict decoding하고 필수/unknown field를 확인합니다. v1은 별도 순수 변환으로 provenance 없는 v2 import model이 됩니다.
 5. format, stable ID, 중복 ID/분류 이름, BCP 47 태그, 필수 text, timestamps, sense/example, provenance, Wordbook/Tag reference를 검증하고 canonicalize합니다.
 6. 현재 DB와 비교해 entry/sense/example/tag, 충돌, 신규, 갱신, 건너뜀, 전체 교체 시 제거 수를 계산합니다.
@@ -133,7 +145,7 @@ Wordbook과 Tag는 각자 whitespace를 정규화하고 `Locale.ROOT` lowercase 
 4. 과거 fixture가 계속 import되는 migration/round-trip 테스트를 유지합니다.
 5. 정보 손실이나 정책 변경이 있는 migration은 자동 추측하지 않고 import를 중단해 사용자에게 알립니다.
 
-현재 v1/v2/v3 decoder는 기존 단어/뜻/예문/태그/관계/timestamp/provenance를 보존하고 없던 Wordbook만 empty로 둡니다. 향후 Room schema가 바뀌더라도 JSON 의미가 그대로라면 backup schema는 올릴 필요가 없습니다.
+현재 v1/v2/v3/v4 decoder는 기존 단어/뜻/예문/태그/관계/timestamp/provenance/Wordbook을 보존하고 없던 pronunciation/gender만 empty로 둡니다. 향후 Room schema가 바뀌더라도 JSON 의미가 그대로라면 backup schema는 올릴 필요가 없습니다.
 
 ## 수동 확인
 

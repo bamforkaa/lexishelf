@@ -509,12 +509,108 @@ class VocabularyDatabaseMigrationTest {
         migrated.close()
     }
 
+    @Test
+    fun migrate5To6PreservesCompleteAggregateAndAddsEmptyLinguisticFields() {
+        migrationHelper.createDatabase(LINGUISTIC_METADATA_MIGRATION_DATABASE, 5).apply {
+            execSQL(
+                """
+                INSERT INTO vocabulary_entries
+                    (id, backup_id, headword, language_tag, notes,
+                     created_at_epoch_millis, modified_at_epoch_millis, reading)
+                VALUES (1, 'entry-de', 'Wasser', 'de', 'user note', 100, 200, '')
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO senses VALUES(10, 1, 'water', 'noun', 0)")
+            execSQL("INSERT INTO examples VALUES(100, 10, 'Das Wasser ist kalt.', 0)")
+            execSQL("INSERT INTO tags VALUES(20, 'tag-basic', 'Basic', 'basic')")
+            execSQL("INSERT INTO entry_tag_cross_refs VALUES(1, 20)")
+            execSQL("INSERT INTO wordbooks VALUES(30, 'book-de', 'German', 'german')")
+            execSQL("INSERT INTO entry_wordbook_cross_refs VALUES(1, 30)")
+            execSQL(
+                """
+                INSERT INTO sense_dictionary_provenance VALUES(
+                    10, 'kaikki', 'enw-de-source', 'sense-1',
+                    'English Wiktionary via Kaikki/Wiktextract', NULL,
+                    'CC BY-SA 4.0', NULL, '2026-08-05', 150, 1
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO sense_dictionary_provenance_fields VALUES(10, 'MEANING')")
+            execSQL(
+                """
+                INSERT INTO entry_dictionary_provenance VALUES(
+                    1, 'READING', 'jmdict', 'source-reading', NULL, 'JMdict', NULL,
+                    'CC BY-SA 4.0', NULL, '2026-08-23', 140, 0
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            LINGUISTIC_METADATA_MIGRATION_DATABASE,
+            6,
+            true,
+            MIGRATION_5_6,
+        )
+
+        migrated.query(
+            "SELECT headword, language_tag, notes, reading FROM vocabulary_entries",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(listOf("Wasser", "de", "user note", ""), (0..3).map(cursor::getString))
+        }
+        migrated.query(
+            "SELECT meaning, part_of_speech, grammatical_gender, grammatical_gender_raw " +
+                "FROM senses WHERE id = 10",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("water", cursor.getString(0))
+            assertEquals("noun", cursor.getString(1))
+            assertTrue(cursor.isNull(2))
+            assertTrue(cursor.isNull(3))
+        }
+        migrated.query("SELECT text FROM examples WHERE id = 100").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("Das Wasser ist kalt.", it.getString(0))
+        }
+        migrated.query("SELECT tag_id FROM entry_tag_cross_refs WHERE entry_id = 1").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(20L, it.getLong(0))
+        }
+        migrated.query("SELECT wordbook_id FROM entry_wordbook_cross_refs WHERE entry_id = 1")
+            .use {
+                assertTrue(it.moveToFirst())
+                assertEquals(30L, it.getLong(0))
+            }
+        migrated.query("SELECT modified_after_import FROM sense_dictionary_provenance").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(1, it.getInt(0))
+        }
+        migrated.query("SELECT field FROM sense_dictionary_provenance_fields").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("MEANING", it.getString(0))
+        }
+        migrated.query("SELECT field FROM entry_dictionary_provenance").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("READING", it.getString(0))
+        }
+        migrated.query("SELECT COUNT(*) FROM vocabulary_pronunciations").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { assertEquals(0, it.count) }
+        migrated.close()
+    }
+
     private companion object {
         const val TEST_DATABASE = "migration-test"
         const val RELATION_MIGRATION_DATABASE = "relation-migration-test"
         const val PROVENANCE_MIGRATION_DATABASE = "provenance-migration-test"
         const val READING_MIGRATION_DATABASE = "reading-migration-test"
         const val WORD_BOOK_MIGRATION_DATABASE = "wordbook-migration-test"
+        const val LINGUISTIC_METADATA_MIGRATION_DATABASE =
+            "linguistic-metadata-migration-test"
     }
 }
 

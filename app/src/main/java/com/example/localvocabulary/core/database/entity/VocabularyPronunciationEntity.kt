@@ -7,7 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "senses",
+    tableName = "vocabulary_pronunciations",
     foreignKeys = [
         ForeignKey(
             entity = VocabularyEntryEntity::class,
@@ -16,20 +16,22 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("entry_id")],
+    indices = [
+        Index("entry_id"),
+        Index(value = ["stable_id"], unique = true),
+    ],
 )
-data class SenseEntity(
+data class VocabularyPronunciationEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    @ColumnInfo(name = "stable_id")
+    val stableId: String,
     @ColumnInfo(name = "entry_id")
     val entryId: Long,
-    val meaning: String,
-    @ColumnInfo(name = "part_of_speech")
-    val partOfSpeech: String,
+    val notation: String,
+    val value: String,
+    @ColumnInfo(name = "language_tag")
+    val languageTag: String?,
     @ColumnInfo(name = "sort_order")
     val sortOrder: Int,
-    @ColumnInfo(name = "grammatical_gender")
-    val grammaticalGender: String? = null,
-    @ColumnInfo(name = "grammatical_gender_raw")
-    val grammaticalGenderRaw: String? = null,
 )
