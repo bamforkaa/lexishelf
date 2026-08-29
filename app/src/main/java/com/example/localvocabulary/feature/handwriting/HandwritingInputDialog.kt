@@ -133,6 +133,45 @@ fun HandwritingInputDialog(
     }
 }
 
+/** Reuses the same stable canvas, model controls, and candidate selection outside a dialog. */
+@Composable
+fun InlineHandwritingInput(
+    state: HandwritingInputUiState,
+    onAction: (HandwritingInputAction) -> Unit,
+    onCandidateSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // State-dependent status and candidates stay below the fixed-size canvas.
+        HandwritingCanvas(state = state, onAction = onAction)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            TextButton(
+                onClick = { onAction(HandwritingInputAction.UndoLastStroke) },
+                enabled = !state.ink.isEmpty,
+                modifier = Modifier.testTag("inline_handwriting_undo"),
+            ) { Text("한 획 취소") }
+            TextButton(
+                onClick = { onAction(HandwritingInputAction.Clear) },
+                enabled = !state.ink.isEmpty || state.candidates.isNotEmpty(),
+                modifier = Modifier.testTag("inline_handwriting_clear"),
+            ) { Text("전체 지우기") }
+        }
+        HandwritingLanguageSelector(state = state, onAction = onAction)
+        HandwritingStatus(state = state, onAction = onAction)
+        HandwritingCandidates(
+            state = state,
+            onAction = onAction,
+            onCandidateSelected = onCandidateSelected,
+        )
+    }
+}
+
 @Composable
 private fun HandwritingLanguageSelector(
     state: HandwritingInputUiState,

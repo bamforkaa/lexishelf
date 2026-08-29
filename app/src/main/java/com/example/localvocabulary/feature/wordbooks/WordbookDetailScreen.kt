@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -46,6 +47,7 @@ fun WordbookDetailScreen(
     onAction: (WordbookDetailAction) -> Unit,
     onBack: () -> Unit,
     onOpenWord: (Long) -> Unit,
+    onStartWritingPractice: () -> Unit = {},
 ) {
     val isSelecting = state.mode != WordbookSelectionMode.BROWSE
     Scaffold(
@@ -78,6 +80,16 @@ fun WordbookDetailScreen(
                 },
                 actions = {
                     if (!isSelecting && state.wordbook != null) {
+                        IconButton(
+                            onClick = onStartWritingPractice,
+                            enabled = state.membershipEntryIds.isNotEmpty(),
+                            modifier = Modifier.testTag("practice_wordbook"),
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "이 단어장 쓰기 연습",
+                            )
+                        }
                         TextButton(onClick = { onAction(WordbookDetailAction.StartAdding) }) {
                             Text("단어 추가")
                         }

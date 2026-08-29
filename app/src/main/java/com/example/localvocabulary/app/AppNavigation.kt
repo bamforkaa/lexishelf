@@ -37,6 +37,11 @@ import com.example.localvocabulary.feature.wordbooks.WordbookManagementScreen
 import com.example.localvocabulary.feature.wordbooks.WordbookManagementViewModel
 import com.example.localvocabulary.feature.wordbooks.WordbookDetailScreen
 import com.example.localvocabulary.feature.wordbooks.WordbookDetailViewModel
+import com.example.localvocabulary.feature.writingpractice.PracticeInputMode
+import com.example.localvocabulary.feature.writingpractice.PracticePhase
+import com.example.localvocabulary.feature.writingpractice.WritingPracticeAction
+import com.example.localvocabulary.feature.writingpractice.WritingPracticeScreen
+import com.example.localvocabulary.feature.writingpractice.WritingPracticeViewModel
 import com.example.localvocabulary.handwriting.domain.appendHandwritingCandidate
 
 private object Routes {
@@ -50,11 +55,14 @@ private object Routes {
     const val NEW_WORD = "word/new"
     const val WORD_DETAIL = "word/{entryId}"
     const val EDIT_WORD = "word/{entryId}/edit"
+    const val WRITING_PRACTICE = "practice"
+    const val WORDBOOK_WRITING_PRACTICE = "practice/wordbook/{practiceWordbookId}"
 
     fun detail(entryId: Long) = "word/$entryId"
     fun edit(entryId: Long) = "word/$entryId/edit"
     fun tagCollection(tagId: Long) = "tag/$tagId"
     fun wordbookCollection(wordbookId: Long) = "wordbook/$wordbookId"
+    fun wordbookWritingPractice(wordbookId: Long) = "practice/wordbook/$wordbookId"
 }
 
 @Composable
@@ -70,6 +78,7 @@ fun AppNavigation() {
                 onManageWordbooks = { navController.navigate(Routes.WORDBOOKS) },
                 onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenWritingPractice = { navController.navigate(Routes.WRITING_PRACTICE) },
             )
         }
 
@@ -84,6 +93,7 @@ fun AppNavigation() {
                 onManageWordbooks = { navController.navigate(Routes.WORDBOOKS) },
                 onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenWritingPractice = { navController.navigate(Routes.WRITING_PRACTICE) },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -98,8 +108,26 @@ fun AppNavigation() {
                 state = state,
                 onAction = viewModel::onAction,
                 onOpenWord = { navController.navigate(Routes.detail(it)) },
+                onStartWritingPractice = {
+                    state.wordbook?.id?.let { wordbookId ->
+                        navController.navigate(Routes.wordbookWritingPractice(wordbookId))
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
+        }
+
+        composable(Routes.WRITING_PRACTICE) {
+            WritingPracticeDestination(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Routes.WORDBOOK_WRITING_PRACTICE,
+            arguments = listOf(
+                navArgument("practiceWordbookId") { type = NavType.LongType },
+            ),
+        ) {
+            WritingPracticeDestination(onBack = { navController.popBackStack() })
         }
 
         composable(Routes.NEW_WORD) {
@@ -205,6 +233,7 @@ private fun WordListDestination(
     onManageWordbooks: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWritingPractice: () -> Unit,
     onBack: (() -> Unit)? = null,
 ) {
     val viewModel = hiltViewModel<WordListViewModel>()
@@ -220,11 +249,54 @@ private fun WordListDestination(
         onManageWordbooks = onManageWordbooks,
         onOpenBackup = onOpenBackup,
         onOpenSettings = onOpenSettings,
+        onOpenWritingPractice = onOpenWritingPractice,
         onBack = onBack,
         handwritingState = handwritingState,
         onHandwritingAction = handwritingViewModel::onAction,
         onHandwritingCandidateSelected = { candidate ->
             viewModel.onAction(WordListAction.QueryChanged(candidate))
+        },
+    )
+}
+
+@Composable
+private fun WritingPracticeDestination(onBack: () -> Unit) {
+    val viewModel = hiltViewModel<WritingPracticeViewModel>()
+    val handwritingViewModel = hiltViewModel<HandwritingInputViewModel>()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val handwritingState by handwritingViewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(
+        state.phase,
+        state.handwritingSessionKey,
+        state.inputMode,
+        state.currentQuestion?.languageTag,
+    ) {
+        if (
+            state.phase == PracticePhase.QUESTION &&
+            state.inputMode == PracticeInputMode.HANDWRITING
+        ) {
+            handwritingViewModel.onAction(
+                com.example.localvocabulary.feature.handwriting.HandwritingInputAction.Open(
+                    contextLanguageTag = state.currentQuestion?.languageTag,
+                    vocabularyLanguageTags = state.languages,
+                ),
+            )
+        } else {
+            handwritingViewModel.onAction(
+                com.example.localvocabulary.feature.handwriting.HandwritingInputAction.Close,
+            )
+        }
+    }
+
+    WritingPracticeScreen(
+        state = state,
+        onAction = viewModel::onAction,
+        onBack = onBack,
+        handwritingState = handwritingState,
+        onHandwritingAction = handwritingViewModel::onAction,
+        onHandwritingCandidateSelected = { candidate ->
+            viewModel.onAction(WritingPracticeAction.AnswerChanged(candidate))
         },
     )
 }

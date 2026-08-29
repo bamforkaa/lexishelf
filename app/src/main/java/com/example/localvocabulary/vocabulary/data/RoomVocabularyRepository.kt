@@ -9,6 +9,8 @@ import com.example.localvocabulary.core.database.dao.VocabularyDao
 import com.example.localvocabulary.core.database.entity.VocabularyEntryEntity
 import com.example.localvocabulary.vocabulary.domain.ValidatedVocabularyDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
+import com.example.localvocabulary.vocabulary.domain.VocabularyPracticeFilter
+import com.example.localvocabulary.vocabulary.domain.VocabularyPracticeItem
 import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -40,6 +42,26 @@ class RoomVocabularyRepository @Inject constructor(
         }
 
     override fun observeLanguages(): Flow<List<String>> = vocabularyDao.observeLanguages()
+
+    override suspend fun findPracticeItems(
+        filter: VocabularyPracticeFilter,
+    ): List<VocabularyPracticeItem> = vocabularyDao.findPracticeRows(
+        languageTag = filter.languageTag,
+        wordbookId = filter.wordbookId,
+        tagId = filter.tagId,
+    ).map { row ->
+        VocabularyPracticeItem(
+            entryId = row.entryId,
+            headword = row.headword,
+            languageTag = row.languageTag,
+            representativeMeaning = row.representativeMeaning,
+            reading = row.reading,
+            pronunciation = row.pronunciation,
+            partOfSpeech = row.partOfSpeech,
+            grammaticalGender = row.grammaticalGender,
+            example = row.example,
+        )
+    }
 
     override suspend fun findDuplicateCandidates(
         headword: String,

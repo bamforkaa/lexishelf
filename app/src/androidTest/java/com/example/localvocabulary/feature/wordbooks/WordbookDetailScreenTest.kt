@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -24,6 +25,25 @@ import org.junit.Test
 class WordbookDetailScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun populatedWordbookProvidesWritingPracticeEntryPoint() {
+        var opened = false
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordbookDetailScreen(
+                    state = state(entries = listOf(entry(1, "long")), membershipEntryIds = setOf(1)),
+                    onAction = {},
+                    onBack = {},
+                    onOpenWord = {},
+                    onStartWritingPractice = { opened = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("이 단어장 쓰기 연습").performClick()
+        composeRule.runOnIdle { assertTrue(opened) }
+    }
 
     @Test
     fun existingMembershipIsCheckedDisabledAndNewRowsDispatchSelection() {

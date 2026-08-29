@@ -15,6 +15,10 @@
 > 선택할 수 있으며, 후보를 눌렀을 때만 기존 입력 흐름으로 들어갑니다. 모델·privacy·지원
 > 언어 동작은
 > [손글씨 입력 문서](docs/handwriting.md)를 참고하세요.
+>
+> Task 16: 저장된 vocabulary의 뜻·reading·발음 등을 힌트로 보고 headword를 손글씨 또는
+> 키보드로 답하는 session-only 쓰기 연습 MVP를 제공합니다. 범위·정답 판정·retry 정책은
+> [쓰기 연습 문서](docs/writing-practice.md)를 참고하세요.
 
 개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
 
@@ -39,6 +43,7 @@
 - Hilt 의존성 주입, Navigation Compose, DataStore 설정
 - Word Editor와 vocabulary 검색의 언어별 on-device 손글씨 인식, 안정 Canvas,
   획 취소/전체 지우기와 명시적 후보 선택
+- 전체/언어/단어장/태그 범위의 10/20/전체 쓰기 연습, 손글씨·키보드 답안과 세션 요약
 - online API/local dataset을 함께 수용하는 `DictionaryProvider` 계약, capability/usage policy, provider registry와 안전한 editor seed 경계
 - 도메인/매핑/repository/ViewModel 단위 테스트, Room DAO 테스트, Compose UI 테스트
 
@@ -47,7 +52,7 @@
 - Cambridge 또는 그 밖의 online 사전 연동
 - CC-CEDICT pinyin/prefix/fuzzy 검색, 한국어기초사전 prefix/fuzzy 검색과 자동 dataset download/update
 - AI/LLM 정의, 기계번역, 로그인, 클라우드 동기화, 분석, 광고, 백엔드, 프록시
-- 복습 기능
+- SRS, 장기 복습 이력, 획순·필체 점수
 
 사전 검색과 사용자 단어장 기능은 계속 로컬에서 동작합니다. 다만 손글씨 인식 언어 모델을
 사용자가 처음 내려받을 때 ML Kit가 network를 사용하므로 `INTERNET` permission이 있습니다.
@@ -97,7 +102,7 @@ NAVER 링크는 dictionary content provider가 아닙니다. 현재 `en`, `ja`, 
 - Gradle Version Catalog와 Gradle Wrapper
 - JUnit 4, AndroidX Test, Room testing, Compose UI test
 
-프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md)을 참고하세요.
+프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md), [쓰기 연습 ADR](docs/decisions/0015-session-only-writing-practice.md)을 참고하세요.
 
 ## 개발 환경 설정
 
@@ -160,6 +165,9 @@ $env:LANG_DATABASE_DIR = 'D:\lang-Database'
 저장하지 않습니다. 사용자가 명시적으로 선택해 headword에 반영한 문자열만 일반 사용자
 입력과 같은 방식으로 저장됩니다.
 
+쓰기 연습의 문제 순서, 답안과 first-attempt 통계도 현재 세션 메모리에만 존재하며 Room,
+DataStore, JSON backup에 저장되지 않습니다. 앱의 사용자 vocabulary는 연습 중 수정되지 않습니다.
+
 ## API 키와 비밀정보
 
 현재는 API를 사용하지 않으므로 입력할 키가 없습니다. [`config/api-credentials.properties.example`](config/api-credentials.properties.example)은 빈 미래 설정 구조만 보여 줍니다. 실제 키를 위한 `secrets.properties`, Android SDK 경로가 든 `local.properties`, keystore 파일은 `.gitignore` 대상입니다. 향후 사용자 입력 키를 클라이언트에 저장하더라도 서버 측 비밀과 같은 보호 수준을 제공할 수 없음을 UI와 문서에 표시해야 합니다.
@@ -167,6 +175,8 @@ $env:LANG_DATABASE_DIR = 'D:\lang-Database'
 ## 알려진 제한
 
 - 복습, 즐겨찾기와 audio 필드는 후속 마일스톤입니다. 굴절 forms는 transient suggestion metadata로만 유지합니다.
+- 쓰기 연습은 저장된 headword 하나만 exact 정답으로 인정하며 alternate spelling, morphology,
+  synonym, fuzzy matching과 장기 학습 이력은 아직 지원하지 않습니다.
 - 프로세스가 강제 종료되면 저장 전 편집 초안이 복원되지 않을 수 있습니다. 저장된 데이터는 영향을 받지 않습니다.
 - 손글씨 언어 모델은 언어별 약 20MB이며 최초 사용 전에 사용자가 직접 다운로드해야 합니다. 모델이 없거나 지원하지 않는 언어여도 키보드 입력과 저장은 정상 동작합니다.
 - 외부 사전 데이터는 라이선스·저장·편집·재배포 조건이 확인되기 전까지 다운로드하거나 저장하지 않습니다.

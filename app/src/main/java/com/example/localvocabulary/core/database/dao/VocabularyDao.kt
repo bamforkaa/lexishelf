@@ -51,6 +51,18 @@ data class SenseDictionaryProvenanceWrite(
     val modifiedAfterImport: Boolean,
 )
 
+data class VocabularyPracticeRow(
+    val entryId: Long,
+    val headword: String,
+    val languageTag: String,
+    val representativeMeaning: String,
+    val reading: String,
+    val pronunciation: String,
+    val partOfSpeech: String,
+    val grammaticalGender: String,
+    val example: String,
+)
+
 @Dao
 interface VocabularyDao {
     @Transaction
@@ -96,6 +108,116 @@ interface VocabularyDao {
 
     @Query("SELECT DISTINCT language_tag FROM vocabulary_entries ORDER BY language_tag ASC")
     fun observeLanguages(): Flow<List<String>>
+
+    @Query(
+        """
+        SELECT
+            entry.id AS entryId,
+            entry.headword AS headword,
+            entry.language_tag AS languageTag,
+            COALESCE(
+                (
+                    SELECT sense.meaning
+                    FROM senses AS sense
+                    WHERE sense.entry_id = entry.id AND TRIM(sense.meaning) <> ''
+                    ORDER BY sense.sort_order ASC, sense.id ASC
+                    LIMIT 1
+                ),
+                ''
+            ) AS representativeMeaning,
+            entry.reading AS reading,
+            COALESCE(
+                (
+                    SELECT pronunciation.value
+                    FROM vocabulary_pronunciations AS pronunciation
+                    WHERE pronunciation.entry_id = entry.id AND TRIM(pronunciation.value) <> ''
+                    ORDER BY pronunciation.sort_order ASC, pronunciation.id ASC
+                    LIMIT 1
+                ),
+                ''
+            ) AS pronunciation,
+            COALESCE(
+                (
+                    SELECT sense.part_of_speech
+                    FROM senses AS sense
+                    WHERE sense.entry_id = entry.id AND TRIM(sense.part_of_speech) <> ''
+                    ORDER BY sense.sort_order ASC, sense.id ASC
+                    LIMIT 1
+                ),
+                ''
+            ) AS partOfSpeech,
+            COALESCE(
+                (
+                    SELECT COALESCE(
+                        NULLIF(TRIM(sense.grammatical_gender_raw), ''),
+                        sense.grammatical_gender
+                    )
+                    FROM senses AS sense
+                    WHERE sense.entry_id = entry.id AND (
+                        TRIM(COALESCE(sense.grammatical_gender_raw, '')) <> '' OR
+                        TRIM(COALESCE(sense.grammatical_gender, '')) <> ''
+                    )
+                    ORDER BY sense.sort_order ASC, sense.id ASC
+                    LIMIT 1
+                ),
+                ''
+            ) AS grammaticalGender,
+            COALESCE(
+                (
+                    SELECT example.text
+                    FROM examples AS example
+                    INNER JOIN senses AS sense ON sense.id = example.sense_id
+                    WHERE sense.entry_id = entry.id AND TRIM(example.text) <> ''
+                    ORDER BY sense.sort_order ASC, example.sort_order ASC, example.id ASC
+                    LIMIT 1
+                ),
+                ''
+            ) AS example
+        FROM vocabulary_entries AS entry
+        WHERE TRIM(entry.headword) <> ''
+        AND TRIM(entry.language_tag) <> ''
+        AND (:languageTag IS NULL OR entry.language_tag = :languageTag)
+        AND (
+            :wordbookId IS NULL OR EXISTS (
+                SELECT 1 FROM entry_wordbook_cross_refs AS relation
+                WHERE relation.entry_id = entry.id AND relation.wordbook_id = :wordbookId
+            )
+        )
+        AND (
+            :tagId IS NULL OR EXISTS (
+                SELECT 1 FROM entry_tag_cross_refs AS relation
+                WHERE relation.entry_id = entry.id AND relation.tag_id = :tagId
+            )
+        )
+        AND (
+            TRIM(entry.reading) <> '' OR
+            EXISTS (
+                SELECT 1 FROM senses AS sense
+                WHERE sense.entry_id = entry.id AND (
+                    TRIM(sense.meaning) <> '' OR
+                    TRIM(sense.part_of_speech) <> '' OR
+                    TRIM(COALESCE(sense.grammatical_gender, '')) <> '' OR
+                    TRIM(COALESCE(sense.grammatical_gender_raw, '')) <> ''
+                )
+            ) OR
+            EXISTS (
+                SELECT 1 FROM examples AS example
+                INNER JOIN senses AS sense ON sense.id = example.sense_id
+                WHERE sense.entry_id = entry.id AND TRIM(example.text) <> ''
+            ) OR
+            EXISTS (
+                SELECT 1 FROM vocabulary_pronunciations AS pronunciation
+                WHERE pronunciation.entry_id = entry.id AND TRIM(pronunciation.value) <> ''
+            )
+        )
+        ORDER BY entry.id ASC
+        """,
+    )
+    suspend fun findPracticeRows(
+        languageTag: String?,
+        wordbookId: Long?,
+        tagId: Long?,
+    ): List<VocabularyPracticeRow>
 
     @Transaction
     @Query("SELECT * FROM vocabulary_entries WHERE language_tag = :languageTag ORDER BY id ASC")

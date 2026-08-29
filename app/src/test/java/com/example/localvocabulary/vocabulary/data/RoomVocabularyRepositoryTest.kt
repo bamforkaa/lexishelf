@@ -5,6 +5,7 @@ import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
 import com.example.localvocabulary.core.database.dao.SenseDictionaryProvenanceWrite
 import com.example.localvocabulary.core.database.dao.VocabularyDao
+import com.example.localvocabulary.core.database.dao.VocabularyPracticeRow
 import com.example.localvocabulary.core.database.entity.EntryTagCrossRef
 import com.example.localvocabulary.core.database.entity.EntryDictionaryProvenanceEntity
 import com.example.localvocabulary.core.database.entity.ExampleEntity
@@ -24,6 +25,7 @@ import com.example.localvocabulary.vocabulary.domain.GrammaticalGenderCategory
 import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 import com.example.localvocabulary.vocabulary.domain.VocabularyGrammaticalGender
 import com.example.localvocabulary.vocabulary.domain.VocabularyPronunciationDraft
+import com.example.localvocabulary.vocabulary.domain.VocabularyPracticeFilter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -204,6 +206,38 @@ class RoomVocabularyRepositoryTest {
     }
 
     @Test
+    fun `repository maps compact practice rows without loading vocabulary aggregates`() = runTest {
+        val dao = FakeVocabularyDao(
+            practiceRows = listOf(
+                VocabularyPracticeRow(
+                    entryId = 7,
+                    headword = "Wasser",
+                    languageTag = "de",
+                    representativeMeaning = "물",
+                    reading = "",
+                    pronunciation = "/ˈvasɐ/",
+                    partOfSpeech = "noun",
+                    grammaticalGender = "NEUTER",
+                    example = "",
+                ),
+            ),
+        )
+        val repository = RoomVocabularyRepository(
+            dao,
+            TimeProvider { 1 },
+            StableIdGenerator { "unused" },
+        )
+
+        val items = repository.findPracticeItems(
+            VocabularyPracticeFilter(languageTag = "de", wordbookId = 8, tagId = 9),
+        )
+
+        assertEquals(7L, items.single().entryId)
+        assertEquals("/ˈvasɐ/", items.single().pronunciation)
+        assertEquals(VocabularyPracticeFilter("de", 8, 9), dao.practiceFilter)
+    }
+
+    @Test
     fun `search treats SQL wildcard characters as literal user text`() {
         val dao = FakeVocabularyDao()
         val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "unused" })
@@ -218,12 +252,14 @@ class RoomVocabularyRepositoryTest {
 private class FakeVocabularyDao(
     var storedEntry: VocabularyEntryEntity? = null,
     private val entriesByLanguage: List<VocabularyEntryWithDetails> = emptyList(),
+    private val practiceRows: List<VocabularyPracticeRow> = emptyList(),
 ) : VocabularyDao {
     val savedSenses = mutableListOf<SenseWrite>()
     val savedTagIds = mutableSetOf<Long>()
     val savedPronunciations = mutableListOf<VocabularyPronunciationEntity>()
     var observedQuery: String? = null
     var observedTagId: Long? = null
+    var practiceFilter: VocabularyPracticeFilter? = null
     private var nextSenseId = 1L
 
     override fun observeEntries(
@@ -238,6 +274,15 @@ private class FakeVocabularyDao(
     }
 
     override fun observeLanguages(): Flow<List<String>> = flowOf(emptyList())
+
+    override suspend fun findPracticeRows(
+        languageTag: String?,
+        wordbookId: Long?,
+        tagId: Long?,
+    ): List<VocabularyPracticeRow> {
+        practiceFilter = VocabularyPracticeFilter(languageTag, wordbookId, tagId)
+        return practiceRows
+    }
 
     override suspend fun findEntriesByLanguage(
         languageTag: String,

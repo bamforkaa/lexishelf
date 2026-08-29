@@ -29,6 +29,29 @@ class WordListScreenTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun homeOverflowProvidesWritingPracticeEntryPoint() {
+        var opened = false
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordListScreen(
+                    state = WordListUiState(isLoading = false),
+                    onAction = {},
+                    onAddWord = {},
+                    onOpenWord = {},
+                    onManageTags = {},
+                    onOpenBackup = {},
+                    onOpenSettings = {},
+                    onOpenWritingPractice = { opened = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("더보기").performClick()
+        composeRule.onNodeWithText("쓰기 연습").performClick()
+        composeRule.runOnIdle { assertTrue(opened) }
+    }
+
+    @Test
     fun vocabularyRowShowsHierarchyAndWholeRowOpensEntryAtLargeText() {
         var openedId: Long? = null
         composeRule.setContent {

@@ -14,6 +14,9 @@ interface VocabularyRepository {
     ): Flow<List<VocabularyEntry>> = observeEntries(query, tagId)
     fun observeLanguages(): Flow<List<String>> = flowOf(emptyList())
     fun observeEntry(id: Long): Flow<VocabularyEntry?>
+    suspend fun findPracticeItems(
+        filter: VocabularyPracticeFilter,
+    ): List<VocabularyPracticeItem> = emptyList()
     suspend fun findDuplicateCandidates(
         headword: String,
         languageTag: String,

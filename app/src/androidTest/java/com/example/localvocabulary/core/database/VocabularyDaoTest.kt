@@ -269,6 +269,57 @@ class VocabularyDaoTest {
     }
 
     @Test
+    fun practiceProjectionFiltersInSqlAndReturnsOnlyCompactHintFields() = runTest {
+        val practiceTagId = insertTag("practice")
+        val wordbookId = insertWordbook("writing")
+        val japaneseId = database.vocabularyDao().saveEntry(
+            entry = entry(headword = "食べる", languageTag = "ja").copy(reading = "たべる"),
+            senses = listOf(
+                SenseWrite("먹다", "verb", listOf("寿司を食べる。"), grammaticalGender = null),
+            ),
+            tagIds = setOf(practiceTagId),
+            wordbookIds = setOf(wordbookId),
+            pronunciations = listOf(
+                PronunciationWrite("pron-ja", "PHONETIC", "ta.be.ɾɯ", "ja"),
+            ),
+        )
+        val englishId = database.vocabularyDao().saveEntry(
+            entry = entry(headword = "long", languageTag = "en"),
+            senses = listOf(SenseWrite("긴", "adjective", emptyList())),
+            tagIds = emptySet(),
+            wordbookIds = setOf(wordbookId),
+        )
+        val germanId = database.vocabularyDao().saveEntry(
+            entry = entry(headword = "Wasser", languageTag = "de"),
+            senses = listOf(
+                SenseWrite("물", "noun", emptyList(), grammaticalGender = "NEUTER"),
+            ),
+            tagIds = setOf(practiceTagId),
+        )
+        database.vocabularyDao().saveEntry(
+            entry = entry(headword = "no-hint", languageTag = "en"),
+            senses = listOf(SenseWrite("", "", emptyList())),
+            tagIds = emptySet(),
+        )
+
+        val all = database.vocabularyDao().findPracticeRows(null, null, null)
+        val japanese = database.vocabularyDao().findPracticeRows("ja", null, null).single()
+        val wordbook = database.vocabularyDao().findPracticeRows(null, wordbookId, null)
+        val tag = database.vocabularyDao().findPracticeRows(null, null, practiceTagId)
+
+        assertEquals(listOf(japaneseId, englishId, germanId), all.map { it.entryId })
+        assertEquals(japaneseId, japanese.entryId)
+        assertEquals("먹다", japanese.representativeMeaning)
+        assertEquals("たべる", japanese.reading)
+        assertEquals("ta.be.ɾɯ", japanese.pronunciation)
+        assertEquals("verb", japanese.partOfSpeech)
+        assertEquals("寿司を食べる。", japanese.example)
+        assertEquals(setOf(japaneseId, englishId), wordbook.mapTo(mutableSetOf()) { it.entryId })
+        assertEquals(setOf(japaneseId, germanId), tag.mapTo(mutableSetOf()) { it.entryId })
+        assertEquals("NEUTER", all.first { it.entryId == germanId }.grammaticalGender)
+    }
+
+    @Test
     fun observingMissingEntryReturnsNull() = runTest {
         assertNull(database.vocabularyDao().observeEntry(999).first())
     }
@@ -332,13 +383,14 @@ class VocabularyDaoTest {
     private fun entry(
         id: Long = 0,
         headword: String,
+        languageTag: String = "en",
         notes: String = "",
         modifiedAt: Long = 1,
     ) = VocabularyEntryEntity(
         id = id,
         backupId = "entry-${if (id == 0L) headword else id}",
         headword = headword,
-        languageTag = "en",
+        languageTag = languageTag,
         notes = notes,
         createdAtEpochMillis = 1,
         modifiedAtEpochMillis = modifiedAt,

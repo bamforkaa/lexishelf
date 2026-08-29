@@ -70,6 +70,7 @@ fun WordListScreen(
     onManageWordbooks: () -> Unit = {},
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWritingPractice: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     handwritingState: HandwritingInputUiState = HandwritingInputUiState(),
     onHandwritingAction: (HandwritingInputAction) -> Unit = {},
@@ -101,6 +102,13 @@ fun WordListScreen(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("쓰기 연습") },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenWritingPractice()
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("태그 관리") },
                             onClick = {

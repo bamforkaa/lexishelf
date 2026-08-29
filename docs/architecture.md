@@ -21,7 +21,9 @@ com.example.localvocabulary/
 │   ├── worddetail/         detail/delete UI and ViewModel
 │   ├── wordeditor/         add/edit UI and ViewModel
 │   ├── handwriting/        temporary Ink session UI state and recognition orchestration
+│   ├── writingpractice/     session-only question rules, UiState, setup/practice/summary UI
 │   ├── tags/               tag CRUD UI and ViewModel
+│   ├── wordbooks/          wordbook CRUD, detail and batch membership UI
 │   └── settings/           basic settings UI and ViewModel
 ├── vocabulary/
 │   ├── domain/             user-owned models and repository contracts
@@ -72,6 +74,13 @@ WordEditorScreen -> HandwritingInputViewModel -> HandwritingRecognitionService
        Canvas (x/y/time)             |                    ^
        explicit candidate tap        v                    |
        -> HeadwordChanged       ML Kit adapter -> on-device model
+
+WritingPracticeScreen -> WritingPracticeViewModel -> VocabularyRepository
+        setup/scope action              |                  |
+        explicit submit                 v                  v
+        session-only summary      compact practice row <- Room DAO
+                 |
+                 +-> shared HandwritingInputViewModel -> explicit candidate -> answer text
 ```
 
 - Composable은 I/O를 수행하지 않으며 immutable `UiState`와 명시적 `Action`만 사용합니다.
@@ -88,6 +97,19 @@ generation/cancellation을 소유합니다. 후보 callback은 editor에서는 �
 따라서 dictionary debounce, stale import 정리, duplicate 검사와 기존 Room search/filter를 그대로
 거칩니다. 획·후보·모델 상태는 Room/backup에 기록하지 않고 최근 model 언어 5개만 별도
 DataStore preference에 둡니다.
+
+쓰기 연습도 같은 `HandwritingInputViewModel`, stable Canvas, language resolver와 ML Kit adapter를
+사용합니다. 새 문제·retry·입력 mode 변경 때 증가하는 `handwritingSessionKey`를 destination이
+관찰해 현재 entry 언어로 새 handwriting session을 열기 때문에 이전 Ink, 후보, answer와 stale
+recognition job이 다음 문제로 넘어가지 않습니다. 후보 tap은 `AnswerChanged`만 보내며 submit을
+자동 실행하지 않습니다. unsupported/missing model 상태는 inline 영역에만 머물고 키보드 mode는
+항상 선택할 수 있습니다.
+
+`WritingPracticeViewModel`은 전체/언어/Wordbook/Tag filter를 `VocabularyRepository`에 전달하고,
+DAO는 aggregate 대신 entry ID와 대표 meaning/reading/pronunciation/POS/gender/example만 담은
+compact projection을 반환합니다. setup에서 안전한 힌트가 있는 ID를 한 번 shuffle하고 10/20/전체
+길이로 snapshot하여 recomposition이나 vocabulary Flow 갱신이 진행 중 순서를 바꾸지 않습니다.
+세션 state와 first-attempt 결과는 메모리에만 있으며 Room/DataStore/backup write 경로가 없습니다.
 
 ## Room schema version 6
 
@@ -118,7 +140,7 @@ meaning/POS/example provenance를 분리하여 sense 삭제가 reading 출처를
 
 뜻, 예문과 발음은 delimiter 문자열로 합치지 않습니다. `VocabularyDao.saveEntry`는 entry, ordered pronunciation, senses, examples, tag/wordbook links 전체를 한 Room transaction으로 저장합니다. 수정 시 `createdAt`은 보존하고 `modifiedAt`만 갱신합니다. Tag나 Wordbook 삭제는 해당 교차 참조만 cascade하고 단어/sense/example/발음/다른 분류는 유지합니다. Wordbook batch add는 `INSERT IGNORE`, batch remove는 단일 `DELETE ... IN (...)`을 DAO transaction에서 수행하므로 중복 관계나 부분 반영을 남기지 않습니다.
 
-검색은 headword, notes, sense meaning, example text에 대해 로컬 SQLite `LIKE`를 사용합니다. `%`, `_`, `\`는 repository boundary에서 escape합니다. Language는 `vocabulary_entries.language_tag`, Tag와 Wordbook은 각각의 교차 테이블 `EXISTS` 조건으로 독립 필터링합니다. 목록 query는 pronunciation relation을 로드하지 않는 별도 Room projection을 사용하며 editor/detail/backup의 단일 aggregate load만 ordered pronunciation을 읽습니다.
+검색은 headword, notes, sense meaning, example text에 대해 로컬 SQLite `LIKE`를 사용합니다. `%`, `_`, `\`는 repository boundary에서 escape합니다. Language는 `vocabulary_entries.language_tag`, Tag와 Wordbook은 각각의 교차 테이블 `EXISTS` 조건으로 독립 필터링합니다. 목록 query는 pronunciation relation을 로드하지 않는 별도 Room projection을 사용합니다. 쓰기 연습도 scope를 SQL에서 제한한 compact hint projection만 읽으며 모든 entry aggregate를 메모리에 올리지 않습니다. editor/detail/backup의 단일 aggregate load만 ordered pronunciation 전체를 읽습니다.
 
 Room의 auto-generated `Long` PK는 관계 연결과 로컬 query에만 사용합니다. 외부 백업 식별자는 단어, pronunciation, Tag, Wordbook에 별도의 opaque stable ID를 사용합니다. 신규 row에는 UUID를 부여하며 `MIGRATION_1_2`는 기존 row마다 고유한 32자리 hex ID를 생성합니다. schema JSON 1~6과 각 단계 aggregate 보존 migration test를 유지하며 destructive migration은 사용하지 않습니다.
 
@@ -210,10 +232,10 @@ Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmd
 
 ## 테스트 전략
 
-- JVM: BCP 47/입력 규칙, Room relation/provenance mapping, JSON v1→v2 parse/validation, repository timestamp/aggregate behavior, ViewModel state transition, provider contract/registry/editor seed policy, CC-CEDICT parser/index/autofill, 한국어기초사전 양방향 mapping/언어/license/autofill, PanLex mapping/ranking/provenance/registry coexistence, editor debounce/latest-query/provider grouping/error isolation/user-edit protection
+- JVM: BCP 47/입력 규칙, Room relation/provenance/practice projection mapping, JSON v1→v2 parse/validation, repository timestamp/aggregate behavior, ViewModel state transition, 쓰기 연습 hint leak 방지·NFC exact 판정·scope/session/retry 통계, provider contract/registry/editor seed policy, CC-CEDICT parser/index/autofill, 한국어기초사전 양방향 mapping/언어/license/autofill, PanLex mapping/ranking/provenance/registry coexistence, editor debounce/latest-query/provider grouping/error isolation/user-edit protection
 - Python fixture: 한국어기초사전 공식 JSON shape/lexical ID/forward-reverse SQLite, PanLex direct relation/variety allowlist/source-group ranking, Kaikki homograph/sense/rich metadata/Unicode/checksum/atomic failure cleanup
-- Android instrumented: in-memory Room의 aggregate/search/Tag·Wordbook cascade와 pronunciation/gender/provenance를 포함한 export-import round trip·rollback·conflict policy, v1→v2→v3→v4→v5→v6 데이터 보존 migration, 작은 별도 SQLite fixture의 한국어기초사전·PanLex·Kaikki exact query와 malformed schema 처리
-- Compose instrumented: 편집 validation, provider별 inline suggestion, compact attribution, imported source indicator 같은 핵심 UI 계약
+- Android instrumented: in-memory Room의 aggregate/search/Tag·Wordbook cascade와 scope별 compact practice query, pronunciation/gender/provenance를 포함한 export-import round trip·rollback·conflict policy, v1→v2→v3→v4→v5→v6 데이터 보존 migration, 작은 별도 SQLite fixture의 한국어기초사전·PanLex·Kaikki exact query와 malformed schema 처리
+- Compose instrumented: 편집 validation, provider별 inline suggestion, compact attribution, imported source indicator, 쓰기 연습 entry point·headword 숨김·candidate 명시 선택·keyboard fallback·stable inline Canvas 같은 핵심 UI 계약
 - CC-CEDICT tests는 출처와 CC BY-SA 4.0 notice가 있는 작은 UTF-8 fixture만 사용하며 full dataset이나 network에 의존하지 않음
 
 ## Dictionary pack과 editor orchestration

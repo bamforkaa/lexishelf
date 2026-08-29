@@ -32,7 +32,8 @@ Use Google ML Kit Digital Ink Recognition `19.0.0` with on-demand language model
 - Persist only the five recent recognition language tags in DataStore; do not infer a language from
   raw Ink or change the vocabulary entry language automatically.
 - Keep strokes, candidates and model state transient. Room remains v6 and backup remains v5.
-- Treat writing practice, scoring, stroke-order evaluation, history and SRS as separate future work.
+- Reuse this transient Ink/model/candidate boundary for writing practice. Keep stroke-order
+  evaluation, handwriting-quality scoring, persistent history and SRS as separate future work.
 
 ## Consequences
 
