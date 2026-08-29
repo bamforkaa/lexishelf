@@ -23,6 +23,8 @@ class StageDictionaryPacksTest(unittest.TestCase):
                 ".local/dictionary-data/panlex/packs/"
                 "panlex.ko-fallback-2019-09-01.dictpack",
                 ".local/dictionary-data/jmdict/packs/jmdict.ja-en-2026-08-23.dictpack",
+                ".local/dictionary-data/kaikki/packs/"
+                "kaikki.en-morphology-enwiktionary-2026-08-05.dictpack",
             ),
             actual,
         )
@@ -35,9 +37,10 @@ class StageDictionaryPacksTest(unittest.TestCase):
                 for path in expected_pack_paths(project, kaikki_languages=("de", "nl"))
             )
 
-        self.assertEqual(6, len(names))
+        self.assertEqual(7, len(names))
         self.assertIn("kaikki.de-en-enwiktionary-2026-08-05.dictpack", names)
         self.assertIn("kaikki.nl-en-enwiktionary-2026-08-05.dictpack", names)
+        self.assertIn("kaikki.en-morphology-enwiktionary-2026-08-05.dictpack", names)
 
     def test_selects_only_the_explicit_manual_avd_name(self) -> None:
         avds = {

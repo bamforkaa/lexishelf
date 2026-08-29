@@ -9,7 +9,12 @@ import shutil
 import subprocess
 from typing import Mapping
 
-from tools.build_dictionary_packs import CORE_PACKS, KAIKKI_PACKS, pack_file_name
+from tools.build_dictionary_packs import (
+    CORE_PACKS,
+    KAIKKI_MORPHOLOGY_PACKS,
+    KAIKKI_PACKS,
+    pack_file_name,
+)
 from tools.dataset_paths import dataset_paths, dataset_root_summary
 from tools.kaikki_language_config import KAIKKI_SUPPORTED_LANGUAGE_TAGS
 
@@ -25,7 +30,7 @@ def expected_pack_paths(
         if kaikki_languages is not None
         else (item.artifact.removesuffix(".db") for item in KAIKKI_PACKS)
     )
-    definitions = CORE_PACKS + tuple(
+    definitions = CORE_PACKS + KAIKKI_MORPHOLOGY_PACKS + tuple(
         item
         for item in KAIKKI_PACKS
         if item.artifact.removesuffix(".db") in selected_languages

@@ -4,6 +4,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -44,9 +47,37 @@ class KaikkiDataSourceTest {
                 )
                 """.trimIndent(),
             )
+            database.execSQL(
+                """
+                CREATE TABLE morphology_forms(
+                    normalized_form TEXT NOT NULL,
+                    form TEXT NOT NULL,
+                    lemma TEXT NOT NULL,
+                    normalized_lemma TEXT NOT NULL,
+                    source_entry_id TEXT NOT NULL,
+                    entry_order INTEGER NOT NULL,
+                    form_order INTEGER NOT NULL,
+                    PRIMARY KEY(normalized_form, normalized_lemma, source_entry_id)
+                )
+                """.trimIndent(),
+            )
             insert(database, "de-water-noun", 0, "Wasser", nounPayload)
             insert(database, "de-water-name", 1, "Wasser", namePayload)
             insert(database, "de-cafe", 2, "Cafe\u0301", cafePayload)
+            insertMorphology(database, "Häuser", "Haus", "de-house", 0)
+            insertMorphology(database, "Häuser", "Haus", "de-house-homograph", 1)
+            insertMorphology(database, "Häuser", "hausen", "de-hausen", 2)
+            insertMorphology(database, "Is", "I", "en-i-abbreviation", 3)
+            insertMorphology(database, "is", "be", "en-be", 4)
+            repeat(6) { index ->
+                insertMorphology(
+                    database,
+                    "shared",
+                    "lemma-$index",
+                    "shared-$index",
+                    10 + index,
+                )
+            }
         }
     }
 
@@ -106,6 +137,76 @@ class KaikkiDataSourceTest {
         assertTrue(result is KaikkiLookupResult.MalformedDataset)
     }
 
+    @Test
+    fun morphologyLookupNormalizesUnicodeDeduplicatesLemmaAndKeepsHomographs() = runBlocking {
+        val result = dataSource().resolve(
+            DictionaryMorphologyQuery(
+                surface = " HA\u0308USER ",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+                resultLimit = 5,
+            ),
+        ) as DictionaryMorphologyResult.Resolved
+
+        assertEquals(listOf("Haus", "hausen"), result.candidates.map { it.lemma })
+        assertEquals("Häuser", result.candidates.first().surface)
+        assertEquals("de-house", result.candidates.first().sourceEntryId)
+    }
+
+    @Test
+    fun morphologyLookupNoResultIsNormal() = runBlocking {
+        val result = dataSource().resolve(
+            DictionaryMorphologyQuery(
+                surface = "fehlt",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+            ),
+        )
+
+        assertEquals(DictionaryMorphologyResult.NoResult, result)
+    }
+
+    @Test
+    fun morphologyLookupRanksExactSourceCaseBeforeStableSourceOrder() = runBlocking {
+        val lower = dataSource().resolve(
+            DictionaryMorphologyQuery(
+                surface = "is",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+            ),
+        ) as DictionaryMorphologyResult.Resolved
+        val title = dataSource().resolve(
+            DictionaryMorphologyQuery(
+                surface = "Is",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+            ),
+        ) as DictionaryMorphologyResult.Resolved
+
+        assertEquals(listOf("be", "I"), lower.candidates.map { it.lemma })
+        assertEquals(listOf("I", "be"), title.candidates.map { it.lemma })
+        assertFalse(lower.isTruncated)
+    }
+
+    @Test
+    fun morphologyLookupAppliesFinalSafetyCapAndReportsTruncation() = runBlocking {
+        val result = dataSource().resolve(
+            DictionaryMorphologyQuery(
+                surface = "shared",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+                resultLimit = 2,
+            ),
+        ) as DictionaryMorphologyResult.Resolved
+
+        assertEquals(listOf("lemma-0", "lemma-1"), result.candidates.map { it.lemma })
+        assertTrue(result.isTruncated)
+    }
+
+    @Test
+    fun turkishExactKeyUsesDottedAndDotlessICasePairs() {
+        assertEquals("ı", KaikkiDataSource.normalizeExactKey("I", "tr"))
+        assertEquals("i", KaikkiDataSource.normalizeExactKey("İ", "tr"))
+        assertEquals("i", KaikkiDataSource.normalizeExactKey("i", "tr"))
+        assertEquals("ı", KaikkiDataSource.normalizeExactKey("ı", "tr"))
+        assertEquals("i", KaikkiDataSource.normalizeExactKey("I", "de"))
+    }
+
     private fun dataSource() = KaikkiDataSource(
         object : KaikkiDatabaseSource {
             override fun open(sourceLanguageTag: String) = KaikkiIndexOpenResult.Opened(
@@ -133,6 +234,19 @@ class KaikkiDataSourceTest {
         database.execSQL(
             "INSERT INTO entries VALUES(?, ?, ?, ?, ?)",
             arrayOf<Any>(id, normalize(headword), headword, order, payload.encodeToByteArray()),
+        )
+    }
+
+    private fun insertMorphology(
+        database: SQLiteDatabase,
+        form: String,
+        lemma: String,
+        sourceEntryId: String,
+        order: Int,
+    ) {
+        database.execSQL(
+            "INSERT INTO morphology_forms VALUES(?, ?, ?, ?, ?, ?, 0)",
+            arrayOf<Any>(normalize(form), form, lemma, normalize(lemma), sourceEntryId, order),
         )
     }
 

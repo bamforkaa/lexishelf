@@ -1,6 +1,7 @@
 package com.example.localvocabulary.app.di
 
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResolver
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictPackSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictDataSource
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictProvider
@@ -110,8 +111,18 @@ abstract class DictionaryProviderModule {
 
         @Provides
         @Singleton
-        internal fun provideKaikkiLookup(indexSource: KaikkiIndexSource): KaikkiLookup =
+        internal fun provideKaikkiDataSource(indexSource: KaikkiIndexSource): KaikkiDataSource =
             KaikkiDataSource(indexSource)
+
+        @Provides
+        @Singleton
+        internal fun provideKaikkiLookup(dataSource: KaikkiDataSource): KaikkiLookup = dataSource
+
+        @Provides
+        @Singleton
+        internal fun provideDictionaryMorphologyResolver(
+            dataSource: KaikkiDataSource,
+        ): DictionaryMorphologyResolver = dataSource
 
         @Provides
         @IntoSet

@@ -65,6 +65,13 @@ exact lookup을 검증한다. 검증 허용 범위는 완화하지 않았다. ca
 artifact는 production/debug pack 대상이 아니며 필요할 때 `--analyze-candidates`로 별도 재생성한다.
 이 dataset schema는 Room schema v6 또는 backup schema v5와 관련이 없다.
 
+Task 17에서는 과거의 stale artifact를 허용한 것이 아니라 reviewed converter/runtime/manifest/
+tests/docs를 함께 변경해 **새 authoritative Kaikki schema 3**을 정식 도입했다. 새 v3는 bounded
+display forms와 `morphology_forms` reverse index를 포함하며 schema 2와 3을 동시에 허용하지
+않는다. Production 12개 DB/pack과 compact `en-morphology.db`/pack을 current converter로
+재생성했고 strict manifest↔payload version, size, SHA-256, ZIP CRC, SQLite `quick_check` 검사를
+유지한다. Room v6/backup v5는 그대로다.
+
 ## 개발자 확인 절차
 
 APK 크기를 비교할 때는 오래된 증분 산출물이 섞이지 않도록 한 번은 clean build를 사용한다.

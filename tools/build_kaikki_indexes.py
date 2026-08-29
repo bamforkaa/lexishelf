@@ -12,7 +12,7 @@ import sqlite3
 import time
 import unicodedata
 from contextlib import ExitStack, closing
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import BinaryIO, Iterable, Mapping
 
@@ -22,19 +22,23 @@ from tools.kaikki_language_config import (
     KAIKKI_DATASET_RELEASE_ID,
     KAIKKI_EXTRACTION_DATE,
     KAIKKI_INDEX_SCHEMA_VERSION,
+    KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS,
     KAIKKI_SOURCE_FILE,
     KAIKKI_SOURCE_SHA256,
     KAIKKI_SOURCE_URL,
     KAIKKI_SUPPORTED_LANGUAGE_TAGS,
+)
+from tools.kaikki_form_policy import (
+    morphology_lemma_rejection_reason,
+    select_display_forms,
+    select_morphology_forms,
 )
 
 _WHITESPACE = re.compile(r"\s+")
 _GENDER_TAGS = frozenset(
     {"masculine", "feminine", "neuter", "common-gender"}
 )
-_INTERNAL_FORM_TAGS = frozenset({"table-tags", "inflection-template"})
 _MAX_PRONUNCIATIONS = 8
-_MAX_FORMS = 24
 _MAX_EXAMPLES_PER_SENSE = 2
 
 
@@ -50,6 +54,12 @@ class LanguageBuildStats:
     entries_with_forms: int
     entries_with_examples: int
     entries_with_gender: int
+    selected_display_form_count: int
+    morphology_row_count: int
+    rejected_morphology_entry_count: int
+    rejected_morphology_row_count: int
+    morphology_rejection_counts: dict[str, int]
+    unique_morphology_surface_count: int
     compressed_source_bytes: int
     generated_database_bytes: int
 
@@ -74,6 +84,11 @@ class _MutableStats:
     entries_with_forms: int = 0
     entries_with_examples: int = 0
     entries_with_gender: int = 0
+    selected_display_form_count: int = 0
+    morphology_row_count: int = 0
+    rejected_morphology_entry_count: int = 0
+    rejected_morphology_row_count: int = 0
+    morphology_rejection_counts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -82,17 +97,21 @@ class _LanguageOutput:
     database: sqlite3.Connection
     temporary_database: Path
     final_database: Path
-    filtered_source: BinaryIO
-    temporary_filtered_source: Path
-    final_filtered_source: Path
+    filtered_source: BinaryIO | None
+    temporary_filtered_source: Path | None
+    final_filtered_source: Path | None
     stats: _MutableStats
+    morphology_only: bool = False
     entry_order: int = 0
 
 
-def normalized_exact_key(value: str) -> str:
-    return _WHITESPACE.sub(
+def normalized_exact_key(value: str, language_tag: str | None = None) -> str:
+    normalized = _WHITESPACE.sub(
         " ", unicodedata.normalize("NFC", value).strip()
-    ).lower()
+    )
+    if language_tag and language_tag.split("-", 1)[0].lower() == "tr":
+        normalized = normalized.translate(str.maketrans({"I": "ı", "İ": "i"}))
+    return normalized.lower()
 
 
 def source_sha256(path: Path) -> str:
@@ -108,12 +127,20 @@ def build_indexes(
     generated_directory: Path,
     filtered_source_directory: Path,
     languages: Iterable[str],
+    morphology_only_languages: Iterable[str] = (),
     expected_source_sha256: str | None = None,
 ) -> BuildReport:
-    selected = tuple(dict.fromkeys(languages))
+    full_languages = tuple(dict.fromkeys(languages))
+    morphology_only = tuple(
+        language
+        for language in dict.fromkeys(morphology_only_languages)
+        if language not in full_languages
+    )
+    selected = full_languages + morphology_only
     if not selected:
         raise ValueError("At least one Kaikki language is required")
-    unsupported = sorted(set(selected) - set(KAIKKI_CANDIDATE_LANGUAGE_TAGS))
+    reviewed = set(KAIKKI_CANDIDATE_LANGUAGE_TAGS) | set(KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS)
+    unsupported = sorted(set(selected) - reviewed)
     if unsupported:
         raise ValueError(f"Unreviewed Kaikki languages: {', '.join(unsupported)}")
     if not source.is_file():
@@ -137,6 +164,7 @@ def build_indexes(
                 generated_directory,
                 filtered_source_directory,
                 digest,
+                language in morphology_only,
             )
             for language in selected
         }
@@ -153,9 +181,13 @@ def build_indexes(
                     output = outputs.get(language) if isinstance(language, str) else None
                     if output is None:
                         continue
-                    output.filtered_source.write(raw_line)
+                    if output.filtered_source is not None:
+                        output.filtered_source.write(raw_line)
                     output.stats.raw_entry_count += 1
-                    _insert_entry(output, raw_entry)
+                    if output.morphology_only:
+                        _insert_morphology_only_entry(output, raw_entry)
+                    else:
+                        _insert_entry(output, raw_entry)
 
             language_stats = tuple(
                 _finish_language_output(output) for output in outputs.values()
@@ -164,9 +196,11 @@ def build_indexes(
             for output in outputs.values():
                 output.database.rollback()
                 output.database.close()
-                output.filtered_source.close()
+                if output.filtered_source is not None:
+                    output.filtered_source.close()
                 output.temporary_database.unlink(missing_ok=True)
-                output.temporary_filtered_source.unlink(missing_ok=True)
+                if output.temporary_filtered_source is not None:
+                    output.temporary_filtered_source.unlink(missing_ok=True)
             raise
 
     return BuildReport(
@@ -189,8 +223,10 @@ def _open_language_output(
     generated_directory: Path,
     filtered_source_directory: Path,
     source_digest: str,
+    morphology_only: bool,
 ) -> _LanguageOutput:
-    final_database = generated_directory / f"{language}.db"
+    database_name = f"{language}-morphology.db" if morphology_only else f"{language}.db"
+    final_database = generated_directory / database_name
     temporary_database = final_database.with_suffix(".db.tmp")
     temporary_database.unlink(missing_ok=True)
     database = sqlite3.connect(temporary_database)
@@ -207,11 +243,16 @@ def _open_language_output(
     )
     database.commit()
     database.execute("BEGIN")
-    final_filtered_source = filtered_source_directory / f"{language}.jsonl.gz"
-    temporary_filtered_source = filtered_source_directory / f"{language}.jsonl.gz.tmp"
-    temporary_filtered_source.unlink(missing_ok=True)
-    filtered_source = stack.enter_context(
-        gzip.open(temporary_filtered_source, "wb", compresslevel=6)
+    final_filtered_source = None if morphology_only else filtered_source_directory / f"{language}.jsonl.gz"
+    temporary_filtered_source = (
+        None if morphology_only else filtered_source_directory / f"{language}.jsonl.gz.tmp"
+    )
+    if temporary_filtered_source is not None:
+        temporary_filtered_source.unlink(missing_ok=True)
+    filtered_source = (
+        None
+        if temporary_filtered_source is None
+        else stack.enter_context(gzip.open(temporary_filtered_source, "wb", compresslevel=6))
     )
     return _LanguageOutput(
         tag=language,
@@ -222,6 +263,7 @@ def _open_language_output(
         temporary_filtered_source=temporary_filtered_source,
         final_filtered_source=final_filtered_source,
         stats=_MutableStats(),
+        morphology_only=morphology_only,
     )
 
 
@@ -245,6 +287,17 @@ def _configure_database(database: sqlite3.Connection) -> None:
             headword TEXT NOT NULL,
             entry_order INTEGER NOT NULL,
             payload BLOB NOT NULL
+        ) WITHOUT ROWID;
+
+        CREATE TABLE morphology_forms (
+            normalized_form TEXT NOT NULL,
+            form TEXT NOT NULL,
+            lemma TEXT NOT NULL,
+            normalized_lemma TEXT NOT NULL,
+            source_entry_id TEXT NOT NULL,
+            entry_order INTEGER NOT NULL,
+            form_order INTEGER NOT NULL,
+            PRIMARY KEY(normalized_form, normalized_lemma, source_entry_id)
         ) WITHOUT ROWID;
         """
     )
@@ -289,9 +342,12 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
     if not senses:
         return
 
-    pronunciations = _pronunciations(raw_entry.get("sounds"))
-    forms, form_count = _forms(raw_entry.get("forms"), headword)
     raw_pos = _text(raw_entry.get("pos"))
+    pronunciations = _pronunciations(raw_entry.get("sounds"))
+    selected_forms = select_display_forms(
+        output.tag, raw_pos, headword, raw_entry.get("forms")
+    )
+    morphology_forms = _select_morphology_forms(output, raw_pos, headword, raw_entry)
     entry_id = _stable_entry_id(
         output.tag,
         headword,
@@ -304,8 +360,8 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
         "w": headword,
         "p": raw_pos,
         "n": pronunciations,
-        "f": forms,
-        "fc": form_count,
+        "f": [{"f": item.form, "l": item.label} for item in selected_forms],
+        "fc": len(morphology_forms),
         "s": senses,
     }
     output.database.execute(
@@ -315,19 +371,23 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
         """,
         (
             entry_id,
-            normalized_exact_key(headword),
+            normalized_exact_key(headword, output.tag),
             headword,
             output.entry_order,
             json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(),
         ),
     )
     output.entry_order += 1
+    _insert_morphology_forms(
+        output, headword, entry_id, output.entry_order - 1, morphology_forms
+    )
     stats = output.stats
     stats.indexed_entry_count += 1
     stats.sense_count += len(senses)
     stats.entries_with_pos += int(bool(raw_pos))
     stats.entries_with_pronunciation += int(bool(pronunciations))
-    stats.entries_with_forms += int(form_count > 0)
+    stats.entries_with_forms += int(bool(morphology_forms))
+    stats.selected_display_form_count += len(selected_forms)
     stats.entries_with_examples += int(has_examples)
     stats.entries_with_gender += int(has_gender)
 
@@ -373,28 +433,107 @@ def _pronunciations(value: object) -> list[str]:
     return result
 
 
-def _forms(value: object, headword: str) -> tuple[list[dict[str, str]], int]:
-    if not isinstance(value, list):
-        return [], 0
-    retained: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    total = 0
-    for raw_form in value:
-        if not isinstance(raw_form, dict):
-            continue
-        form = _text(raw_form.get("form"))
-        tags = _strings(raw_form.get("tags"))
-        if not form or form == "-" or _INTERNAL_FORM_TAGS.intersection(tags):
-            continue
-        label = ", ".join(tags)
-        key = (form, label)
-        if key in seen:
-            continue
-        seen.add(key)
-        total += 1
-        if len(retained) < _MAX_FORMS and not (form == headword and not label):
-            retained.append({"f": form, "l": label})
-    return retained, total
+def _insert_morphology_only_entry(
+    output: _LanguageOutput,
+    raw_entry: Mapping[str, object],
+) -> None:
+    headword = _text(raw_entry.get("word"))
+    raw_pos = _text(raw_entry.get("pos"))
+    if not headword:
+        return
+    forms = _select_morphology_forms(output, raw_pos, headword, raw_entry)
+    if not forms:
+        return
+    source_entry_id = _morphology_source_id(
+        output.tag, headword, raw_pos, raw_entry, output.entry_order
+    )
+    _insert_morphology_forms(output, headword, source_entry_id, output.entry_order, forms)
+    output.entry_order += 1
+    output.stats.entries_with_forms += 1
+
+
+def _morphology_source_id(
+    language: str,
+    headword: str,
+    raw_pos: str,
+    raw_entry: Mapping[str, object],
+    entry_order: int,
+) -> str:
+    identity = {
+        "l": language,
+        "w": headword,
+        "p": raw_pos,
+        "e": raw_entry.get("etymology_number"),
+        "o": entry_order,
+    }
+    digest = hashlib.sha256(
+        json.dumps(identity, ensure_ascii=False, sort_keys=True).encode()
+    ).hexdigest()
+    return f"enw-{language}-morph-{digest[:18]}"
+
+
+def _insert_morphology_forms(
+    output: _LanguageOutput,
+    lemma: str,
+    source_entry_id: str,
+    entry_order: int,
+    forms: list[str],
+) -> None:
+    rows = [
+        (
+            normalized_exact_key(form, output.tag),
+            form,
+            lemma,
+            normalized_exact_key(lemma, output.tag),
+            source_entry_id,
+            entry_order,
+            form_order,
+        )
+        for form_order, form in enumerate(forms)
+    ]
+    output.database.executemany(
+        """
+        INSERT OR IGNORE INTO morphology_forms(
+            normalized_form, form, lemma, normalized_lemma, source_entry_id,
+            entry_order, form_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        rows,
+    )
+    output.stats.morphology_row_count += len(rows)
+
+
+def _select_morphology_forms(
+    output: _LanguageOutput,
+    raw_pos: str,
+    headword: str,
+    raw_entry: Mapping[str, object],
+) -> list[str]:
+    raw_forms = raw_entry.get("forms")
+    raw_senses = raw_entry.get("senses")
+    reason = morphology_lemma_rejection_reason(output.tag, raw_senses)
+    selected = select_morphology_forms(
+        output.tag,
+        raw_pos,
+        headword,
+        raw_forms,
+        raw_senses=raw_senses,
+    )
+    if reason is None:
+        return selected
+    previously_eligible = select_morphology_forms(
+        output.tag,
+        raw_pos,
+        headword,
+        raw_forms,
+    )
+    if previously_eligible:
+        stats = output.stats
+        stats.rejected_morphology_entry_count += 1
+        stats.rejected_morphology_row_count += len(previously_eligible)
+        counts = stats.morphology_rejection_counts
+        counts[reason] = counts.get(reason, 0) + len(previously_eligible)
+    return selected
 
 
 def _examples(value: object) -> tuple[list[str], int]:
@@ -439,23 +578,33 @@ def _finish_language_output(output: _LanguageOutput) -> LanguageBuildStats:
     database.execute(
         "CREATE INDEX entries_exact_lookup ON entries(normalized_headword, entry_order)"
     )
+    database.execute(
+        "CREATE INDEX morphology_exact_lookup ON "
+        "morphology_forms(normalized_form, entry_order, form_order)"
+    )
     metadata = (
         ("raw_entry_count", str(output.stats.raw_entry_count)),
         ("entry_count", str(output.stats.indexed_entry_count)),
         ("sense_count", str(output.stats.sense_count)),
+        ("morphology_row_count", str(output.stats.morphology_row_count)),
     )
     database.executemany("INSERT INTO metadata(key, value) VALUES (?, ?)", metadata)
     database.commit()
     headword_count = database.execute(
         "SELECT COUNT(DISTINCT headword) FROM entries"
     ).fetchone()[0]
+    unique_morphology_surface_count = database.execute(
+        "SELECT COUNT(DISTINCT normalized_form) FROM morphology_forms"
+    ).fetchone()[0]
     database.execute("VACUUM")
     database.close()
-    output.filtered_source.close()
+    if output.filtered_source is not None:
+        output.filtered_source.close()
     output.final_database.unlink(missing_ok=True)
     output.temporary_database.replace(output.final_database)
-    output.final_filtered_source.unlink(missing_ok=True)
-    output.temporary_filtered_source.replace(output.final_filtered_source)
+    if output.final_filtered_source is not None and output.temporary_filtered_source is not None:
+        output.final_filtered_source.unlink(missing_ok=True)
+        output.temporary_filtered_source.replace(output.final_filtered_source)
     stats = output.stats
     return LanguageBuildStats(
         language_tag=output.tag,
@@ -468,7 +617,17 @@ def _finish_language_output(output: _LanguageOutput) -> LanguageBuildStats:
         entries_with_forms=stats.entries_with_forms,
         entries_with_examples=stats.entries_with_examples,
         entries_with_gender=stats.entries_with_gender,
-        compressed_source_bytes=output.final_filtered_source.stat().st_size,
+        selected_display_form_count=stats.selected_display_form_count,
+        morphology_row_count=stats.morphology_row_count,
+        rejected_morphology_entry_count=stats.rejected_morphology_entry_count,
+        rejected_morphology_row_count=stats.rejected_morphology_row_count,
+        morphology_rejection_counts=dict(stats.morphology_rejection_counts),
+        unique_morphology_surface_count=unique_morphology_surface_count,
+        compressed_source_bytes=(
+            output.final_filtered_source.stat().st_size
+            if output.final_filtered_source is not None
+            else 0
+        ),
         generated_database_bytes=output.final_database.stat().st_size,
     )
 
@@ -491,9 +650,27 @@ def main() -> None:
         action="store_true",
         help="Build every reviewed candidate index instead of the production selection",
     )
+    parser.add_argument(
+        "--without-english-morphology",
+        action="store_true",
+        help="Skip the compact English morphology-only index for a partial regeneration",
+    )
+    parser.add_argument(
+        "--only-english-morphology",
+        action="store_true",
+        help="Regenerate only the compact English morphology index",
+    )
     arguments = parser.parse_args()
+    if arguments.only_english_morphology and (
+        arguments.languages
+        or arguments.analyze_candidates
+        or arguments.without_english_morphology
+    ):
+        parser.error("--only-english-morphology cannot be combined with other build selectors")
     languages = (
-        KAIKKI_CANDIDATE_LANGUAGE_TAGS
+        ()
+        if arguments.only_english_morphology
+        else KAIKKI_CANDIDATE_LANGUAGE_TAGS
         if arguments.analyze_candidates
         else tuple(arguments.languages or KAIKKI_SUPPORTED_LANGUAGE_TAGS)
     )
@@ -505,9 +682,24 @@ def main() -> None:
         generated_directory=paths.generated,
         filtered_source_directory=paths.source / "filtered",
         languages=languages,
+        morphology_only_languages=(
+            () if arguments.without_english_morphology
+            else KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS
+        ),
         expected_source_sha256=KAIKKI_SOURCE_SHA256,
     )
-    report_path = paths.generated / "kaikki-build-report.json"
+    is_full_production_build = (
+        tuple(languages) == KAIKKI_SUPPORTED_LANGUAGE_TAGS
+        and not arguments.without_english_morphology
+    )
+    report_suffix = (
+        ""
+        if is_full_production_build
+        else "-en-morphology"
+        if arguments.only_english_morphology
+        else "-" + "-".join(languages)
+    )
+    report_path = paths.generated / f"kaikki-build-report{report_suffix}.json"
     report_path.write_text(_report_json(report), encoding="utf-8")
     print(_report_json(report))
     print(f"Official source: {KAIKKI_SOURCE_URL}")

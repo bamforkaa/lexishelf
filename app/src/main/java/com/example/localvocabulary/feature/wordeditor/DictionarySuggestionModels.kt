@@ -2,6 +2,7 @@ package com.example.localvocabulary.feature.wordeditor
 
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
+import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 
@@ -11,7 +12,24 @@ data class DictionarySuggestionGroup(
     val entries: List<ExternalDictionaryEntry> = emptyList(),
     val message: String? = null,
     val languagePair: DictionaryLanguagePair? = null,
+    val morphologyContext: MorphologySuggestionContext? = null,
+    val failure: DictionaryProviderError? = null,
 )
+
+data class MorphologySuggestionContext(
+    val surface: String,
+    val lemma: String,
+    val resolverProviderId: DictionaryProviderId,
+    val resolverName: String,
+    val role: MorphologyAnalysisRole = MorphologyAnalysisRole.PRIMARY,
+    val hasAlternates: Boolean = false,
+    val isTruncated: Boolean = false,
+)
+
+enum class MorphologyAnalysisRole(val order: Int) {
+    PRIMARY(0),
+    ALTERNATE(1),
+}
 
 internal object DictionaryResultLanguagePreference {
     private val preferredLanguages = listOf("ko", "en")

@@ -15,7 +15,7 @@ bundleDictionaryPacksInDebug=true
 debugDictionaryPackLanguages=de,vi
 ```
 
-`bundleDictionaryPacksInDebug`는 개발자 Manual QA 전용 opt-in입니다. `true`이면 `assembleDebug`와 `installDebug`가 core pack 네 개와 `debugDictionaryPackLanguages`에 명시한 Kaikki per-language pack만 재생성하여 APK에 포함합니다. Kaikki 목록이 없으면 core pack만 포함합니다. 첫 앱 실행은 `AndroidDictionaryPackRepository`의 production manifest/크기/SHA-256/payload 검증과 atomic activation을 그대로 사용합니다. release APK에는 적용되지 않습니다.
+`bundleDictionaryPacksInDebug`는 개발자 Manual QA 전용 opt-in입니다. `true`이면 `assembleDebug`와 `installDebug`가 core pack 네 개, `debugDictionaryPackLanguages`에 명시한 Kaikki per-language pack, 그리고 compact English morphology pack을 재생성하여 APK에 포함합니다. Kaikki 목록이 없으면 core pack만 포함합니다. 첫 앱 실행은 `AndroidDictionaryPackRepository`의 production manifest/크기/SHA-256/payload 검증과 atomic activation을 그대로 사용합니다. release APK에는 적용되지 않습니다.
 
 현재 PowerShell session에서만 덮어쓸 때는 다음 환경 변수를 사용합니다.
 
@@ -52,6 +52,7 @@ converter와 pack builder는 시작할 때 실제 선택된 경로를 `Dictionar
 | PanLex | `panlex/source/panlex-20190901-csv.zip` | `panlex/generated/panlex_korean_fallback.db` | `panlex/packs/panlex.ko-fallback-2019-09-01.dictpack` |
 | JMdict | `jmdict/source/JMdict_e.gz` | `jmdict/generated/jmdict.db` | `jmdict/packs/jmdict.ja-en-2026-08-23.dictpack` |
 | Kaikki | `kaikki/source/raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz` | `kaikki/generated/<language>.db` | `kaikki/packs/kaikki.<language>-en-enwiktionary-2026-08-05.dictpack` |
+| Kaikki English morphology | same reviewed raw | `kaikki/generated/en-morphology.db` | `kaikki/packs/kaikki.en-morphology-enwiktionary-2026-08-05.dictpack` |
 
 `build_jmdict_index.py`, `build_krdict_index.py`, `build_panlex_index.py`, `build_kaikki_indexes.py`는 생략 가능한 input/output 대신 위 canonical convention을 사용합니다. CC-CEDICT는 별도 변환 없이 source GZip을 pack payload로 사용합니다. pack builder는 repository의 legacy Android assets를 fallback 입력으로 사용하지 않습니다.
 
@@ -65,7 +66,7 @@ python -m tools.build_dictionary_packs --pack jmdict
 python -X utf8 -m tools.build_dictionary_packs --pack kaikki --kaikki-language de
 ```
 
-생성된 `.dictpack`은 각 dataset의 `packs/`에 생깁니다. Kaikki는 provider ID 하나 아래에 `kaikki.de-en` 같은 pack ID를 여러 개 설치할 수 있고 resolver가 provider ID와 exact language pair를 함께 사용해 선택합니다.
+생성된 `.dictpack`은 각 dataset의 `packs/`에 생깁니다. Kaikki는 provider ID 하나 아래에 `kaikki.de-en` 같은 pack ID와 `kaikki.en-morphology`를 함께 설치할 수 있고 resolver가 provider ID와 exact language pair를 함께 사용해 선택합니다. English morphology pack은 full English dictionary가 아니라 source-attested surface→lemma rows만 포함합니다.
 
 앱의 설정 → 사전 pack → 로컬 pack 설치에서 Android Storage Access Framework로 파일을 선택합니다. 공용 저장소 permission은 필요하지 않습니다. 개발 AVD에는 다음처럼 파일을 전달한 후 Files picker에서 선택할 수도 있습니다.
 
@@ -80,7 +81,7 @@ python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual `
   --kaikki-language de --kaikki-language vi
 ```
 
-Kaikki 언어 옵션을 생략하면 production-selected 12개 Kaikki pack을 모두 staging합니다. helper는 Test AVD나 이름이 다른 기기로 자동 fallback하지 않으며 pack을 활성화하지도 않습니다. `bundleDictionaryPacksInDebug=false`일 때는 staging 후 앱의 설정 → `로컬 pack 설치`에서 각 파일을 선택해야 합니다. Manual QA에서 옵션을 `true`로 설정하면 별도 staging 없이 `installDebug` 후 첫 실행에 core와 configured Kaikki pack이 검증·활성화됩니다. 같은 payload hash의 활성 pack은 건너뜁니다.
+Kaikki 언어 옵션을 생략하면 production-selected 12개 Kaikki pack과 English morphology pack을 staging합니다. helper는 Test AVD나 이름이 다른 기기로 자동 fallback하지 않으며 pack을 활성화하지도 않습니다. `bundleDictionaryPacksInDebug=false`일 때는 staging 후 앱의 설정 → `로컬 pack 설치`에서 각 파일을 선택해야 합니다. Manual QA에서 옵션을 `true`로 설정하면 별도 staging 없이 `installDebug` 후 첫 실행에 core, configured Kaikki pack, English morphology pack이 검증·활성화됩니다. 같은 payload hash의 활성 pack은 건너뜁니다.
 
 ## Manifest schema v1
 

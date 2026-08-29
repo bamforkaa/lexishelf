@@ -64,6 +64,7 @@ val debugKaikkiPackLanguages = localProperties.getProperty("debugDictionaryPackL
     .orEmpty()
 val debugDictionaryPackAssets = layout.buildDirectory.dir("generated/debugDictionaryPackAssets")
 val dictionaryDatasets = listOf("cc-cedict", "korean-basic", "panlex", "jmdict")
+val debugKaikkiMorphologyPackCount = if (debugKaikkiPackLanguages.isEmpty()) 0 else 1
 
 val buildDebugDictionaryPacks by tasks.registering(Exec::class) {
     onlyIf { bundleDictionaryPacksInDebug }
@@ -97,7 +98,7 @@ val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAsset
     description = "Stages configured local dictionary packs as debug-only APK assets."
     if (bundleDictionaryPacksInDebug) {
         dependsOn(buildDebugDictionaryPacks)
-        expectedPackCount.set(4 + debugKaikkiPackLanguages.size)
+        expectedPackCount.set(4 + debugKaikkiPackLanguages.size + debugKaikkiMorphologyPackCount)
         dictionaryDatasets.forEach { dataset ->
             packFiles.from(
                 rootProject.fileTree("$dictionaryDatasetRoot/$dataset/packs") {
@@ -109,6 +110,13 @@ val stageDebugDictionaryPackAssets by tasks.registering(StageDictionaryPackAsset
             packFiles.from(
                 rootProject.fileTree("$dictionaryDatasetRoot/kaikki/packs") {
                     include("kaikki.$language-en-*.dictpack")
+                },
+            )
+        }
+        if (debugKaikkiPackLanguages.isNotEmpty()) {
+            packFiles.from(
+                rootProject.fileTree("$dictionaryDatasetRoot/kaikki/packs") {
+                    include("kaikki.en-morphology-*.dictpack")
                 },
             )
         }

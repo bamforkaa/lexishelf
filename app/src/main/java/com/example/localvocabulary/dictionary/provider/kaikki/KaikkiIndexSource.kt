@@ -46,11 +46,18 @@ internal class KaikkiIndexSource @Inject constructor(
     override fun hasAnyActivePack(): Boolean =
         packResolver.activePack(DictionaryProviderId(KaikkiProvider.STABLE_PROVIDER_ID)) != null
 
-    private fun languagePair(sourceLanguageTag: String) = DictionaryLanguagePair(
-        sourceLanguage = Bcp47LanguageTag.requireValid(sourceLanguageTag),
-        resultLanguage = KAIKKI_ENGLISH_LANGUAGE,
-        resultKind = DictionaryResultKind.TRANSLATION,
-    )
+    private fun languagePair(sourceLanguageTag: String): DictionaryLanguagePair {
+        val sourceLanguage = Bcp47LanguageTag.requireValid(sourceLanguageTag)
+        return DictionaryLanguagePair(
+            sourceLanguage = sourceLanguage,
+            resultLanguage = KAIKKI_ENGLISH_LANGUAGE,
+            resultKind = if (sourceLanguage == KAIKKI_ENGLISH_LANGUAGE) {
+                DictionaryResultKind.MONOLINGUAL_DEFINITION
+            } else {
+                DictionaryResultKind.TRANSLATION
+            },
+        )
+    }
 }
 
 internal sealed interface KaikkiIndexOpenResult {
@@ -71,4 +78,4 @@ internal interface KaikkiDatabaseSource {
 
 internal const val KAIKKI_RELEASE_ID = "enwiktionary-2026-08-05"
 internal const val KAIKKI_EXTRACTION_DATE = "2026-08-23"
-internal const val KAIKKI_INDEX_SCHEMA_VERSION = 2
+internal const val KAIKKI_INDEX_SCHEMA_VERSION = 3

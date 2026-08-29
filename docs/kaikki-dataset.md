@@ -42,6 +42,9 @@ Get-FileHash `
 # 확정된 12개 production language만 변환
 python -X utf8 -m tools.build_kaikki_indexes
 
+# 영어 morphology auxiliary만 source 전체에서 재생성
+python -X utf8 -m tools.build_kaikki_indexes --only-english-morphology
+
 # release 선정 때만 19개 후보 전체 재측정
 python -X utf8 -m tools.build_kaikki_indexes --analyze-candidates
 
@@ -50,11 +53,11 @@ python -X utf8 -m tools.build_dictionary_packs --pack kaikki
 python -X utf8 -m tools.build_dictionary_packs --pack kaikki --kaikki-language de
 ```
 
-변환기는 NFC, trim, 연속 whitespace 축약, locale-independent lowercase만 적용한다. prefix, fuzzy, morphology, transliteration search는 만들지 않는다. DB와 filtered gzip은 임시 파일에 완성한 뒤 교체하므로 parsing/checksum 실패가 기존 성공 산출물을 부분 파일로 바꾸지 않는다.
+변환기의 exact key와 morphology key는 NFC, trim, 연속 whitespace 축약 후 기본적으로 locale-independent lowercase를 적용한다. Turkish는 정서법상 서로 다른 `I ↔ ı`, `İ ↔ i` pair를 보존하기 위해 `tr` locale case mapping을 converter와 Android runtime 양쪽에서 동일하게 사용한다. prefix, fuzzy, stemming, guessed lemma, transliteration search는 만들지 않는다. Morphology는 실제 tagged form→entry headword 관계만 별도 exact reverse index로 만든다. DB와 filtered gzip은 임시 파일에 완성한 뒤 교체하므로 parsing/checksum 실패가 기존 성공 산출물을 부분 파일로 바꾸지 않는다.
 
 ## 2026-08-05 후보 coverage — Task 12 schema v1 baseline
 
-`indexed`는 최소 한 개의 English gloss가 있어 실제 검색 결과로 만들 수 있는 entry 수다. `headwords`는 원본 spelling 기준 distinct count이며 homograph entry는 합치지 않는다. 비율의 분모는 indexed entry다. Source MiB는 locally filtered gzip, DB MiB는 compact SQLite 크기다. 이 표의 `examples %`는 초기 언어 선정을 위해 quotation을 포함한 모든 text-bearing example record를 센 schema v1 baseline이다. 현재 import 가능한 `type=example`/no-`ref` coverage와 schema v2 크기는 아래 pack 표를 기준으로 한다.
+`indexed`는 최소 한 개의 English gloss가 있어 실제 검색 결과로 만들 수 있는 entry 수다. `headwords`는 원본 spelling 기준 distinct count이며 homograph entry는 합치지 않는다. 비율의 분모는 indexed entry다. Source MiB는 locally filtered gzip, DB MiB는 compact SQLite 크기다. 이 표의 `examples %`는 초기 언어 선정을 위해 quotation을 포함한 모든 text-bearing example record를 센 schema v1 baseline이다. 당시 import 가능한 `type=example`/no-`ref` coverage와 schema v2 크기는 아래 역사 pack 표를 기준으로 한다. 현재 계약은 문서 하단의 Task 17 schema v3 표다.
 
 | 언어 | 선택 | raw entries | headwords | indexed | senses | POS % | pron. % | forms % | examples % | gender % | source MiB | DB MiB |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -80,7 +83,7 @@ python -X utf8 -m tools.build_dictionary_packs --pack kaikki --kaikki-language d
 
 첫 batch는 `de, hi, pl, nl, pt, tr, cs, sv, uk, vi, th, id → en` 12개다. 앞의 9개는 기존 PanLex Korean 결과와 함께 richer English fallback을 제공한다. `vi/th/id`는 Korean Basic과 겹치지만 합계 DB가 약 38MiB로 작고 pronunciation/forms/example metadata 가치가 높다. `la/it/fi`는 초기 설치 비용이 크고, `fr/es/ru/ar`는 Korean Basic 범위와 겹치면서 installed DB 비용이 더 커 다음 batch로 미뤘다. `ja/zh`는 각각 JMdict/CC-CEDICT가 있어 후보에서 제외했다.
 
-## Compact index와 pack
+## Compact index와 pack — Task 15.2 schema v2 역사 baseline
 
 한 provider ID `kaikki` 아래 언어별 pack을 둔다. pack ID와 provider identity를 합치지 않는다. 각 manifest는 오직 `<source> → en / TRANSLATION` 한 pair를 선언하고 resolver가 provider와 exact language pair로 active pack을 선택한다.
 
@@ -102,7 +105,7 @@ python -X utf8 -m tools.build_dictionary_packs --pack kaikki --kaikki-language d
 
 Pack bytes are the observed 2026-08-26 build. Payload bytes/SHA-256 are stable; the ZIP size can vary by a few bytes because `manifest.createdAt` records the build time.
 
-DB index schema v2에는 stable hashed source entry ID, normalized headword index, deterministic source order와 compact JSON payload만 둔다. payload는 headword, raw/normalized POS mapping source, 최대 8개 textual IPA/enPR/`zh-pron`, 최대 24개 대표 form과 전체 form count, sense/gloss 순서, source sense ID, gender, import 가능한 usage example text/count를 보존한다. homograph/etymology entry는 합치지 않는다.
+당시 DB index schema v2에는 stable hashed source entry ID, normalized headword index, deterministic source order와 compact JSON payload를 뒀다. payload는 headword, raw/normalized POS mapping source, 최대 8개 textual IPA/enPR/`zh-pron`, 최대 24개 source-order form과 전체 form count, sense/gloss 순서, source sense ID, gender, import 가능한 usage example text/count를 보존했다. Task 17 schema v3는 source-order form 보존을 bounded semantic selection으로 교체하고 별도 reverse index를 추가했다. homograph/etymology entry를 합치지 않는 원칙은 유지한다.
 
 Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 source text만 원본 순서대로 sense당 최대 2개 보존한다. `quotation`, attributed text, example translation, audio/media URL, category, related-word graph, raw template와 full etymology는 저장하지 않는다. 사용자가 row를 눌렀을 때만 generic mapper가 English gloss/POS/example, textual pronunciation과 grammatical gender를 각 field provenance와 함께 가져온다. forms는 provider result의 transient metadata로 유지한다. 실측 coverage와 저장 결정은 [linguistic-metadata.md](linguistic-metadata.md)에 있다.
 
@@ -127,9 +130,9 @@ Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 so
 
 ## 성능과 무결성
 
-Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 15.2에서 current schema v2 converter로 선택 12개를 다시 만든 실행은 `918.96s`였고 source SHA-256 `e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65`를 먼저 검증했다. 모든 selected DB와 pack manifest의 schema는 2다. `de`/`vi`의 `PRAGMA quick_check`, ZIP CRC, manifest payload size와 DB/manifest/archive payload SHA-256 일치도 확인했다. 기존 exact index/query 구조와 strict version 검사는 바뀌지 않았다.
+Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 15.2 당시 schema v2 converter로 선택 12개를 다시 만든 실행은 `918.96s`였고 source SHA-256 `e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65`를 먼저 검증했다. 당시 selected DB와 pack manifest의 schema는 2였다. 현재 schema v3의 무결성과 성능은 아래 Task 17 보고를 기준으로 한다.
 
-Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 이 구성의 final debug APK는 `264,611,485` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser`와 `ăn` exact query가 통과했고, `Wasser`의 첫 datasource lookup은 full-suite 실행 로그 기준 `24ms`였다. release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
+Task 15.2의 Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 당시 debug APK는 `264,611,485` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser`와 `ăn` exact query가 통과했고, `Wasser`의 첫 datasource lookup은 full-suite 실행 로그 기준 `24ms`였다. Task 17 debug bundle에는 이 둘과 English morphology auxiliary pack이 포함되며 현재 APK/latency는 아래 보고를 기준으로 한다. release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
 
 ## 라이선스와 attribution
 
@@ -138,3 +141,122 @@ Kaikki는 이 data가 Wiktionary와 같은 CC BY-SA 및 GFDL 조건이라고 명
 Wiktionary가 외부 출처의 text, quotation, image, sound를 별도 조건이나 fair use로 포함할 수 있다고 공식적으로 경고하므로 attributed quotation은 계속 제외한다. 이번 index는 contributor-authored usage example으로 구조화된 `type=example` 중 `ref`가 없는 text만 선택한 CC BY-SA 4.0 재사용 경로로 포함한다. 원문 entry URL, source sense ID와 license는 sense provenance 및 backup에 유지한다. 이 문서는 법률 자문이 아니다.
 
 설계 결정은 [ADR-0011](decisions/0011-kaikki-per-language-english-fallback.md), generic 설치/rollback은 [dictionary-packs.md](dictionary-packs.md)를 참고한다.
+
+## Task 17 schema v3 forms and morphology report
+
+Schema v3 is the authoritative current generated-index contract. It keeps exact entry lookup and
+adds a separate `morphology_forms` reverse index. Display forms are selected by the conservative
+policy in [linguistic-forms.md](linguistic-forms.md); reverse lookup and exact-only provider re-query
+are described in [morphology-search.md](morphology-search.md). All values below were measured from
+the regenerated `2026-08-05` artifacts; every DB returned `PRAGMA quick_check=ok`.
+
+| language | selected forms avg / p95 / max | morphology rows | unique surfaces | DB bytes | pack bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| de | 0.338 / 2 / 3 | 747,647 | 729,610 | 277,938,176 | 75,256,468 |
+| hi | 0.528 / 2 / 3 | 253,505 | 248,033 | 80,154,624 | 12,076,269 |
+| pl | 0.407 / 2 / 3 | 443,187 | 417,554 | 137,605,120 | 36,081,585 |
+| nl | 0.438 / 2 / 2 | 142,568 | 137,529 | 68,259,840 | 21,067,131 |
+| pt | 0.195 / 1 / 4 | 475,603 | 433,428 | 214,892,544 | 54,761,521 |
+| tr | 0.319 / 1 / 1 | 386,244 | 383,274 | 79,294,464 | 14,463,495 |
+| cs | 0.713 / 2 / 2 | 367,817 | 360,603 | 78,368,768 | 18,537,880 |
+| sv | 0.324 / 3 / 3 | 255,078 | 249,254 | 130,940,928 | 35,179,213 |
+| uk | 0.676 / 3 / 3 | 353,906 | 334,965 | 99,495,936 | 18,754,907 |
+| vi | 0 / 0 / 0 | 0 | 0 | 16,793,600 | 5,577,597 |
+| th | 0 / 0 / 0 | 0 | 0 | 9,211,904 | 2,686,642 |
+| id | 0.746 / 2 / 2 | 30,475 | 28,504 | 19,271,680 | 6,831,478 |
+| en morphology only | n/a | 543,791 | 521,889 | 86,433,792 | 29,322,956 |
+
+Across the 1,793,612 production dictionary entries, 613,274 forms were selected for display
+(average 0.342; observed max 4) under a final safety cap of 8. The 12 language indexes contain
+3,456,030 reverse rows; the English auxiliary index raises the total to 3,999,821. Lemmas per
+surface are normally one (p95 one except Portuguese p95 two); the measured maximum is 20 in
+Swedish. Multiple lemmas are kept and deterministically limited by runtime rather than silently
+choosing one.
+
+The first policy pass exposed two pathologies and was not accepted as final: Portuguese literal
+`metaphonic` was a technical pseudo-form connected to 586 lemmas, and full German adjective /
+Turkish combinatorial tables produced 1,345,318 / 1,156,031 rows. Regression filters reduced the
+final maxima to 6 Portuguese lemmas before the pseudo-form removal (final max 5), 747,647 German
+rows, and 386,244 Turkish rows while retaining principal queries such as `Häuser → Haus`,
+`ging → gehen`, `evler → ev`, `gitti/gidiyor → gitmek`. A final raw-source audit also
+found that Turkish conjugation person/number tags conflict with surface text (`gittim` is tagged
+third-person). Turkish verb display labels are therefore suppressed while the source-attested
+reverse relations remain searchable.
+
+Representative generated relations are:
+
+| language | exact generated surface → lemma samples |
+| --- | --- |
+| de | `Häuser → Haus`, `ging → gehen`, `gegangen → gehen` |
+| hi | `विश्वों → विश्व`, `विश्वो → विश्व`, `कुत्ती → कुत्ता` |
+| pl | `domy → dom`, `większy → duży/wielki`, `gratisów → gratis` |
+| nl | `huizen → huis`, `ging → gaan`, `gegaan → gaan` |
+| pt | `casas → casa/casar`, `fui → ir/ser`, `comendo → comer/comendar` |
+| tr | `evler → ev/evlemek`, `gitti → gitmek`, `gidiyor → gitmek` |
+| cs | `domy → dům`, `šel → jít`, `větší → velký/veliký` |
+| sv | `husen → hus`, `gick → gå`, `gått → gå` |
+| uk | `йшов → йти`, `соба́ки → собака`, `соба́к → собака` |
+| id | `rumah-rumah → rumah`, `berjalan → jalan`, `dimakan → makan` |
+| vi / th | no relation; current forms are not reliable inflections |
+| en auxiliary | `is/are/was/were/been/being → be`, `went → go/gan`, `children → child/childer` |
+
+Representative bounded display payloads from the final DBs include `Haus → plural Häuser,
+genitive singular Hauses`, `gehen → present 3sg geht, past ging, past participle gegangen`,
+`huis → plural huizen`, `comer → present 1sg como, preterite 3sg comeu, past participle
+comido, gerund comendo`, and `ev → plural evler`. `gitmek` deliberately displays no forms
+because its reviewed raw person tags are not trustworthy.
+
+The twelve schema-v3 dictionary DBs total 1,212,227,584 bytes, 110,104,576 bytes less than the
+old schema-v2 DB total because unbounded retained payload forms were removed. The English
+morphology-only DB brings the current total to 1,298,661,376 bytes. Packs total 330,597,142 bytes
+including English. A full English dictionary index was deliberately not generated: the raw source
+contains 1,487,639 English entries, while the measured auxiliary already covers 491,229
+forms-containing entries before precision filtering and 378,019 afterward in 86,433,792 DB bytes.
+Shipping another full definition index would
+duplicate provider scope and violate the bounded-storage objective.
+
+The full 13-output conversion took 918.26s on the development PC. Warm desktop reverse lookups
+measured 0.021–0.0336ms median and at most 0.0594ms p95 across non-empty indexes. Pack audit streamed
+every archive and confirmed schema 3, ZIP CRC, payload size, and payload SHA-256. Android Test AVD
+production bootstrap/query tests passed with `Wasser` direct lookup at 13ms, `Häuser → Haus`
+morphology plus lemma exact lookup at 8ms, and English `is`/`are`/`went` morphology at 4/2/3ms.
+The debug bundle containing the four core packs, `de`, `vi`, and English morphology is
+339,786,641 bytes. A separate read-only audit isolated `select_display_forms` calls from gzip/JSON
+decoding: 620,651 form-bearing raw entries took 50,713.55ms total (weighted 81.71µs/entry).
+The per-language high was Turkish 213.29µs/entry because its raw arrays reach 1,897 cells;
+German was 196.42µs/entry. The complete reproducible raw audit is produced by
+`python -X utf8 -m tools.report_kaikki_forms --top 0 --output <report.json>`.
+
+### Task 17.1 English precision audit
+
+The reviewed raw source showed that `be` is a lexical verb entry whose lowercase `is` form is tagged
+present/singular/third-person. The competing headword `I` is a noun entry whose title-cased `Is`
+form is tagged plural; every sense is an abbreviation/alternate form. The original policy inspected
+POS and form tags but not sense metadata, so lowercasing the exact key merged both relations.
+
+The corrected converter rejects an English lemma only when all senses are explicitly non-lexical or
+non-canonical. It removed 153,441 non-canonical relations, 9,126 non-lexical relations, and seven
+technical `form only` rows. Ambiguous surfaces fell from 3,058 to 630, while valid ambiguity such as
+`axes → axe/axis`, `alumni → alum/alumna/alumnus`, and `better → good/well` remains. The regenerated
+DB has `PRAGMA user_version=3`, `quick_check=ok`, SHA-256
+`46647d48363dd2bdf92ba685cd072b1b26544ed29ea663c04387313d9449aa1c`. Its pack manifest remains
+schema 3 and declares the same payload checksum; the `.dictpack` SHA-256 is
+`4d55f17056d419c582b00ec35c76ae6b79a0d99a981edd8b66f9335d0b1b7fdf`.
+
+Candidate order is exact original case, then source entry/form order. After distinct-lemma filtering,
+the first candidate is shown as the primary analysis and the rest as alternates; the safety cap is
+five and explicit when truncated. Full rationale and before/after ambiguity metrics are in
+[morphology-search.md](morphology-search.md) and [ADR-0017](decisions/0017-morphology-lemma-eligibility-and-ambiguity-ranking.md).
+
+### Cross-language case normalization audit
+
+A 2026-08-30 read-only audit grouped all 12 production reverse indexes by `normalized_form` and
+counted distinct source spellings. `vi` and `th` have no morphology rows by policy. Counts and the
+interpretation of case-only lexical pairs are documented in [morphology-search.md](morphology-search.md).
+
+The audit found one normalization defect: ROOT lowercase mapped Turkish `İ` to `i + U+0307` and
+`I` to `i`. This affected 171 indexed relations, including `İngilizceleştirir →
+İngilizceleştirmek`, which a normal lowercase `ingilizceleştirir` query could not reach. Turkish
+case mapping now produces `I → ı`, `İ → i`, `i → i`, `ı → ı`. Only `tr.db` and its pack were
+regenerated; schema v3 and all 386,244 relation rows remain unchanged. The corrected payload
+SHA-256 is `e7eca10d9986278642b7fb11ad3dae3aee78c33acf020b542742031e37d04055`.

@@ -5,7 +5,12 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.build_dictionary_packs import PACKS, build_pack
+from tools.build_dictionary_packs import (
+    KAIKKI_MORPHOLOGY_PACKS,
+    KAIKKI_PACKS,
+    PACKS,
+    build_pack,
+)
 from tools.panlex_language_config import PANLEX_FOREIGN_LANGUAGE_TAGS
 from tools.kaikki_language_config import (
     KAIKKI_INDEX_SCHEMA_VERSION,
@@ -15,7 +20,7 @@ from tools.kaikki_language_config import (
 
 class BuildDictionaryPacksTest(unittest.TestCase):
     def test_kaikki_uses_one_pack_per_language_under_one_provider_id(self) -> None:
-        definitions = [item for item in PACKS if item.provider_id == "kaikki"]
+        definitions = list(KAIKKI_PACKS)
 
         self.assertEqual(list(KAIKKI_SUPPORTED_LANGUAGE_TAGS), [item.artifact[:-3] for item in definitions])
         self.assertEqual({"kaikki"}, {item.provider_id for item in definitions})
@@ -24,6 +29,12 @@ class BuildDictionaryPacksTest(unittest.TestCase):
             self.assertEqual(((language, "en", "TRANSLATION"),), definition.language_pairs)
             self.assertEqual(f"kaikki.{language}-en", definition.pack_id)
             self.assertEqual(KAIKKI_INDEX_SCHEMA_VERSION, definition.dataset_schema_version)
+
+        morphology = KAIKKI_MORPHOLOGY_PACKS[0]
+        self.assertEqual("en-morphology.db", morphology.artifact)
+        self.assertEqual("kaikki.en-morphology", morphology.pack_id)
+        self.assertEqual((("en", "en", "MONOLINGUAL_DEFINITION"),), morphology.language_pairs)
+        self.assertEqual(KAIKKI_INDEX_SCHEMA_VERSION, morphology.dataset_schema_version)
 
     def test_panlex_manifest_pairs_come_from_the_shared_language_config(self) -> None:
         definition = next(item for item in PACKS if item.provider_id == "panlex")

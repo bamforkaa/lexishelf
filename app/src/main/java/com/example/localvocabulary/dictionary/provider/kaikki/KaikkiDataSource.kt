@@ -2,6 +2,11 @@ package com.example.localvocabulary.dictionary.provider.kaikki
 
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
+import com.example.localvocabulary.dictionary.domain.DictionaryLemmaCandidate
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResolver
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
+import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import java.text.Normalizer
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -16,10 +21,24 @@ import kotlinx.serialization.json.Json
 internal class KaikkiDataSource(
     private val indexSource: KaikkiDatabaseSource,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : KaikkiLookup {
+) : KaikkiLookup, DictionaryMorphologyResolver {
     private val loadMutex = Mutex()
     private val json = Json { ignoreUnknownKeys = false }
     private val cachedLoads = ConcurrentHashMap<String, IdentifiedLoad>()
+
+    override val providerId = DictionaryProviderId(KaikkiProvider.STABLE_PROVIDER_ID)
+    override val displayName = "Kaikki / Wiktionary"
+    override val supportedSourceLanguages = KAIKKI_MORPHOLOGY_SOURCE_LANGUAGES
+
+    override suspend fun resolve(
+        query: DictionaryMorphologyQuery,
+    ): DictionaryMorphologyResult = withContext(ioDispatcher) {
+        when (val load = loadIndex(query.sourceLanguage.value)) {
+            is IndexLoad.Ready -> queryMorphologyIndex(load.database, query)
+            IndexLoad.Unavailable -> DictionaryMorphologyResult.DatasetUnavailable
+            is IndexLoad.Invalid -> DictionaryMorphologyResult.MalformedDataset(load.detail)
+        }
+    }
 
     override suspend fun exactLookup(
         query: String,
@@ -29,7 +48,7 @@ internal class KaikkiDataSource(
         when (val load = loadIndex(sourceLanguageTag)) {
             is IndexLoad.Ready -> queryIndex(
                 database = load.database,
-                normalizedQuery = normalizeExactKey(query),
+                normalizedQuery = normalizeExactKey(query, sourceLanguageTag),
                 resultLimit = resultLimit,
                 datasetVersion = load.datasetVersion,
             )
@@ -147,6 +166,47 @@ internal class KaikkiDataSource(
         KaikkiLookupResult.MalformedDataset(error.message)
     }
 
+    private fun queryMorphologyIndex(
+        database: SQLiteDatabase,
+        query: DictionaryMorphologyQuery,
+    ): DictionaryMorphologyResult = try {
+        val seenLemmas = linkedSetOf<String>()
+        var isTruncated = false
+        val candidates = buildList {
+            database.rawQuery(
+                MORPHOLOGY_LOOKUP_QUERY,
+                arrayOf(
+                    normalizeExactKey(query.surface, query.sourceLanguage.value),
+                    normalizePreservingCase(query.surface),
+                ),
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val normalizedLemma = cursor.getString(2)
+                    if (seenLemmas.add(normalizedLemma)) {
+                        if (size == query.resultLimit) {
+                            isTruncated = true
+                            break
+                        }
+                        add(DictionaryLemmaCandidate(
+                            surface = cursor.getString(0),
+                            lemma = cursor.getString(1),
+                            sourceLanguage = query.sourceLanguage,
+                            resolverProviderId = providerId,
+                            sourceEntryId = cursor.getString(3),
+                        ))
+                    }
+                }
+            }
+        }
+        if (candidates.isEmpty()) {
+            DictionaryMorphologyResult.NoResult
+        } else {
+            DictionaryMorphologyResult.Resolved(candidates, isTruncated)
+        }
+    } catch (error: SQLiteException) {
+        DictionaryMorphologyResult.MalformedDataset(error.message)
+    }
+
     private sealed interface IndexLoad {
         data class Ready(val database: SQLiteDatabase, val datasetVersion: String) : IndexLoad
         data object Unavailable : IndexLoad
@@ -155,7 +215,7 @@ internal class KaikkiDataSource(
 
     private data class IdentifiedLoad(val identity: String?, val load: IndexLoad)
 
-    private companion object {
+    companion object {
         val WHITESPACE = Regex("\\s+")
         val LOOKUP_QUERY =
             """
@@ -165,11 +225,35 @@ internal class KaikkiDataSource(
             ORDER BY entry_order, entry_id
             LIMIT ?
             """.trimIndent()
+        val MORPHOLOGY_LOOKUP_QUERY =
+            """
+            SELECT form, lemma, normalized_lemma, source_entry_id
+            FROM morphology_forms
+            WHERE normalized_form = ?
+            ORDER BY
+                CASE WHEN form = ? COLLATE BINARY THEN 0 ELSE 1 END,
+                entry_order,
+                form_order,
+                normalized_lemma,
+                source_entry_id
+            """.trimIndent()
 
-        fun normalizeExactKey(value: String): String = Normalizer
+        fun normalizeExactKey(value: String, languageTag: String? = null): String {
+            val locale = if (languageTag?.substringBefore('-')?.equals("tr", true) == true) {
+                Locale.forLanguageTag("tr")
+            } else {
+                Locale.ROOT
+            }
+            return Normalizer
+                .normalize(value, Normalizer.Form.NFC)
+                .trim()
+                .replace(WHITESPACE, " ")
+                .lowercase(locale)
+        }
+
+        fun normalizePreservingCase(value: String): String = Normalizer
             .normalize(value, Normalizer.Form.NFC)
             .trim()
             .replace(WHITESPACE, " ")
-            .lowercase(Locale.ROOT)
     }
 }

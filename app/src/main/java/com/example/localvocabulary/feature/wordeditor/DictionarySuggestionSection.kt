@@ -195,6 +195,38 @@ private fun DictionarySuggestionEntryRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                candidate.morphologyContext?.let { context ->
+                    val analysisLabel = when {
+                        !context.hasAlternates -> "활용형 분석"
+                        context.role == MorphologyAnalysisRole.PRIMARY -> "기본형 분석"
+                        else -> "다른 형태 분석"
+                    }
+                    val truncationLabel = if (
+                        context.role == MorphologyAnalysisRole.ALTERNATE && context.isTruncated
+                    ) {
+                        " · 일부 분석만 표시"
+                    } else {
+                        ""
+                    }
+                    MetadataLabel(
+                        "$analysisLabel · ${context.surface} → ${context.lemma} · " +
+                            "${context.resolverName}$truncationLabel",
+                    )
+                }
+                if (entry.linguisticFeatures.inflections.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.testTag("dictionary_inflection_forms"),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        entry.linguisticFeatures.inflections.forEach { inflection ->
+                            Text(
+                                "${inflection.label}  ${inflection.form}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
                 if (availabilityText.isNotBlank()) MetadataLabel(availabilityText)
                 MetadataLabel(candidate.sources.joinToString(" · ") { it.providerName })
             }

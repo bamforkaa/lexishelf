@@ -6,6 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
+import com.example.localvocabulary.dictionary.domain.DictionaryLemmaCandidate
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResolver
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
+import com.example.localvocabulary.dictionary.domain.NoOpDictionaryMorphologyResolver
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
@@ -203,6 +208,8 @@ class WordEditorViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val settingsRepository: SettingsRepository,
     private val dictionaryProviderRegistry: DictionaryProviderRegistry,
+    private val dictionaryMorphologyResolver: DictionaryMorphologyResolver =
+        NoOpDictionaryMorphologyResolver,
     private val timeProvider: TimeProvider,
     private val externalReferenceProvider: ExternalDictionaryReferenceProvider =
         NaverDictionaryLinkProvider(),
@@ -700,13 +707,17 @@ class WordEditorViewModel @Inject constructor(
         mutableUiState.update {
             it.copy(isDictionarySearchInProgress = true, dictionarySuggestionMessage = null)
         }
-        val groups = coroutineScope {
+        val directGroups = coroutineScope {
             searches.mapNotNull { (descriptor, query) ->
                 dictionaryProviderRegistry.find(descriptor.id)?.let { provider ->
                     async { searchProviderSafely(descriptor, provider, query) }
                 }
             }.map { it.await() }
         }
+        val morphologyGroups = searchMorphologySuggestions(request)
+        val groups = directGroups.filterNot { group ->
+            morphologyGroups.isNotEmpty() && group.failure == DictionaryProviderError.NoResult
+        } + morphologyGroups
         if (dictionarySuggestionRequests.value != request) return
         val synthesizedGroups = DictionarySuggestionSynthesizer.synthesize(groups)
         mutableUiState.update { state ->
@@ -718,6 +729,110 @@ class WordEditorViewModel @Inject constructor(
             )
         }
     }
+
+    private suspend fun searchMorphologySuggestions(
+        request: DictionarySuggestionRequest,
+    ): List<DictionarySuggestionGroup> {
+        val sourceLanguages = request.languagePairs
+            .map(DictionaryLanguagePair::sourceLanguage)
+            .distinct()
+            .filter { it in dictionaryMorphologyResolver.supportedSourceLanguages }
+        if (sourceLanguages.isEmpty()) return emptyList()
+        val resolved = sourceLanguages.flatMap { sourceLanguage ->
+            val result = try {
+                dictionaryMorphologyResolver.resolve(
+                    DictionaryMorphologyQuery(
+                        surface = request.query,
+                        sourceLanguage = sourceLanguage,
+                        resultLimit = MORPHOLOGY_LEMMA_LIMIT,
+                    ),
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                DictionaryMorphologyResult.NoResult
+            }
+            when (result) {
+                is DictionaryMorphologyResult.Resolved -> result.candidates.mapIndexed {
+                    index, candidate ->
+                    RankedMorphologyCandidate(
+                        candidate = candidate,
+                        role = if (index == 0) {
+                            MorphologyAnalysisRole.PRIMARY
+                        } else {
+                            MorphologyAnalysisRole.ALTERNATE
+                        },
+                        hasAlternates = result.candidates.size > 1 || result.isTruncated,
+                        isTruncated = result.isTruncated,
+                    )
+                }
+                else -> emptyList()
+            }
+        }
+        if (resolved.isEmpty()) return emptyList()
+
+        return coroutineScope {
+            resolved.flatMap { rankedCandidate ->
+                val lemmaCandidate = rankedCandidate.candidate
+                request.languagePairs
+                    .filter { it.sourceLanguage == lemmaCandidate.sourceLanguage }
+                    .flatMap { languagePair ->
+                        val lemmaQuery = DictionaryQuery(
+                            text = lemmaCandidate.lemma,
+                            languagePair = languagePair,
+                            resultLimit = DICTIONARY_RESULT_LIMIT,
+                        )
+                        dictionaryProviderRegistry.descriptorsSupporting(lemmaQuery).mapNotNull {
+                            descriptor ->
+                            dictionaryProviderRegistry.find(descriptor.id)?.let { provider ->
+                                async {
+                                    searchProviderExactOnlySafely(
+                                        descriptor = descriptor,
+                                        provider = provider,
+                                        query = lemmaQuery,
+                                        context = MorphologySuggestionContext(
+                                            surface = lemmaCandidate.surface,
+                                            lemma = lemmaCandidate.lemma,
+                                            resolverProviderId =
+                                                lemmaCandidate.resolverProviderId,
+                                            resolverName = dictionaryMorphologyResolver.displayName,
+                                            role = rankedCandidate.role,
+                                            hasAlternates = rankedCandidate.hasAlternates,
+                                            isTruncated = rankedCandidate.isTruncated,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+            }.mapNotNull { it.await() }
+        }
+    }
+
+    private suspend fun searchProviderExactOnlySafely(
+        descriptor: DictionaryProviderDescriptor,
+        provider: DictionaryProvider,
+        query: DictionaryQuery,
+        context: MorphologySuggestionContext,
+    ): DictionarySuggestionGroup? = try {
+        when (val result = provider.exactLookup(query)) {
+            is DictionarySearchResult.Success -> searchProvider(descriptor, query, result).copy(
+                morphologyContext = context,
+            )
+            else -> null
+        }
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    private data class RankedMorphologyCandidate(
+        val candidate: DictionaryLemmaCandidate,
+        val role: MorphologyAnalysisRole,
+        val hasAlternates: Boolean,
+        val isTruncated: Boolean,
+    )
 
     private fun searchProvider(
         descriptor: DictionaryProviderDescriptor,
@@ -740,6 +855,7 @@ class WordEditorViewModel @Inject constructor(
             providerName = descriptor.displayName,
             message = result.error.toSuggestionMessage(descriptor.displayName),
             languagePair = query.languagePair,
+            failure = result.error,
         )
     }
 
@@ -1347,6 +1463,7 @@ class WordEditorViewModel @Inject constructor(
     companion object {
         internal const val DICTIONARY_SEARCH_DEBOUNCE_MILLIS = 400L
         private const val DICTIONARY_RESULT_LIMIT = 20
+        private const val MORPHOLOGY_LEMMA_LIMIT = 5
     }
 }
 

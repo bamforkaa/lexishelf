@@ -9,7 +9,7 @@ KAIKKI_SOURCE_FILE = (
 )
 KAIKKI_SOURCE_URL = "https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz"
 KAIKKI_SOURCE_SHA256 = "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65"
-KAIKKI_INDEX_SCHEMA_VERSION = 2
+KAIKKI_INDEX_SCHEMA_VERSION = 3
 
 # This broader set is measured before selecting the production batch. Keep it
 # explicit so an analysis run never silently grows when Kaikki adds languages.
@@ -51,6 +51,10 @@ KAIKKI_SUPPORTED_LANGUAGE_TAGS = (
     "th",
     "id",
 )
+
+# English is intentionally morphology-only. It resolves source-attested forms
+# such as ``went -> go`` without shipping the much larger full English index.
+KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS = ("en",)
 
 
 def kaikki_language_pairs(

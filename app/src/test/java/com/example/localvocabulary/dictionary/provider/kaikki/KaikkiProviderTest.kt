@@ -33,6 +33,7 @@ class KaikkiProviderTest {
         assertTrue(DictionaryCapability.PART_OF_SPEECH in descriptor.capabilities)
         assertTrue(DictionaryCapability.PRONUNCIATION_TEXT in descriptor.capabilities)
         assertTrue(DictionaryCapability.INFLECTION in descriptor.capabilities)
+        assertTrue(DictionaryCapability.MORPHOLOGY_LOOKUP in descriptor.capabilities)
         assertTrue(DictionaryCapability.EXAMPLE_SENTENCES in descriptor.capabilities)
         assertEquals(KaikkiProvider.INDEXED_ENTRY_COUNT, descriptor.dataset?.entryCount)
         assertEquals(

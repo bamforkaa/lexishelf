@@ -21,6 +21,7 @@ import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
 import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
+import com.example.localvocabulary.dictionary.domain.DictionaryInflection
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
@@ -377,6 +378,73 @@ class WordEditorScreenTest {
 
         composeRule.onNodeWithText("word1").performTouchInput { swipeUp() }
         composeRule.runOnIdle { assertEquals(0, selectionCount) }
+    }
+
+    @Test
+    fun selectedInflectionsAndMorphologyResolutionAreVisibleAsCompactMetadata() {
+        val base = suggestionGroup("kaikki", "Kaikki / Wiktionary", "Haus")
+        val group = base.copy(
+            entries = listOf(
+                base.entries.single().copy(
+                    linguisticFeatures = DictionaryLinguisticFeatures(
+                        inflections = listOf(DictionaryInflection("Häuser", "plural")),
+                        totalInflectionCount = 12,
+                    ),
+                ),
+            ),
+            morphologyContext = MorphologySuggestionContext(
+                surface = "Häuser",
+                lemma = "Haus",
+                resolverProviderId = DictionaryProviderId("kaikki"),
+                resolverName = "Kaikki / Wiktionary",
+            ),
+        )
+
+        setSuggestionContent(listOf(group))
+
+        composeRule.onNodeWithTag("dictionary_inflection_forms", useUnmergedTree = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("plural  Häuser", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "활용형 분석 · Häuser → Haus · Kaikki / Wiktionary",
+            useUnmergedTree = true,
+        )
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun ambiguousMorphologyLabelsPrimaryAndAlternateAnalyses() {
+        val primary = suggestionGroup("kaikki", "Kaikki / Wiktionary", "be").copy(
+            morphologyContext = MorphologySuggestionContext(
+                surface = "is",
+                lemma = "be",
+                resolverProviderId = DictionaryProviderId("kaikki"),
+                resolverName = "Kaikki / Wiktionary",
+                role = MorphologyAnalysisRole.PRIMARY,
+                hasAlternates = true,
+            ),
+        )
+        val alternate = suggestionGroup("kaikki", "Kaikki / Wiktionary", "other").copy(
+            morphologyContext = MorphologySuggestionContext(
+                surface = "is",
+                lemma = "other",
+                resolverProviderId = DictionaryProviderId("kaikki"),
+                resolverName = "Kaikki / Wiktionary",
+                role = MorphologyAnalysisRole.ALTERNATE,
+                hasAlternates = true,
+            ),
+        )
+
+        setSuggestionContent(listOf(alternate, primary))
+
+        composeRule.onNodeWithText(
+            "기본형 분석 · is → be · Kaikki / Wiktionary",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "다른 형태 분석 · is → other · Kaikki / Wiktionary",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
     }
 
     @Test

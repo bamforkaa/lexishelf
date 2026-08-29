@@ -14,6 +14,7 @@ from tools.dataset_paths import dataset_paths, dataset_root_summary
 from tools.kaikki_language_config import (
     KAIKKI_DATASET_RELEASE_ID,
     KAIKKI_INDEX_SCHEMA_VERSION,
+    KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS,
     KAIKKI_SUPPORTED_LANGUAGE_TAGS,
 )
 from tools.panlex_language_config import panlex_language_pairs
@@ -93,7 +94,32 @@ def kaikki_pack_definition(language: str) -> PackDefinition:
 
 
 KAIKKI_PACKS = tuple(map(kaikki_pack_definition, KAIKKI_SUPPORTED_LANGUAGE_TAGS))
-PACKS = CORE_PACKS + KAIKKI_PACKS
+
+
+def kaikki_morphology_pack_definition(language: str) -> PackDefinition:
+    if language not in KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS:
+        raise ValueError(f"Unsupported Kaikki morphology pack language: {language}")
+    return PackDefinition(
+        dataset="kaikki",
+        artifact=f"{language}-morphology.db",
+        pack_id=f"kaikki.{language}-morphology",
+        provider_id="kaikki",
+        dataset_version=KAIKKI_DATASET_RELEASE_ID,
+        dataset_schema_version=KAIKKI_INDEX_SCHEMA_VERSION,
+        language_pairs=((language, language, "MONOLINGUAL_DEFINITION"),),
+        license_id="CC-BY-SA-4.0",
+        attribution=(
+            "English Wiktionary form-to-lemma metadata extracted by Wiktextract and "
+            "distributed through Kaikki.org, CC BY-SA 4.0."
+        ),
+        official_url="https://kaikki.org/dictionary/rawdata.html",
+    )
+
+
+KAIKKI_MORPHOLOGY_PACKS = tuple(
+    map(kaikki_morphology_pack_definition, KAIKKI_MORPHOLOGY_ONLY_LANGUAGE_TAGS)
+)
+PACKS = CORE_PACKS + KAIKKI_PACKS + KAIKKI_MORPHOLOGY_PACKS
 
 
 def pack_file_name(definition: PackDefinition) -> str:
@@ -234,7 +260,11 @@ def main() -> None:
         item
         for item in PACKS
         if (not args.pack or item.dataset in args.pack) and
-        (item.dataset != "kaikki" or item.artifact.removesuffix(".db") in requested_kaikki_languages)
+        (
+            item.dataset != "kaikki"
+            or item in KAIKKI_MORPHOLOGY_PACKS
+            or item.artifact.removesuffix(".db") in requested_kaikki_languages
+        )
     ]
     resolved_root = dataset_paths(selected[0].dataset, project_root).root
     print(dataset_root_summary(resolved_root))

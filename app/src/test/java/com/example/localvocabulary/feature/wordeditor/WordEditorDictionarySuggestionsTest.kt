@@ -11,6 +11,10 @@ import com.example.localvocabulary.dictionary.domain.DictionaryExample
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryLinguisticFeatures
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
+import com.example.localvocabulary.dictionary.domain.DictionaryLemmaCandidate
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResolver
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
 import com.example.localvocabulary.dictionary.domain.DictionaryPermission
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
@@ -138,6 +142,115 @@ class WordEditorDictionarySuggestionsTest {
         assertEquals("second", state.dictionarySuggestionGroups.single().entries.single().headword)
         assertEquals("second meaning", state.dictionarySuggestionGroups.single().entries.single().senses.single().meanings.single().text)
     }
+
+    @Test
+    fun `source-attested morphology re-queries exact providers once and keeps surface headword`() =
+        runTest {
+            val provider = suggestionProvider(
+                importMode = DictionaryVocabularyImportMode.COPY_EXPORTABLE_FIELDS,
+            ) { query ->
+                if (query.text == "surface") {
+                    DictionarySearchResult.Failure(DictionaryProviderError.NoResult)
+                } else {
+                    success(query, meaning = "lemma meaning")
+                }
+            }
+            val resolver = RecordingMorphologyResolver("surface", "lemma", "zh-Hans")
+            val viewModel = createViewModel(
+                providers = listOf(provider),
+                morphologyResolver = resolver,
+            )
+            runCurrent()
+
+            viewModel.onAction(WordEditorAction.HeadwordChanged("surface"))
+            advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+            advanceUntilIdle()
+
+            val candidate = viewModel.uiState.value.synthesizedSuggestionGroups
+                .flatMap { it.candidates }
+                .single()
+            assertEquals("surface", candidate.morphologyContext?.surface)
+            assertEquals("lemma", candidate.morphologyContext?.lemma)
+            assertEquals(listOf("surface", "lemma"), provider.queries.map { it.text })
+            assertEquals(1, resolver.queries.size)
+
+            viewModel.onAction(
+                WordEditorAction.DictionarySuggestionSelected(candidate.primaryEntry),
+            )
+
+            assertEquals("surface", viewModel.uiState.value.headword)
+            assertEquals("lemma meaning", viewModel.uiState.value.senses.single().meaning)
+        }
+
+    @Test
+    fun `direct exact candidate remains before lemma-derived candidate`() = runTest {
+        val provider = suggestionProvider { query ->
+            success(query, meaning = if (query.text == "surface") "direct" else "derived")
+        }
+        val viewModel = createViewModel(
+            providers = listOf(provider),
+            morphologyResolver = RecordingMorphologyResolver("surface", "lemma", "zh-Hans"),
+        )
+        runCurrent()
+
+        viewModel.onAction(WordEditorAction.HeadwordChanged("surface"))
+        advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+        advanceUntilIdle()
+
+        val candidates = viewModel.uiState.value.synthesizedSuggestionGroups
+            .flatMap { it.candidates }
+        assertEquals(listOf("direct", "derived"), candidates.map { it.displayMeaning })
+        assertNull(candidates.first().morphologyContext)
+        assertEquals("lemma", candidates.last().morphologyContext?.lemma)
+    }
+
+    @Test
+    fun `valid morphology ambiguity re-queries every provider once and keeps primary first`() =
+        runTest {
+            val kaikki = suggestionProvider(id = "kaikki", displayName = "Kaikki") { query ->
+                if (query.text == "surface") {
+                    DictionarySearchResult.Failure(DictionaryProviderError.NoResult)
+                } else {
+                    success(query, meaning = "Kaikki ${query.text}")
+                }
+            }
+            val panLex = suggestionProvider(id = "panlex", displayName = "PanLex") { query ->
+                if (query.text == "surface") {
+                    DictionarySearchResult.Failure(DictionaryProviderError.NoResult)
+                } else {
+                    success(query, meaning = "PanLex ${query.text}")
+                }
+            }
+            val resolver = RecordingMorphologyResolver(
+                surface = "surface",
+                lemmas = listOf("primary", "alternate"),
+                languageTag = "zh-Hans",
+            )
+            val viewModel = createViewModel(
+                providers = listOf(panLex, kaikki),
+                morphologyResolver = resolver,
+            )
+            runCurrent()
+
+            viewModel.onAction(WordEditorAction.HeadwordChanged("surface"))
+            advanceTimeBy(WordEditorViewModel.DICTIONARY_SEARCH_DEBOUNCE_MILLIS)
+            advanceUntilIdle()
+
+            val contexts = viewModel.uiState.value.synthesizedSuggestionGroups
+                .flatMap { it.candidates }
+                .mapNotNull { it.morphologyContext }
+            assertEquals(4, contexts.size)
+            assertTrue(contexts.take(2).all { it.role == MorphologyAnalysisRole.PRIMARY })
+            assertTrue(contexts.drop(2).all { it.role == MorphologyAnalysisRole.ALTERNATE })
+            assertEquals(
+                listOf("surface", "primary", "alternate"),
+                kaikki.queries.map { it.text },
+            )
+            assertEquals(
+                listOf("surface", "primary", "alternate"),
+                panLex.queries.map { it.text },
+            )
+        }
 
     @Test
     fun `results from multiple providers remain grouped by provider`() = runTest {
@@ -828,12 +941,15 @@ class WordEditorDictionarySuggestionsTest {
         providers: List<DictionaryProvider>,
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
         settingsRepository: SettingsRepository = SuggestionSettingsRepository,
+        morphologyResolver: DictionaryMorphologyResolver? = null,
     ) = WordEditorViewModel(
         savedStateHandle = savedStateHandle,
         vocabularyRepository = repository,
         tagRepository = SuggestionTagRepository,
         settingsRepository = settingsRepository,
         dictionaryProviderRegistry = DefaultDictionaryProviderRegistry(providers),
+        dictionaryMorphologyResolver = morphologyResolver
+            ?: com.example.localvocabulary.dictionary.domain.NoOpDictionaryMorphologyResolver,
         timeProvider = TimeProvider { 1_000L },
     )
 
@@ -917,6 +1033,11 @@ private class RecordingSuggestionProvider(
         return response(query)
     }
 
+    override suspend fun exactLookup(query: DictionaryQuery): DictionarySearchResult {
+        queries += query
+        return response(query)
+    }
+
     override suspend fun checkAvailability(): ProviderAvailability = ProviderAvailability.Available
 
     fun success(
@@ -976,6 +1097,42 @@ private class RecordingSuggestionProvider(
             ),
         ),
     )
+}
+
+private class RecordingMorphologyResolver(
+    private val surface: String,
+    private val lemmas: List<String>,
+    languageTag: String,
+) : DictionaryMorphologyResolver {
+    constructor(surface: String, lemma: String, languageTag: String) : this(
+        surface,
+        listOf(lemma),
+        languageTag,
+    )
+
+    override val providerId = DictionaryProviderId("kaikki")
+    override val displayName = "Kaikki / Wiktionary"
+    override val supportedSourceLanguages = setOf(Bcp47LanguageTag.requireValid(languageTag))
+    val queries = mutableListOf<DictionaryMorphologyQuery>()
+
+    override suspend fun resolve(query: DictionaryMorphologyQuery): DictionaryMorphologyResult {
+        queries += query
+        return if (query.surface == surface) {
+            DictionaryMorphologyResult.Resolved(
+                lemmas.mapIndexed { index, lemma ->
+                    DictionaryLemmaCandidate(
+                        surface = surface,
+                        lemma = lemma,
+                        sourceLanguage = query.sourceLanguage,
+                        resolverProviderId = providerId,
+                        sourceEntryId = "morph-$index",
+                    )
+                },
+            )
+        } else {
+            DictionaryMorphologyResult.NoResult
+        }
+    }
 }
 
 private class SuggestionVocabularyRepository(

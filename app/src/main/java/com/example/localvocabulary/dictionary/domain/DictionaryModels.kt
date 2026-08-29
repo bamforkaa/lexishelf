@@ -76,6 +76,7 @@ enum class DictionaryCapability {
     PART_OF_SPEECH,
     GRAMMATICAL_GENDER,
     INFLECTION,
+    MORPHOLOGY_LOOKUP,
     ETYMOLOGY,
 }
 

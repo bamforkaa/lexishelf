@@ -9,6 +9,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.localvocabulary.app.DictionaryApplication
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
+import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictDataSource
@@ -49,9 +51,10 @@ class InstalledDictionaryPacksIntegrationTest {
         val providerId = DictionaryProviderId("kaikki")
         val germanPack = repository.activePack(providerId, pair("de"))
         val vietnamesePack = repository.activePack(providerId, pair("vi"))
+        val englishMorphologyPack = repository.activePack(providerId, englishMorphologyPair())
         assumeTrue(
             "The optional de/vi Kaikki debug packs are not configured for this build",
-            germanPack != null && vietnamesePack != null,
+            germanPack != null && vietnamesePack != null && englishMorphologyPack != null,
         )
 
         val lookup = KaikkiDataSource(KaikkiIndexSource(repository))
@@ -77,6 +80,58 @@ class InstalledDictionaryPacksIntegrationTest {
             "ăn",
             (vietnamese as KaikkiLookupResult.Matches).records.first().entry.headword,
         )
+
+        lateinit var germanMorphology: DictionaryMorphologyResult.Resolved
+        lateinit var germanLemmaEntry: KaikkiLookupResult
+        val morphologyAndLemmaLookupMillis = measureTimeMillis {
+            germanMorphology = lookup.resolve(
+                DictionaryMorphologyQuery(
+                    surface = "Häuser",
+                    sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+                ),
+            ) as DictionaryMorphologyResult.Resolved
+            germanLemmaEntry = lookup.exactLookup(germanMorphology.candidates.first().lemma, "de", 20)
+        }
+        assertEquals("Haus", germanMorphology.candidates.first().lemma)
+        assertTrue(germanLemmaEntry is KaikkiLookupResult.Matches)
+        Log.i(
+            "DictionaryPackBenchmark",
+            "kaikki-de-morphology-plus-lemma=$morphologyAndLemmaLookupMillis ms",
+        )
+
+        val englishQueries = mapOf(
+            "is" to listOf("be"),
+            "are" to listOf("be"),
+            "was" to listOf("be"),
+            "were" to listOf("be"),
+            "been" to listOf("be"),
+            "being" to listOf("be"),
+            "goes" to listOf("go"),
+            "went" to listOf("go", "gan"),
+            "gone" to listOf("go"),
+            "eats" to listOf("eat"),
+            "ate" to listOf("eat"),
+            "eaten" to listOf("eat"),
+            "children" to listOf("child", "childer"),
+            "mice" to listOf("mouse"),
+        )
+        englishQueries.forEach { (surface, expectedLemmas) ->
+            lateinit var morphology: DictionaryMorphologyResult
+            val lookupMillis = measureTimeMillis {
+                morphology = lookup.resolve(
+                    DictionaryMorphologyQuery(
+                        surface = surface,
+                        sourceLanguage = Bcp47LanguageTag.requireValid("en"),
+                    ),
+                )
+            }
+            assertTrue("$surface: $morphology", morphology is DictionaryMorphologyResult.Resolved)
+            assertEquals(
+                expectedLemmas,
+                (morphology as DictionaryMorphologyResult.Resolved).candidates.map { it.lemma },
+            )
+            Log.i("DictionaryPackBenchmark", "kaikki-en-morphology-$surface=${lookupMillis}ms")
+        }
         Unit
     }
 
@@ -131,6 +186,16 @@ class InstalledDictionaryPacksIntegrationTest {
             assertTrue(lookupResult is PanLexLookupResult.Matches)
             Log.i("DictionaryPackBenchmark", "panlex-first-query=${firstQueryMillis}ms")
         }
+        if (repository.activePack(DictionaryProviderId("kaikki"), pair("tr")) != null) {
+            val lookup = KaikkiDataSource(KaikkiIndexSource(repository))
+            val morphology = lookup.resolve(
+                DictionaryMorphologyQuery(
+                    surface = "ingilizceleştirir",
+                    sourceLanguage = Bcp47LanguageTag.requireValid("tr"),
+                ),
+            ) as DictionaryMorphologyResult.Resolved
+            assertEquals("İngilizceleştirmek", morphology.candidates.first().lemma)
+        }
     }
 
     private companion object {
@@ -142,5 +207,11 @@ class InstalledDictionaryPacksIntegrationTest {
         sourceLanguage = Bcp47LanguageTag.requireValid(sourceLanguage),
         resultLanguage = Bcp47LanguageTag.requireValid("en"),
         resultKind = DictionaryResultKind.TRANSLATION,
+    )
+
+    private fun englishMorphologyPair() = DictionaryLanguagePair(
+        sourceLanguage = Bcp47LanguageTag.requireValid("en"),
+        resultLanguage = Bcp47LanguageTag.requireValid("en"),
+        resultKind = DictionaryResultKind.MONOLINGUAL_DEFINITION,
     )
 }

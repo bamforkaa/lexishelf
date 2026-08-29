@@ -119,6 +119,7 @@ class KaikkiProvider @Inject internal constructor(
                 DictionaryCapability.PRONUNCIATION_TEXT,
                 DictionaryCapability.GRAMMATICAL_GENDER,
                 DictionaryCapability.INFLECTION,
+                DictionaryCapability.MORPHOLOGY_LOOKUP,
             ),
             attribution = DictionaryAttribution(
                 sourceName = "English Wiktionary via Kaikki/Wiktextract",

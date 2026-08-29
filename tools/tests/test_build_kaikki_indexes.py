@@ -118,6 +118,7 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertEqual("noun", first["p"])
             self.assertEqual(["/ˈvasɐ/"], first["n"])
             self.assertEqual("Wassers", first["f"][0]["f"])
+            self.assertEqual("genitive singular", first["f"][0]["l"])
             self.assertEqual(1, first["fc"])
             self.assertEqual(["water", "a body of water"], first["s"][0]["g"])
             self.assertEqual(3, first["s"][0]["x"])
@@ -129,6 +130,96 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertNotIn("quotation", " ".join(first["s"][0]["e"]))
             self.assertEqual("neuter", first["s"][0]["d"])
             self.assertEqual("de", metadata["language_tag"])
+            with closing(sqlite3.connect(root / "generated" / "de.db")) as database:
+                morphology = database.execute(
+                    "SELECT form, lemma FROM morphology_forms WHERE normalized_form = ?",
+                    (normalized_exact_key("Wassers"),),
+                ).fetchall()
+            self.assertEqual([("Wassers", "Wasser")], morphology)
+
+    def test_builds_compact_english_morphology_only_index(self):
+        entries = (
+            {
+                "word": "be",
+                "lang_code": "en",
+                "pos": "verb",
+                "forms": [
+                    {"form": "is", "tags": ["present", "third-person", "singular"]},
+                    {"form": "are", "tags": ["present", "plural"]},
+                    {"form": "was", "tags": ["past", "singular"]},
+                ],
+                "senses": [{"glosses": ["To exist."]}],
+            },
+            {
+                "word": "I",
+                "lang_code": "en",
+                "pos": "noun",
+                "etymology_number": "3",
+                "forms": [{"form": "Is", "tags": ["plural"]}],
+                "senses": [
+                    {
+                        "glosses": ["Abbreviation of interstate."],
+                        "tags": ["abbreviation", "alt-of"],
+                    },
+                    {
+                        "glosses": ["Abbreviation of instruction."],
+                        "tags": ["abbreviation", "alt-of"],
+                    },
+                ],
+            },
+            {
+                "word": "axis",
+                "lang_code": "en",
+                "pos": "noun",
+                "forms": [{"form": "axes", "tags": ["plural"]}],
+                "senses": [{"glosses": ["A line around which something rotates."]}],
+            },
+            {
+                "word": "axe",
+                "lang_code": "en",
+                "pos": "noun",
+                "forms": [{"form": "axes", "tags": ["plural"]}],
+                "senses": [{"glosses": ["A cutting tool."]}],
+            },
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "raw.jsonl.gz"
+            with gzip.open(source, "wt", encoding="utf-8") as stream:
+                for entry in entries:
+                    stream.write(json.dumps(entry) + "\n")
+
+            report = build_indexes(
+                source,
+                root / "generated",
+                root / "filtered",
+                (),
+                morphology_only_languages=("en",),
+            )
+
+            database_path = root / "generated" / "en-morphology.db"
+            self.assertTrue(database_path.is_file())
+            self.assertFalse((root / "filtered" / "en.jsonl.gz").exists())
+            with closing(sqlite3.connect(database_path)) as database:
+                mappings = database.execute(
+                    "SELECT form, lemma FROM morphology_forms ORDER BY entry_order, form_order"
+                ).fetchall()
+                entry_count = database.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+            self.assertEqual(
+                [
+                    ("is", "be"),
+                    ("are", "be"),
+                    ("was", "be"),
+                    ("axes", "axis"),
+                    ("axes", "axe"),
+                ],
+                mappings,
+            )
+            self.assertEqual(0, entry_count)
+            self.assertEqual(5, report.languages[0].morphology_row_count)
+            self.assertEqual(1, report.languages[0].rejected_morphology_entry_count)
+            self.assertEqual(1, report.languages[0].rejected_morphology_row_count)
+            self.assertEqual({"nonlexical": 1}, report.languages[0].morphology_rejection_counts)
 
     def test_unicode_normalization_and_malformed_json_are_safe(self):
         self.assertEqual("café", normalized_exact_key(" CAFE\u0301 "))
@@ -143,6 +234,12 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertFalse((root / "generated" / "de.db.tmp").exists())
             self.assertFalse((root / "filtered" / "de.jsonl.gz").exists())
             self.assertFalse((root / "filtered" / "de.jsonl.gz.tmp").exists())
+
+    def test_turkish_exact_key_uses_dotted_and_dotless_i_pairs(self):
+        self.assertEqual("ı", normalized_exact_key("I", "tr"))
+        self.assertEqual("i", normalized_exact_key("İ", "tr"))
+        self.assertEqual("i", normalized_exact_key("i", "tr"))
+        self.assertEqual("ı", normalized_exact_key("ı", "tr"))
 
     def test_validation_failure_keeps_previous_generated_outputs(self):
         with tempfile.TemporaryDirectory() as directory:

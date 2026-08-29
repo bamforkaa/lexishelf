@@ -21,3 +21,6 @@ internal val KAIKKI_SOURCE_LANGUAGES =
     KAIKKI_SOURCE_LANGUAGE_TAG_VALUES.map(Bcp47LanguageTag::requireValid)
 
 internal val KAIKKI_ENGLISH_LANGUAGE = Bcp47LanguageTag.requireValid("en")
+
+internal val KAIKKI_MORPHOLOGY_SOURCE_LANGUAGES =
+    (KAIKKI_SOURCE_LANGUAGES + KAIKKI_ENGLISH_LANGUAGE).toSet()

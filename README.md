@@ -34,7 +34,7 @@
 - Word Editor headword 기반의 registry 공통 inline suggestion, CC-CEDICT 중국어 exact lookup
 - 한국어기초사전의 한국어↔11개 외국어 양방향 exact/reverse lookup
 - PanLex filtered index의 12개 언어(`de/hi/pl/la/nl/pt/it/tr/cs/sv/fi/uk`)↔한국어 양방향 exact fallback
-- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, POS·발음·문법 성·source-ordered usage example import와 transient forms metadata
+- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, bounded principal-form display, source-attested form→lemma fallback, POS·발음·문법 성·source-ordered usage example import
 - 400ms debounce, provider별 raw 결과/오류 격리, result-language 중심 exact 합성, 명시적 autofill과 sense 단위 provenance
 - provider dataset과 독립된 base APK, SAF local pack install/update/delete/one-step rollback
 - 한국어 결과 우선·영어 fallback 동시 표시, provider/pair당 최대 20개 query 결과와 합성 후 최대 25개 materialized row
@@ -70,7 +70,7 @@
 
 대용량 dataset은 release base APK asset으로 읽지 않습니다. 일반 설치에서는 configurable dataset root에서 `.dictpack`을 만들고 설정 화면에서 SAF로 설치합니다. pack이 없어도 build와 수동 Word Editor는 정상 동작하고 suggestion 영역에만 dataset unavailable이 표시됩니다. 자세한 root/manifest/install 절차는 [dictionary pack 문서](docs/dictionary-packs.md)에 있습니다.
 
-로컬 QA에서는 `local.properties`에 `bundleDictionaryPacksInDebug=true`를 지정할 수 있습니다. 그러면 `assembleDebug`/`installDebug`가 configured dataset root의 core pack 네 개와 `debugDictionaryPackLanguages`로 명시한 Kaikki 언어 pack만 재생성해 debug APK에 포함합니다. 앱을 처음 열면 동일한 production manifest/size/SHA-256/payload 검증과 atomic activation을 거치며, 같은 payload가 이미 활성화돼 있으면 재설치하지 않습니다. 이 옵션을 끄면 기존 SAF 설치 및 `tools.stage_dictionary_packs` 흐름을 사용합니다.
+로컬 QA에서는 `local.properties`에 `bundleDictionaryPacksInDebug=true`를 지정할 수 있습니다. 그러면 `assembleDebug`/`installDebug`가 configured dataset root의 core pack 네 개, `debugDictionaryPackLanguages`로 명시한 Kaikki 언어 pack, compact English morphology pack을 재생성해 debug APK에 포함합니다. 앱을 처음 열면 동일한 production manifest/size/SHA-256/payload 검증과 atomic activation을 거치며, 같은 payload가 이미 활성화돼 있으면 재설치하지 않습니다. 이 옵션을 끄면 기존 SAF 설치 및 `tools.stage_dictionary_packs` 흐름을 사용합니다.
 
 이 debug 편의 옵션은 압축 pack을 APK에 넣고 실행 시 app-private storage에 다시 풀기 때문에
 저장공간을 이중으로 사용합니다. active와 직전 rollback version 하나도 정상적으로 유지합니다.
@@ -81,7 +81,7 @@
 
 PanLex는 체크섬을 검증한 2019-09-01 공식 CSV snapshot에서 위 12개 representative variety와 `kor-000`의 동일 meaning 직접 관계 1,098,758개만 189,714,432-byte SQLite로 필터합니다. pivot translation이나 provider에 없는 linguistic field는 만들지 않습니다. snapshot에 내장된 CC0 grant와 현재 PanLex 사이트의 CC BY-NC-SA 4.0 조건은 서로 구분하며, 현재 metadata는 고정한 과거 artifact에만 적용합니다. source, checksum, 후보 coverage, 신규 언어별 QA sample과 생성 절차는 [PanLex 데이터셋 문서](docs/panlex-dataset.md)에 있습니다.
 
-Kaikki provider는 English Wiktionary `2026-08-05` dump의 공식 `2026-08-23` Wiktextract raw extraction을 checksum으로 고정하고 per-language compact SQLite/pack으로 변환합니다. 명시적인 row tap은 gloss/POS, textual pronunciation, grammatical gender와 `type=example`이고 외부 `ref`가 없는 source-ordered usage example을 provenance와 함께 가져옵니다. sense당 최대 두 예문만 보존하며 forms는 transient metadata입니다. quotation, attributed text와 audio/media는 index에 넣지 않습니다. 19개 후보의 실제 coverage·크기, 12개 선택 근거, SHA-256과 QA key는 [Kaikki 데이터셋 문서](docs/kaikki-dataset.md)에 있고 metadata 실측은 [linguistic metadata 문서](docs/linguistic-metadata.md)에 있습니다.
+Kaikki provider는 English Wiktionary `2026-08-05` dump의 공식 `2026-08-23` Wiktextract raw extraction을 checksum으로 고정하고 per-language compact SQLite/pack으로 변환합니다. Schema v3는 raw table을 그대로 노출하지 않고 학습 가치가 확인된 대표형만 최대 8개 표시하며, 별도 reverse index의 source-metadata eligibility를 통과한 실제 relation으로 surface→lemma를 찾은 뒤 기존 provider를 exact-only로 재조회합니다. exact 원문 case와 source order로 정렬한 첫 lemma는 기본 분석, 나머지는 다른 형태 분석으로 명시합니다. 영어는 full dictionary 대신 compact morphology-only pack을 사용합니다. 명시적인 row tap은 gloss/POS, textual pronunciation, grammatical gender와 `type=example`이고 외부 `ref`가 없는 source-ordered usage example을 provenance와 함께 가져옵니다. forms와 morphology context는 transient metadata이며 Room/backup에 저장하지 않습니다. 자세한 정책은 [forms 문서](docs/linguistic-forms.md)와 [morphology 문서](docs/morphology-search.md)에 있습니다.
 
 `Add word`는 선택 화면 없이 Word Editor를 바로 엽니다. 유효한 source language와 registry가 제공하는 result language pair가 있으면 headword를 기준으로 400ms 후 모든 지원 pair를 자동 검색하며, 빈 문자열과 동일 query/pair 집합은 다시 검색하지 않습니다. 결과는 `ko`, `en`, 기타 result language 순서로 동시에 표시합니다. 같은 result language·headword·meaning·restriction이고 POS/sense가 충돌하지 않는 후보만 합치며 출처는 모두 표시합니다. 합성된 selectable row가 4개 이하면 내용 높이만 사용하는 일반 목록이고, 5개 이상이면 높이 352dp의 단일 `LazyColumn` 안에서 끝까지 스크롤합니다. row를 누르면 deterministic primary source가 기존 generic mapper를 통과하고 다시 누르면 해당 suggestion이 추가한 미수정 contribution만 제거합니다. 사용자가 수정한 내용은 보존하며 `Use`/`Use this sense` button은 없습니다. provider 오류는 해당 result-language 영역에만 있어 다른 결과와 수동 저장을 막지 않습니다.
 

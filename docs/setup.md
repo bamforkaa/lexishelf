@@ -122,6 +122,13 @@ Android/Gradle build는 Kaikki 원본을 다운로드하거나 runtime JSON pars
 D:\lang-Database\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz
 ```
 
+`python -X utf8 -m tools.build_kaikki_indexes`는 production 12개 `<language>.db`와 compact
+`en-morphology.db`를 함께 만듭니다. 후자는 full English dictionary가 아니라 실제
+surface→lemma 관계만 보관합니다. `python -X utf8 -m tools.build_dictionary_packs --pack
+kaikki`는 12개 language pack과 `kaikki.en-morphology-...dictpack`을 생성합니다. Manual QA
+debug bundle에서 `debugDictionaryPackLanguages=de,vi`를 사용하면 de/vi와 English morphology
+pack이 함께 들어갑니다.
+
 ```powershell
 python -X utf8 -m tools.build_kaikki_indexes
 python -X utf8 -m tools.build_dictionary_packs --pack kaikki

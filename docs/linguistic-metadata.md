@@ -50,7 +50,7 @@ The current converter prefixes enPR explicitly; the reviewed batch has no `zh-pr
 
 Form labels are present for almost every retained form-bearing entry, but their language-specific
 shape and extreme cardinality make blind persistence unsuitable. General sense usage labels such
-as formal/informal/archaic are not retained by index schema v2, so runtime coverage is zero and no
+as formal/informal/archaic are not retained by current index schema v3, so runtime coverage is zero and no
 schema is inferred from raw Wiktionary internals.
 
 ## Decision matrix

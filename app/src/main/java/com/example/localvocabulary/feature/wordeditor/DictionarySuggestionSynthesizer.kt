@@ -21,6 +21,7 @@ data class SynthesizedSuggestionCandidate(
     val resultLanguage: Bcp47LanguageTag,
     val primarySource: DictionarySourceContribution,
     val sources: List<DictionarySourceContribution>,
+    val morphologyContext: MorphologySuggestionContext? = null,
 ) {
     val primaryEntry: ExternalDictionaryEntry
         get() = primarySource.entry
@@ -54,6 +55,7 @@ internal object DictionarySuggestionSynthesizer {
                     providerName = group.providerName,
                     firstSeenOrder = groupIndex * RAW_ORDER_GROUP_STRIDE + entryIndex,
                     fallbackResultLanguage = group.languagePair?.resultLanguage,
+                    morphologyContext = group.morphologyContext,
                 )
             }
         }
@@ -91,6 +93,8 @@ internal object DictionarySuggestionSynthesizer {
                     .filter { it.candidate.resultLanguage == language }
                     .sortedWith(
                         compareBy<SynthesizedCandidateWithOrder>(
+                            { it.candidate.morphologyContext != null },
+                            { it.candidate.morphologyContext?.role?.order ?: -1 },
                             { it.primarySource.role.order },
                             SynthesizedCandidateWithOrder::firstSeenOrder,
                             { it.candidate.key },
@@ -136,6 +140,7 @@ internal object DictionarySuggestionSynthesizer {
             representative.normalizedPartOfSpeech.orEmpty(),
             representative.baseIdentity.writtenFormRestrictions,
             representative.baseIdentity.readingRestrictions,
+            representative.baseIdentity.resolutionKey,
         ).joinToString(SEPARATOR)
         return SynthesizedCandidateWithOrder(
             candidate = SynthesizedSuggestionCandidate(
@@ -150,6 +155,7 @@ internal object DictionarySuggestionSynthesizer {
                 resultLanguage = representative.resultLanguage,
                 primarySource = primary,
                 sources = orderedSources,
+                morphologyContext = representative.morphologyContext,
             ),
             firstSeenOrder = minOf(RawSuggestionCandidate::firstSeenOrder),
             primarySource = primary,
@@ -160,6 +166,7 @@ internal object DictionarySuggestionSynthesizer {
         providerName: String,
         firstSeenOrder: Int,
         fallbackResultLanguage: Bcp47LanguageTag?,
+        morphologyContext: MorphologySuggestionContext?,
     ): RawSuggestionCandidate? {
         val sense = senses.singleOrNull() ?: return null
         val resultLanguage = sense.meanings.firstOrNull()?.language ?: fallbackResultLanguage
@@ -194,8 +201,16 @@ internal object DictionarySuggestionSynthesizer {
                     .map(::normalizeLexicalText).sorted().joinToString(SEPARATOR),
                 readingRestrictions = sense.readingRestrictions
                     .map(::normalizeLexicalText).sorted().joinToString(SEPARATOR),
+                resolutionKey = morphologyContext?.let {
+                    stableComponents(
+                        normalizeLexicalText(it.surface),
+                        normalizeLexicalText(it.lemma),
+                        it.resolverProviderId.value,
+                    )
+                }.orEmpty(),
             ),
             firstSeenOrder = firstSeenOrder,
+            morphologyContext = morphologyContext,
         )
     }
 
@@ -279,6 +294,7 @@ internal object DictionarySuggestionSynthesizer {
         val normalizedPartOfSpeech: String?,
         val baseIdentity: ExactCandidateIdentity,
         val firstSeenOrder: Int,
+        val morphologyContext: MorphologySuggestionContext?,
     )
 
     private data class ExactCandidateIdentity(
@@ -287,6 +303,7 @@ internal object DictionarySuggestionSynthesizer {
         val normalizedMeaning: String,
         val writtenFormRestrictions: String,
         val readingRestrictions: String,
+        val resolutionKey: String,
     )
 
     private data class SynthesizedCandidateWithOrder(

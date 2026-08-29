@@ -232,6 +232,31 @@ class DictionarySuggestionSynthesizerTest {
         assertNotEquals(oneSourceKey, twoSourceKey)
     }
 
+    @Test
+    fun `lemma-derived result remains distinct and follows direct result`() {
+        val direct = group("kaikki", "Kaikki", entry("kaikki", "house", "en", sourceEntryId = "direct"))
+        val derived = group(
+            "kaikki",
+            "Kaikki",
+            entry("kaikki", "house", "en", sourceEntryId = "lemma"),
+        ).copy(
+            morphologyContext = MorphologySuggestionContext(
+                surface = "Häuser",
+                lemma = "Haus",
+                resolverProviderId = DictionaryProviderId("kaikki"),
+                resolverName = "Kaikki / Wiktionary",
+            ),
+        )
+
+        val candidates = DictionarySuggestionSynthesizer.synthesize(listOf(derived, direct))
+            .single().candidates
+
+        assertEquals(2, candidates.size)
+        assertEquals(null, candidates.first().morphologyContext)
+        assertEquals("Haus", candidates.last().morphologyContext?.lemma)
+        assertNotEquals(candidates.first().key, candidates.last().key)
+    }
+
     private fun group(
         providerId: String,
         providerName: String,
