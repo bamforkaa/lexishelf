@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +54,9 @@ import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.ScreenStatePane
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
+import com.example.localvocabulary.feature.handwriting.HandwritingInputAction
+import com.example.localvocabulary.feature.handwriting.HandwritingInputDialog
+import com.example.localvocabulary.feature.handwriting.HandwritingInputUiState
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +71,9 @@ fun WordListScreen(
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
     onBack: (() -> Unit)? = null,
+    handwritingState: HandwritingInputUiState = HandwritingInputUiState(),
+    onHandwritingAction: (HandwritingInputAction) -> Unit = {},
+    onHandwritingCandidateSelected: (String) -> Unit = {},
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val title = if (state.isCollectionView) {
@@ -133,6 +141,13 @@ fun WordListScreen(
                 query = state.query,
                 onQueryChanged = { onAction(WordListAction.QueryChanged(it)) },
                 onClear = { onAction(WordListAction.QueryChanged("")) },
+                onHandwriting = {
+                    onHandwritingAction(
+                        HandwritingInputAction.Open(
+                            vocabularyLanguageTags = state.languages,
+                        ),
+                    )
+                },
             )
             if (!state.isCollectionView) {
                 FilterCategoryRow(state = state, onAction = onAction)
@@ -240,6 +255,12 @@ fun WordListScreen(
             }
         }
     }
+
+    HandwritingInputDialog(
+        state = handwritingState,
+        onAction = onHandwritingAction,
+        onCandidateSelected = onHandwritingCandidateSelected,
+    )
 }
 
 @Composable
@@ -275,6 +296,7 @@ internal fun VocabularySearchField(
     query: String,
     onQueryChanged: (String) -> Unit,
     onClear: () -> Unit,
+    onHandwriting: (() -> Unit)? = null,
 ) {
     TextField(
         value = query,
@@ -282,9 +304,19 @@ internal fun VocabularySearchField(
         placeholder = { Text("단어 또는 뜻 검색") },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Clear, contentDescription = "검색어 지우기")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = onClear) {
+                        Icon(Icons.Default.Clear, contentDescription = "검색어 지우기")
+                    }
+                }
+                onHandwriting?.let { openHandwriting ->
+                    IconButton(
+                        onClick = openHandwriting,
+                        modifier = Modifier.testTag("open_search_handwriting"),
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = "손글씨로 검색")
+                    }
                 }
             }
         },

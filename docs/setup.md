@@ -56,6 +56,15 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 
 백업/복원은 Android 시스템 파일 선택기(Storage Access Framework)를 사용하므로 별도 storage permission이나 SDK 도구 설치가 필요하지 않습니다. 실제 기기 또는 AVD에서 파일 제공자를 열 수 있어야 하며 수동 절차는 [backup.md](backup.md)에 있습니다.
 
+## 선택 사항: 손글씨 인식 모델
+
+앱은 공식 `com.google.mlkit:digital-ink-recognition:19.0.0`을 사용하며 최소 API 23이
+필요합니다. APK에는 언어 모델을 묶지 않습니다. Word Editor의 손글씨 버튼을 누르고 모델
+다운로드를 선택하면 현재 BCP 47 언어에 맞는 모델 하나만 내려받습니다. 공식 안내 기준 모델당
+저장 공간은 약 20MB입니다. 다운로드 때문에 `INTERNET` permission이 필요하지만 별도 API key,
+서버나 사전 network provider는 없습니다. 모델이 설치된 뒤 인식 입력과 결과 처리는 기기에서
+이뤄집니다. 자세한 출처, privacy와 Manual QA는 [handwriting.md](handwriting.md)에 있습니다.
+
 ## 선택 사항: CC-CEDICT local dataset
 
 CC-CEDICT provider에는 SDK 도구, network permission 또는 API key가 필요하지 않습니다. 다만 full GZip binary는 저장소에 포함되지 않으므로 실제 lookup을 하려면 브라우저에서 공식 release를 수동으로 받아 canonical dataset root에 두어야 합니다.
@@ -231,6 +240,11 @@ python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual `
 
 `bundleDictionaryPacksInDebug=false`인 경우 staging은 설치가 아닙니다. 앱의 설정 → `로컬 pack 설치`에서 `Download/LocalVocabularyPacks`의 파일을 선택해야 합니다. `true`인 Manual QA 구성에서는 `installDebug`가 pack 포함 APK를 설치하고 첫 실행이 `AndroidDictionaryPackRepository`의 manifest/size/SHA-256/payload 검증과 atomic activation을 수행합니다.
 
+debug bundle은 압축 pack과 활성화된 unpacked payload를 함께 차지하며 rollback용 직전 version도
+하나 유지합니다. APK 크기 회귀를 측정할 때는 `clean assembleDebug`를 사용하세요. 실제 Manual AVD
+저장공간 구성과 정리 정책은 [debug-storage.md](debug-storage.md)에 있습니다. release variant는
+이 generated debug asset 경로를 사용하지 않습니다.
+
 ## 이번 작업에서 실제 실행한 검증
 
 최종 버전 조합에서 다음 결과를 얻었습니다.
@@ -238,10 +252,12 @@ python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual `
 | 명령 | 실제 결과 |
 | --- | --- |
 | `.\gradlew.bat --version` | 성공, Gradle 9.5.0 / JBR 25.0.2 / Windows amd64 |
-| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 38개 통과 |
-| `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 생성 |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone(AVD) - 17`에서 21개 통과 / 실패·건너뜀 0 |
-| `.\gradlew.bat lintDebug` | 성공, 0 errors / 4 version-availability warnings |
+| `.\gradlew.bat testDebugUnitTest` | 성공, JVM 단위 테스트 185개 통과 |
+| `.\gradlew.bat lintDebug` | 성공, errors 0 / dependency·version warning 8개 |
+| `.\gradlew.bat clean` | 성공, stale 증분 산출물 제거 |
+| `.\gradlew.bat assembleDebug` 최종 실행 | 성공, schema 2 `de`/`vi` pack을 포함한 `app-debug.apk` 264,611,485 bytes 생성 |
+| `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,410,667 bytes 생성 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone_Test(AVD) - 17`에서 115개 발견 / 114개 실행·통과 / staged-pack opt-in 테스트 1개 건너뜀 / 실패 0. 번들 `de`/`vi` 실제 조회 통합 테스트는 실행·통과 |
 
 중간 실패도 숨기지 않습니다.
 

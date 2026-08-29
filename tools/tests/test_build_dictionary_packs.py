@@ -71,6 +71,26 @@ class BuildDictionaryPacksTest(unittest.TestCase):
                 with self.assertRaisesRegex(FileNotFoundError, "Missing canonical artifact"):
                     build_pack(definition, project)
 
+    def test_unchanged_payload_reuses_pack_without_rewriting_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "dictionary-data"
+            project = Path(temporary) / "project"
+            definition = PACKS[0]
+            source = root / definition.dataset / "source" / definition.artifact
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"stable dictionary payload")
+
+            with patch.dict(os.environ, {"LANG_DATABASE_DIR": str(root)}):
+                output, first_manifest = build_pack(definition, project)
+                fixed_timestamp = 1_000_000_000
+                os.utime(output, (fixed_timestamp, fixed_timestamp))
+                first_bytes = output.read_bytes()
+                _, second_manifest = build_pack(definition, project)
+
+            self.assertEqual(first_manifest, second_manifest)
+            self.assertEqual(first_bytes, output.read_bytes())
+            self.assertEqual(fixed_timestamp, output.stat().st_mtime)
+
 
 if __name__ == "__main__":
     unittest.main()

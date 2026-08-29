@@ -7,6 +7,7 @@ from contextlib import closing
 from pathlib import Path
 
 from tools.build_kaikki_indexes import build_indexes, normalized_exact_key
+from tools.kaikki_language_config import KAIKKI_INDEX_SCHEMA_VERSION
 
 
 FIXTURE_ENTRIES = (
@@ -103,11 +104,15 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertGreater(de.generated_database_bytes, 0)
 
             with closing(sqlite3.connect(root / "generated" / "de.db")) as database:
+                schema_version = database.execute("PRAGMA user_version").fetchone()[0]
+                quick_check = database.execute("PRAGMA quick_check").fetchone()[0]
                 rows = database.execute(
                     "SELECT entry_id, payload FROM entries WHERE normalized_headword = ? ORDER BY entry_order",
                     (normalized_exact_key(" wasser "),),
                 ).fetchall()
                 metadata = dict(database.execute("SELECT key, value FROM metadata"))
+            self.assertEqual(KAIKKI_INDEX_SCHEMA_VERSION, schema_version)
+            self.assertEqual("ok", quick_check)
             self.assertEqual(2, len(rows), "homographs must remain separate")
             first = json.loads(rows[0][1])
             self.assertEqual("noun", first["p"])

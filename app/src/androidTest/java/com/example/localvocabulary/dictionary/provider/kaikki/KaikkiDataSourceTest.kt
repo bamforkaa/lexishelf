@@ -91,6 +91,21 @@ class KaikkiDataSourceTest {
         assertTrue(result is KaikkiLookupResult.MalformedDataset)
     }
 
+    @Test
+    fun wrongSchemaIsRejected() = runBlocking {
+        SQLiteDatabase.openDatabase(
+            databaseFile.absolutePath,
+            null,
+            SQLiteDatabase.OPEN_READWRITE,
+        ).use { database ->
+            database.execSQL("PRAGMA user_version = ${KAIKKI_INDEX_SCHEMA_VERSION + 1}")
+        }
+
+        val result = dataSource().exactLookup("Wasser", "de", 20)
+
+        assertTrue(result is KaikkiLookupResult.MalformedDataset)
+    }
+
     private fun dataSource() = KaikkiDataSource(
         object : KaikkiDatabaseSource {
             override fun open(sourceLanguageTag: String) = KaikkiIndexOpenResult.Opened(

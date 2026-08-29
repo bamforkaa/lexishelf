@@ -14,6 +14,7 @@ hilt = "2.60.1"
 junit4 = "4.13.2"
 ksp = "2.3.10"
 lifecycle = "2.11.0"
+mlkitDigitalInk = "19.0.0"
 navigation = "2.9.8"
 room = "2.8.4"
 serialization = "1.10.0"
@@ -49,6 +50,7 @@ junit4 = { module = "junit:junit", version.ref = "junit4" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+mlkit-digital-ink-recognition = { module = "com.google.mlkit:digital-ink-recognition", version.ref = "mlkitDigitalInk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

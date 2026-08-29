@@ -20,6 +20,7 @@ com.example.localvocabulary/
 │   ├── wordlist/           list/search/filter UI and ViewModel
 │   ├── worddetail/         detail/delete UI and ViewModel
 │   ├── wordeditor/         add/edit UI and ViewModel
+│   ├── handwriting/        temporary Ink session UI state and recognition orchestration
 │   ├── tags/               tag CRUD UI and ViewModel
 │   └── settings/           basic settings UI and ViewModel
 ├── vocabulary/
@@ -29,6 +30,9 @@ com.example.localvocabulary/
 │   ├── domain/             versioned document, validation result, repository/file contracts
 │   └── data/               JSON codec, ContentResolver I/O, transactional Room import/export
 ├── settings/               DataStore contract and implementation
+├── handwriting/
+│   ├── domain/             stroke/model/result contracts, insertion policy
+│   └── data/               ML Kit identifier/model/recognizer adapter
 └── dictionary/
     ├── domain/             provider contract, capability/failure/source models
     ├── importer/           licensed result → transient editor seed guard/mapping
@@ -63,6 +67,11 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
                explicit Use action -> DictionaryEntryDraftMapper
                              |
                editable user/import draft -> VocabularyRepository -> Room
+
+WordEditorScreen -> HandwritingInputViewModel -> HandwritingRecognitionService
+       Canvas (x/y/time)             |                    ^
+       explicit candidate tap        v                    |
+       -> HeadwordChanged       ML Kit adapter -> on-device model
 ```
 
 - Composable은 I/O를 수행하지 않으며 immutable `UiState`와 명시적 `Action`만 사용합니다.
@@ -72,7 +81,15 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
 - UI에는 Room entity를 전달하지 않습니다.
 - 단순 repository 호출의 이름만 바꾸는 use-case 클래스는 두지 않았습니다. 입력 정규화와 규칙을 집행하는 validator만 domain에 둡니다.
 
-## Room schema version 5
+손글씨 adapter는 Compose, Word Editor나 WordList 상태를 알지 못합니다. 공용
+`HandwritingInputViewModel`은 model 선택 전 Ink, 350ms stroke-end debounce와
+generation/cancellation을 소유합니다. 후보 callback은 editor에서는 기존
+`WordEditorAction.HeadwordChanged`, 목록에서는 `WordListAction.QueryChanged`로 전달됩니다.
+따라서 dictionary debounce, stale import 정리, duplicate 검사와 기존 Room search/filter를 그대로
+거칩니다. 획·후보·모델 상태는 Room/backup에 기록하지 않고 최근 model 언어 5개만 별도
+DataStore preference에 둡니다.
+
+## Room schema version 6
 
 Task 8의 v4는 `vocabulary_entries.reading`과 provider-neutral
 `entry_dictionary_provenance`를 추가합니다. Entry-level reading provenance와 sense-level

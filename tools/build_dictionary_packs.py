@@ -105,7 +105,7 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
     source = _find_artifact(definition, paths.generated, paths.source)
     paths.packs.mkdir(parents=True, exist_ok=True)
     digest = _sha256(source)
-    manifest = {
+    manifest_without_build_time = {
         "format": PACK_FORMAT,
         "manifestSchemaVersion": MANIFEST_SCHEMA_VERSION,
         "packId": definition.pack_id,
@@ -125,7 +125,6 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
             "licenseId": definition.license_id,
             "attribution": definition.attribution,
         },
-        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source": {
             "officialUrl": definition.official_url,
             "sourceVersion": definition.dataset_version,
@@ -133,6 +132,17 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
         },
     }
     output = paths.packs / pack_file_name(definition)
+    reusable = _reusable_manifest(
+        output=output,
+        expected_without_build_time=manifest_without_build_time,
+        payload_name=definition.artifact,
+    )
+    if reusable is not None:
+        return output, reusable
+    manifest = {
+        **manifest_without_build_time,
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.unlink(missing_ok=True)
     try:
@@ -147,6 +157,30 @@ def build_pack(definition: PackDefinition, project_root: Path) -> tuple[Path, di
         temporary.unlink(missing_ok=True)
         raise
     return output, manifest
+
+
+def _reusable_manifest(
+    output: Path,
+    expected_without_build_time: dict,
+    payload_name: str,
+) -> dict | None:
+    if not output.is_file():
+        return None
+    try:
+        with zipfile.ZipFile(output) as archive:
+            if archive.namelist() != ["manifest.json", payload_name]:
+                return None
+            existing = json.loads(archive.read("manifest.json"))
+            if not isinstance(existing, dict) or not existing.get("createdAt"):
+                return None
+            comparable = {key: value for key, value in existing.items() if key != "createdAt"}
+            if comparable != expected_without_build_time:
+                return None
+            if archive.getinfo(payload_name).file_size != expected_without_build_time["payload"]["sizeBytes"]:
+                return None
+            return existing
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile, json.JSONDecodeError):
+        return None
 
 
 def _find_artifact(

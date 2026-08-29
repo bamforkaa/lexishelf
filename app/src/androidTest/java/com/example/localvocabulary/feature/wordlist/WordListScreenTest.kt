@@ -5,15 +5,22 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
+import com.example.localvocabulary.feature.handwriting.HandwritingInputAction
+import com.example.localvocabulary.feature.handwriting.HandwritingInputUiState
+import com.example.localvocabulary.feature.handwriting.HandwritingModelUiState
+import com.example.localvocabulary.handwriting.domain.HandwritingCandidate
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntry
 import com.example.localvocabulary.vocabulary.domain.VocabularySense
 import com.example.localvocabulary.vocabulary.domain.VocabularyTag
 import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -131,6 +138,76 @@ class WordListScreenTest {
                 WordListAction.FilterCategorySelected(VocabularyFilterCategory.LANGUAGE),
                 actions.single(),
             )
+        }
+    }
+
+    @Test
+    fun searchFieldHandwritingActionOpensSharedInputWithoutSelectingCandidate() {
+        val handwritingActions = mutableListOf<HandwritingInputAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordListScreen(
+                    state = WordListUiState(
+                        isLoading = false,
+                        languages = listOf("ja", "zh-Hans"),
+                    ),
+                    onAction = {},
+                    onAddWord = {},
+                    onOpenWord = {},
+                    onManageTags = {},
+                    onOpenBackup = {},
+                    onOpenSettings = {},
+                    onHandwritingAction = handwritingActions::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("손글씨로 검색").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                listOf(
+                    HandwritingInputAction.Open(
+                        vocabularyLanguageTags = listOf("ja", "zh-Hans"),
+                    ),
+                ),
+                handwritingActions,
+            )
+        }
+    }
+
+    @Test
+    fun explicitHandwritingCandidateReplacesExistingSearchQuery() {
+        val actions = mutableListOf<WordListAction>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordListScreen(
+                    state = WordListUiState(isLoading = false, query = "old"),
+                    onAction = actions::add,
+                    onAddWord = {},
+                    onOpenWord = {},
+                    onManageTags = {},
+                    onOpenBackup = {},
+                    onOpenSettings = {},
+                    handwritingState = HandwritingInputUiState(
+                        isOpen = true,
+                        selectedLanguageTag = "ja",
+                        languageOptions = listOf("ja"),
+                        modelLanguageTag = "ja",
+                        modelState = HandwritingModelUiState.Ready,
+                        candidates = listOf(HandwritingCandidate("食")),
+                    ),
+                    onHandwritingCandidateSelected = {
+                        actions += WordListAction.QueryChanged(it)
+                    },
+                )
+            }
+        }
+
+        composeRule.runOnIdle { assertTrue(actions.isEmpty()) }
+        composeRule.onNodeWithTag("handwriting_candidate_食").performScrollTo().performClick()
+        composeRule.runOnIdle {
+            assertEquals(listOf(WordListAction.QueryChanged("食")), actions)
         }
     }
 

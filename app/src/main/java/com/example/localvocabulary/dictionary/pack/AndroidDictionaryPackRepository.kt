@@ -2,6 +2,7 @@ package com.example.localvocabulary.dictionary.pack
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,12 +30,18 @@ class AndroidDictionaryPackRepository @Inject constructor(
     override val installedPacks: StateFlow<List<InstalledDictionaryPack>> =
         mutableInstalledPacks.asStateFlow()
 
-    init {
-        cleanupOrphans()
-    }
-
     override fun activePack(providerId: DictionaryProviderId): ResolvedDictionaryPack? =
         activePacks(providerId).firstOrNull()
+
+    internal suspend fun performStartupMaintenance() = withContext(Dispatchers.IO) {
+        runCatching(::cleanupOrphans).onFailure { error ->
+            Log.w(LOG_TAG, "Unable to clean incomplete dictionary pack storage", error)
+        }
+        runCatching(::cleanupLegacyDictionaryStorage).onFailure { error ->
+            Log.w(LOG_TAG, "Unable to clean obsolete dictionary dataset storage", error)
+        }
+        refresh()
+    }
 
     override fun activePack(
         providerId: DictionaryProviderId,
@@ -274,6 +281,13 @@ class AndroidDictionaryPackRepository @Inject constructor(
         }
     }
 
+    private fun cleanupLegacyDictionaryStorage() {
+        val legacyDirectory = File(context.noBackupFilesDir, LEGACY_DICTIONARY_DIRECTORY)
+        if (legacyDirectory.exists() && !legacyDirectory.deleteRecursively()) {
+            Log.w(LOG_TAG, "Unable to remove obsolete dictionary dataset directory")
+        }
+    }
+
     private fun ensureDirectory(directory: File) {
         if (!directory.isDirectory && !directory.mkdirs()) {
             throw IOException("Unable to create ${directory.absolutePath}")
@@ -292,6 +306,8 @@ class AndroidDictionaryPackRepository @Inject constructor(
         const val VERSIONS_DIRECTORY = "versions"
         const val MAX_MANIFEST_BYTES = 256 * 1024
         const val BUFFER_SIZE = 1024 * 1024
+        const val LEGACY_DICTIONARY_DIRECTORY = "dictionary"
+        const val LOG_TAG = "DictionaryPackStorage"
         val UNSAFE_PATH = Regex("[^A-Za-z0-9._-]")
     }
 }

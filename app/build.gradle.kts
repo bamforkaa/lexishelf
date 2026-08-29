@@ -200,6 +200,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.mlkit.digital.ink.recognition)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)

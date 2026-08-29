@@ -127,9 +127,9 @@ Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 so
 
 ## 성능과 무결성
 
-Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 12.1 schema v2의 선택 12개 rebuild는 `583.65s`였고 filtered source 합계는 `308,748,758` bytes다. 모든 selected DB의 schema는 2, `PRAGMA quick_check`는 `ok`, sense당 retained example 최대값은 2였으며 모든 pack의 ZIP CRC와 manifest dataset schema 2 검사는 통과했다. 기존 exact index/query 구조는 바뀌지 않았다.
+Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 15.2에서 current schema v2 converter로 선택 12개를 다시 만든 실행은 `918.96s`였고 source SHA-256 `e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65`를 먼저 검증했다. 모든 selected DB와 pack manifest의 schema는 2다. `de`/`vi`의 `PRAGMA quick_check`, ZIP CRC, manifest payload size와 DB/manifest/archive payload SHA-256 일치도 확인했다. 기존 exact index/query 구조와 strict version 검사는 바뀌지 않았다.
 
-Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 이 구성의 final debug APK는 `266,959,600` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser` exact query의 첫 datasource lookup은 full-suite 실행 로그 기준 `7ms`였다(별도 targeted run은 `13ms`). release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
+Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 이 구성의 final debug APK는 `264,611,485` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser`와 `ăn` exact query가 통과했고, `Wasser`의 첫 datasource lookup은 full-suite 실행 로그 기준 `24ms`였다. release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
 
 ## 라이선스와 attribution
 

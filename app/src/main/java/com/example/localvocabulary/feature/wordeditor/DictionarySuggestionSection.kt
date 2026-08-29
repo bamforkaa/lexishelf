@@ -158,7 +158,7 @@ private fun DictionarySuggestionEntryRow(
         sense?.grammaticalGender?.takeIf(String::isNotBlank)?.let(::add)
     }.joinToString(" · ")
     val availabilityText = buildList {
-        f (availableFormCount > 0) add("활용형 $availableFormCount")
+        if (availableFormCount > 0) add("활용형 $availableFormCount")
         if (availableExampleCount > 0) add("예문 $availableExampleCount")
     }.joinToString(" · ")
 

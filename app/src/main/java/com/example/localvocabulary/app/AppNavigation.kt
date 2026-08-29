@@ -20,6 +20,7 @@ import com.example.localvocabulary.feature.backup.BackupViewModel
 import com.example.localvocabulary.feature.settings.SettingsScreen
 import com.example.localvocabulary.feature.settings.SettingsAction
 import com.example.localvocabulary.feature.settings.SettingsViewModel
+import com.example.localvocabulary.feature.handwriting.HandwritingInputViewModel
 import com.example.localvocabulary.feature.tags.TagManagementScreen
 import com.example.localvocabulary.feature.tags.TagManagementViewModel
 import com.example.localvocabulary.feature.worddetail.WordDetailEffect
@@ -28,12 +29,15 @@ import com.example.localvocabulary.feature.worddetail.WordDetailViewModel
 import com.example.localvocabulary.feature.wordeditor.WordEditorEffect
 import com.example.localvocabulary.feature.wordeditor.WordEditorScreen
 import com.example.localvocabulary.feature.wordeditor.WordEditorViewModel
+import com.example.localvocabulary.feature.wordeditor.WordEditorAction
 import com.example.localvocabulary.feature.wordlist.WordListScreen
+import com.example.localvocabulary.feature.wordlist.WordListAction
 import com.example.localvocabulary.feature.wordlist.WordListViewModel
 import com.example.localvocabulary.feature.wordbooks.WordbookManagementScreen
 import com.example.localvocabulary.feature.wordbooks.WordbookManagementViewModel
 import com.example.localvocabulary.feature.wordbooks.WordbookDetailScreen
 import com.example.localvocabulary.feature.wordbooks.WordbookDetailViewModel
+import com.example.localvocabulary.handwriting.domain.appendHandwritingCandidate
 
 private object Routes {
     const val WORDS = "words"
@@ -204,7 +208,9 @@ private fun WordListDestination(
     onBack: (() -> Unit)? = null,
 ) {
     val viewModel = hiltViewModel<WordListViewModel>()
+    val handwritingViewModel = hiltViewModel<HandwritingInputViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val handwritingState by handwritingViewModel.uiState.collectAsStateWithLifecycle()
     WordListScreen(
         state = state,
         onAction = viewModel::onAction,
@@ -215,6 +221,11 @@ private fun WordListDestination(
         onOpenBackup = onOpenBackup,
         onOpenSettings = onOpenSettings,
         onBack = onBack,
+        handwritingState = handwritingState,
+        onHandwritingAction = handwritingViewModel::onAction,
+        onHandwritingCandidateSelected = { candidate ->
+            viewModel.onAction(WordListAction.QueryChanged(candidate))
+        },
     )
 }
 
@@ -225,7 +236,9 @@ private fun WordEditorDestination(
 ) {
     val context = LocalContext.current
     val viewModel = hiltViewModel<WordEditorViewModel>()
+    val handwritingViewModel = hiltViewModel<HandwritingInputViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val handwritingState by handwritingViewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
@@ -249,5 +262,14 @@ private fun WordEditorDestination(
         state = state,
         onAction = viewModel::onAction,
         onBack = onBack,
+        handwritingState = handwritingState,
+        onHandwritingAction = handwritingViewModel::onAction,
+        onHandwritingCandidateSelected = { candidate ->
+            viewModel.onAction(
+                WordEditorAction.HeadwordChanged(
+                    appendHandwritingCandidate(state.headword, candidate),
+                ),
+            )
+        },
     )
 }

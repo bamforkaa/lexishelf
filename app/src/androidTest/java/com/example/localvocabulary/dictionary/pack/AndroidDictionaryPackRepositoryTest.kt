@@ -174,6 +174,24 @@ class AndroidDictionaryPackRepositoryTest {
         }
     }
 
+    @Test
+    fun obsoletePrePackDatasetDirectoryIsRemovedWithoutTouchingPackStorage() = runTest {
+        val legacyDirectory = File(context.noBackupFilesDir, "dictionary")
+        val legacyPayload = File(legacyDirectory, "jmdict/old/jmdict.db")
+        legacyPayload.parentFile?.mkdirs()
+        legacyPayload.writeText("obsolete provider dataset")
+        val activePackMarker = File(packRoot(), "storage-cleanup-regression.marker")
+        activePackMarker.writeText("keep")
+        try {
+            repository.performStartupMaintenance()
+
+            assertFalse(legacyDirectory.exists())
+            assertEquals("keep", activePackMarker.readText())
+        } finally {
+            activePackMarker.delete()
+        }
+    }
+
     private fun manifest(
         packId: String,
         providerId: String,

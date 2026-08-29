@@ -100,7 +100,7 @@ fun LanguagePickerField(
 }
 
 @Composable
-private fun LanguagePickerDialog(
+internal fun LanguagePickerDialog(
     currentTag: String,
     userLanguageTags: Set<String>,
     onSelected: (String) -> Unit,

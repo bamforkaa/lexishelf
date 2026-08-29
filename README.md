@@ -9,6 +9,12 @@
 > textual pronunciation과 grammatical gender만 명시적 row tap으로 가져오도록 승격했습니다.
 > forms는 편차가 커 transient로 유지합니다. 수치와 결정은
 > [linguistic metadata 문서](docs/linguistic-metadata.md)를 참고하세요.
+>
+> Task 15.1: Word Editor와 저장된 단어 검색에 Google ML Kit Digital Ink Recognition 기반의
+> 공용 로컬 손글씨 입력을 제공합니다. Canvas를 먼저 작성한 뒤 같은 Ink에 다른 언어 모델을
+> 선택할 수 있으며, 후보를 눌렀을 때만 기존 입력 흐름으로 들어갑니다. 모델·privacy·지원
+> 언어 동작은
+> [손글씨 입력 문서](docs/handwriting.md)를 참고하세요.
 
 개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
 
@@ -24,13 +30,15 @@
 - Word Editor headword 기반의 registry 공통 inline suggestion, CC-CEDICT 중국어 exact lookup
 - 한국어기초사전의 한국어↔11개 외국어 양방향 exact/reverse lookup
 - PanLex filtered index의 12개 언어(`de/hi/pl/la/nl/pt/it/tr/cs/sv/fi/uk`)↔한국어 양방향 exact fallback
-Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, POS·발음·문법 성·source-ordered usage example import와 transient forms metadata
+- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, POS·발음·문법 성·source-ordered usage example import와 transient forms metadata
 - 400ms debounce, provider별 raw 결과/오류 격리, result-language 중심 exact 합성, 명시적 autofill과 sense 단위 provenance
 - provider dataset과 독립된 base APK, SAF local pack install/update/delete/one-step rollback
 - 한국어 결과 우선·영어 fallback 동시 표시, provider/pair당 최대 20개 query 결과와 합성 후 최대 25개 materialized row
 - reading 근처의 NAVER 공식 사전 reference link(user tap `ACTION_VIEW` only, fetch/scrape 없음)
 - Storage Access Framework 기반 UTF-8 JSON 백업/복원, import 미리보기와 명시적 충돌 정책
 - Hilt 의존성 주입, Navigation Compose, DataStore 설정
+- Word Editor와 vocabulary 검색의 언어별 on-device 손글씨 인식, 안정 Canvas,
+  획 취소/전체 지우기와 명시적 후보 선택
 - online API/local dataset을 함께 수용하는 `DictionaryProvider` 계약, capability/usage policy, provider registry와 안전한 editor seed 경계
 - 도메인/매핑/repository/ViewModel 단위 테스트, Room DAO 테스트, Compose UI 테스트
 
@@ -41,11 +49,13 @@ Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영�
 - AI/LLM 정의, 기계번역, 로그인, 클라우드 동기화, 분석, 광고, 백엔드, 프록시
 - 복습 기능
 
-앱 Manifest에는 인터넷 권한이 없으며 현재 기능은 완전히 오프라인으로 동작합니다.
+사전 검색과 사용자 단어장 기능은 계속 로컬에서 동작합니다. 다만 손글씨 인식 언어 모델을
+사용자가 처음 내려받을 때 ML Kit가 network를 사용하므로 `INTERNET` permission이 있습니다.
+설치된 모델의 실제 인식은 기기에서 수행됩니다.
 
 ## 언어와 사전 공급자
 
-수동 입력은 유효한 BCP 47 언어 태그(예: `en`, `ko`, `ja`, `zh-Hant`)를 사용하므로 특정 언어 목록으로 제한하지 않습니다. 이는 각 언어의 사전 지원을 의미하지 않습니다. 실제 provider는 다음 다섯 개이며 모두 `LOCAL_DATASET`이므로 앱에는 `INTERNET` permission이 없습니다.
+수동 입력은 유효한 BCP 47 언어 태그(예: `en`, `ko`, `ja`, `zh-Hant`)를 사용하므로 특정 언어 목록으로 제한하지 않습니다. 이는 각 언어의 사전 지원을 의미하지 않습니다. 실제 provider는 다음 다섯 개이며 모두 `LOCAL_DATASET`입니다. 앱의 `INTERNET` permission은 사전 검색이 아니라 사용자가 요청한 ML Kit 손글씨 모델 다운로드에만 필요합니다.
 
 - `cc-cedict`: `zh-Hans → en`, `zh-Hant → en` exact headword lookup
 - `korean-basic-dictionary`: `ko`와 `en`, `ja`, `fr`, `es`, `ar`, `mn`, `vi`, `th`, `id`, `ru`, `zh` 사이의 양방향 translation exact lookup
@@ -56,6 +66,11 @@ Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영�
 대용량 dataset은 release base APK asset으로 읽지 않습니다. 일반 설치에서는 configurable dataset root에서 `.dictpack`을 만들고 설정 화면에서 SAF로 설치합니다. pack이 없어도 build와 수동 Word Editor는 정상 동작하고 suggestion 영역에만 dataset unavailable이 표시됩니다. 자세한 root/manifest/install 절차는 [dictionary pack 문서](docs/dictionary-packs.md)에 있습니다.
 
 로컬 QA에서는 `local.properties`에 `bundleDictionaryPacksInDebug=true`를 지정할 수 있습니다. 그러면 `assembleDebug`/`installDebug`가 configured dataset root의 core pack 네 개와 `debugDictionaryPackLanguages`로 명시한 Kaikki 언어 pack만 재생성해 debug APK에 포함합니다. 앱을 처음 열면 동일한 production manifest/size/SHA-256/payload 검증과 atomic activation을 거치며, 같은 payload가 이미 활성화돼 있으면 재설치하지 않습니다. 이 옵션을 끄면 기존 SAF 설치 및 `tools.stage_dictionary_packs` 흐름을 사용합니다.
+
+이 debug 편의 옵션은 압축 pack을 APK에 넣고 실행 시 app-private storage에 다시 풀기 때문에
+저장공간을 이중으로 사용합니다. active와 직전 rollback version 하나도 정상적으로 유지합니다.
+실제 AVD 측정값, legacy 정리와 release 차이는 [debug 저장공간 감사](docs/debug-storage.md)에
+기록했습니다.
 
 한국어기초사전은 공식 전체 JSON을 개발 시 읽기 전용 SQLite exact/reverse index로 변환합니다. 생성 DB는 저장소에 포함되지 않으며 없을 때도 다른 provider와 수동 입력은 정상 동작합니다. 2026-08-19 자료의 설치·변환·업데이트 절차와 attribution은 [한국어기초사전 데이터셋 문서](docs/korean-basic-dictionary-dataset.md)에 있습니다. 공식 중국어 번역은 script를 구분하지 않으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 `zh`로 선언합니다.
 
@@ -77,11 +92,12 @@ NAVER 링크는 dictionary content provider가 아닙니다. 현재 `en`, `ja`, 
 
 - Kotlin(AGP 9 내장 Kotlin), Jetpack Compose, Material 3
 - Room, Coroutines/Flow, DataStore
+- Google ML Kit Digital Ink Recognition `19.0.0`(언어 모델 on-demand download)
 - Navigation Compose, Hilt, KSP
 - Gradle Version Catalog와 Gradle Wrapper
 - JUnit 4, AndroidX Test, Room testing, Compose UI test
 
-프로젝트는 단일 `app` 모듈이지만 presentation은 프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md)을 참고하세요.
+프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md)을 참고하세요.
 
 ## 개발 환경 설정
 
@@ -140,6 +156,10 @@ $env:LANG_DATABASE_DIR = 'D:\lang-Database'
 
 백업 schema v5에는 단어, reading, 순서가 있는 textual pronunciation, 뜻/품사/문법 성/예문, 메모, Wordbook/Tag와 각 관계, 생성·수정 시간과 provider-derived provenance가 포함됩니다. 직접 작성한 field에는 provenance가 없습니다. 사용자 언어 catalog를 포함한 앱 설정, API key, credential, secret은 포함되지 않으며 기존 schema v1/v2/v3/v4 파일도 계속 가져올 수 있습니다. vocabulary에 저장된 BCP 47 값은 그대로 백업되며 catalog에 없는 현재 값도 picker가 임시 항목으로 표시하므로 언어 identity가 손실되지 않습니다. 현재 모델에는 favorite와 review metadata가 없어 해당 필드도 없습니다.
 
+손글씨 stroke, recognition 후보와 모델 설치 상태는 임시/SDK 상태이므로 Room이나 JSON backup에
+저장하지 않습니다. 사용자가 명시적으로 선택해 headword에 반영한 문자열만 일반 사용자
+입력과 같은 방식으로 저장됩니다.
+
 ## API 키와 비밀정보
 
 현재는 API를 사용하지 않으므로 입력할 키가 없습니다. [`config/api-credentials.properties.example`](config/api-credentials.properties.example)은 빈 미래 설정 구조만 보여 줍니다. 실제 키를 위한 `secrets.properties`, Android SDK 경로가 든 `local.properties`, keystore 파일은 `.gitignore` 대상입니다. 향후 사용자 입력 키를 클라이언트에 저장하더라도 서버 측 비밀과 같은 보호 수준을 제공할 수 없음을 UI와 문서에 표시해야 합니다.
@@ -148,6 +168,7 @@ $env:LANG_DATABASE_DIR = 'D:\lang-Database'
 
 - 복습, 즐겨찾기와 audio 필드는 후속 마일스톤입니다. 굴절 forms는 transient suggestion metadata로만 유지합니다.
 - 프로세스가 강제 종료되면 저장 전 편집 초안이 복원되지 않을 수 있습니다. 저장된 데이터는 영향을 받지 않습니다.
+- 손글씨 언어 모델은 언어별 약 20MB이며 최초 사용 전에 사용자가 직접 다운로드해야 합니다. 모델이 없거나 지원하지 않는 언어여도 키보드 입력과 저장은 정상 동작합니다.
 - 외부 사전 데이터는 라이선스·저장·편집·재배포 조건이 확인되기 전까지 다운로드하거나 저장하지 않습니다.
 - clean clone과 zero-pack 앱은 dictionary lookup 대신 `LocalDatasetUnavailable`을 표시합니다. pack 전달은 현재 local SAF/ADB 개발 흐름뿐이며 remote catalog/signature는 구현하지 않았습니다.
 - CC-CEDICT raw GZip은 설치 pack에서 첫 검색 때 메모리 exact index로 변환되므로 첫 query memory/latency를 별도로 관찰해야 합니다.

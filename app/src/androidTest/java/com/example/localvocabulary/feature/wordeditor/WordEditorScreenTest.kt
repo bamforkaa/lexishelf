@@ -28,6 +28,10 @@ import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
 import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReference
+import com.example.localvocabulary.feature.handwriting.HandwritingInputAction
+import com.example.localvocabulary.feature.handwriting.HandwritingInputUiState
+import com.example.localvocabulary.feature.handwriting.HandwritingModelUiState
+import com.example.localvocabulary.handwriting.domain.HandwritingCandidate
 import com.example.localvocabulary.vocabulary.domain.DictionaryProvenance
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
@@ -40,6 +44,57 @@ import org.junit.Test
 class WordEditorScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun handwritingActionUsesCurrentLanguageAndHeadwordContext() {
+        var action: HandwritingInputAction? = null
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(
+                        isLoading = false,
+                        headword = "食べ",
+                        languageTag = "ja",
+                    ),
+                    onAction = {},
+                    onBack = {},
+                    onHandwritingAction = { action = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("손글씨 입력").performClick()
+
+        assertEquals(HandwritingInputAction.Open("ja", "食べ"), action)
+    }
+
+    @Test
+    fun handwritingCandidateIsOnlyForwardedAfterExplicitTap() {
+        val selected = mutableListOf<String>()
+        composeRule.setContent {
+            LocalVocabularyTheme {
+                WordEditorScreen(
+                    state = WordEditorUiState(isLoading = false, headword = "食べ", languageTag = "ja"),
+                    onAction = {},
+                    onBack = {},
+                    handwritingState = HandwritingInputUiState(
+                        isOpen = true,
+                        contextLanguageTag = "ja",
+                        selectedLanguageTag = "ja",
+                        languageOptions = listOf("ja"),
+                        modelLanguageTag = "ja",
+                        modelState = HandwritingModelUiState.Ready,
+                        candidates = listOf(HandwritingCandidate("る")),
+                    ),
+                    onHandwritingCandidateSelected = selected::add,
+                )
+            }
+        }
+
+        assertTrue(selected.isEmpty())
+        composeRule.onNodeWithTag("handwriting_candidate_る").performClick()
+        assertEquals(listOf("る"), selected)
+    }
 
     @Test
     fun missingHeadwordValidationIsVisible() {

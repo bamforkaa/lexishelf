@@ -251,5 +251,5 @@ API 대신 local dataset을 선택한 이유:
 - 2026-08-23에 현재 공식 service destination을 확인한 언어만 중앙 mapping에 넣었습니다: `en`, `ja`, `zh`, `fr`, `de`, `es`, `ru`, `ar`, `hi`, `pl`, `mn`, `la`.
 - `zh-Hans`/`zh-Hant`는 external navigation에만 base `zh` destination을 사용합니다. 이는 provider dataset의 script identity를 합치는 규칙이 아닙니다.
 - URI는 해당 공식 base와 `#/search?query=<encoded-headword>` 조합으로 provider 구현 한 곳에서 만듭니다. destination이 바뀌면 이 mapping과 고정 테스트를 함께 재검증합니다.
-- 앱은 NAVER page/API/audio를 fetch, scrape, parse, prefetch, cache, import 또는 재배포하지 않습니다. 사용자가 화면 링크를 누를 때만 Android `ACTION_VIEW`를 보내며 Manifest에는 `INTERNET` permission이 없습니다.
+- 앱은 NAVER page/API/audio를 fetch, scrape, parse, prefetch, cache, import 또는 재배포하지 않습니다. 사용자가 화면 링크를 누를 때만 Android `ACTION_VIEW`를 보냅니다. 현재 Manifest의 `INTERNET` permission은 사용자 요청에 따른 ML Kit 손글씨 모델 다운로드용이며 NAVER나 dictionary provider가 앱 내부 network 요청을 한다는 뜻이 아닙니다.
 - NAVER는 자동 provenance source가 아닙니다. 외부 페이지를 보고 사용자가 직접 쓴 뜻/reading/note는 user-authored content입니다.

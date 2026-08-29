@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +43,9 @@ import com.example.localvocabulary.core.ui.component.ScreenStatePane
 import com.example.localvocabulary.core.ui.component.SectionHeader
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.feature.language.LanguagePickerField
+import com.example.localvocabulary.feature.handwriting.HandwritingInputAction
+import com.example.localvocabulary.feature.handwriting.HandwritingInputDialog
+import com.example.localvocabulary.feature.handwriting.HandwritingInputUiState
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationError
 import com.example.localvocabulary.vocabulary.domain.PronunciationNotation
 
@@ -51,6 +55,9 @@ fun WordEditorScreen(
     state: WordEditorUiState,
     onAction: (WordEditorAction) -> Unit,
     onBack: () -> Unit,
+    handwritingState: HandwritingInputUiState = HandwritingInputUiState(),
+    onHandwritingAction: (HandwritingInputAction) -> Unit = {},
+    onHandwritingCandidateSelected: (String) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -101,6 +108,23 @@ fun WordEditorScreen(
                         label = { Text("단어 또는 표현") },
                         singleLine = true,
                         isError = state.validationError == VocabularyValidationError.MissingHeadword,
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    onHandwritingAction(
+                                        HandwritingInputAction.Open(
+                                            contextLanguageTag = state.languageTag,
+                                            preContext = state.headword,
+                                            vocabularyLanguageTags =
+                                                state.userLanguageTags.toList(),
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.testTag("open_handwriting"),
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "손글씨 입력")
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().testTag("headword"),
                     )
                     LanguagePickerField(
@@ -267,6 +291,12 @@ fun WordEditorScreen(
             state.saveErrorMessage?.let { item { ErrorText(it) } }
         }
     }
+
+    HandwritingInputDialog(
+        state = handwritingState,
+        onAction = onHandwritingAction,
+        onCandidateSelected = onHandwritingCandidateSelected,
+    )
 
     if (state.isTagCreatorVisible) {
         AlertDialog(

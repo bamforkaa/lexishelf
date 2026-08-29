@@ -35,7 +35,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class InstalledDictionaryPacksIntegrationTest {
     @Test
-    fun bundledKaikkiPackResolvesByLanguagePairAndPerformsRealExactLookup() = runBlocking {
+    fun bundledKaikkiPacksResolveByLanguagePairAndPerformRealExactLookups() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val application = context.applicationContext as DictionaryApplication
         application.bundledDictionaryPackBootstrapper.state
@@ -48,9 +48,10 @@ class InstalledDictionaryPacksIntegrationTest {
         )
         val providerId = DictionaryProviderId("kaikki")
         val germanPack = repository.activePack(providerId, pair("de"))
+        val vietnamesePack = repository.activePack(providerId, pair("vi"))
         assumeTrue(
-            "The optional de Kaikki debug pack is not configured for this build",
-            germanPack != null,
+            "The optional de/vi Kaikki debug packs are not configured for this build",
+            germanPack != null && vietnamesePack != null,
         )
 
         val lookup = KaikkiDataSource(KaikkiIndexSource(repository))
@@ -69,6 +70,13 @@ class InstalledDictionaryPacksIntegrationTest {
                 .contains("Wasser lassen"),
         )
         Log.i("DictionaryPackBenchmark", "kaikki-de-first-query=${elapsed}ms")
+
+        val vietnamese = lookup.exactLookup("ăn", "vi", 20)
+        assertTrue(vietnamese is KaikkiLookupResult.Matches)
+        assertEquals(
+            "ăn",
+            (vietnamese as KaikkiLookupResult.Matches).records.first().entry.headword,
+        )
         Unit
     }
 
