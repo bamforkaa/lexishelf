@@ -227,6 +227,19 @@ The per-language high was Turkish 213.29µs/entry because its raw arrays reach 1
 German was 196.42µs/entry. The complete reproducible raw audit is produced by
 `python -X utf8 -m tools.report_kaikki_forms --top 0 --output <report.json>`.
 
+### Task 18 sense-label payload
+
+The reviewed usage-label whitelist adds only an optional compact `u` array to each affected sense
+payload; SQLite DDL, indices, manifest contract, and schema 3 validation stay unchanged. The
+12 dictionary DBs now total `1,217,822,720` bytes (`+5,595,136`, about 0.46%) and their packs total
+`302,282,267` bytes (`+1,008,081`, about 0.33%). Including the unchanged English morphology-only
+artifact, the current totals are `1,304,256,512` DB bytes and `331,605,223` pack bytes. Exact label
+coverage, whitelist rationale, and source-attested QA rows are in
+[usage-labels.md](usage-labels.md). The API 37 Test AVD validated real `sehen` transitivity and
+`Wissenschaft` countability from the bundled German pack; first exact lookup was `17ms`, the
+existing morphology-plus-lemma check was `13ms`, and the resulting debug APK was `339,955,336`
+bytes.
+
 ### Task 17.1 English precision audit
 
 The reviewed raw source showed that `be` is a lexical verb entry whose lowercase `is` form is tagged

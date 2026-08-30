@@ -49,9 +49,9 @@ The current converter prefixes enPR explicitly; the reviewed batch has no `zh-pr
 | id | 1.29 / 2 / 8 | 0.00 / 1 / 3 | 1.14 / 3 / 33 | 0.051 / 3 / 31 |
 
 Form labels are present for almost every retained form-bearing entry, but their language-specific
-shape and extreme cardinality make blind persistence unsuitable. General sense usage labels such
-as formal/informal/archaic are not retained by current index schema v3, so runtime coverage is zero and no
-schema is inferred from raw Wiktionary internals.
+shape and extreme cardinality make blind persistence unsuitable. Task 18 subsequently measured and
+whitelisted sense-level usage/grammar labels without persisting them. See
+[usage-labels.md](usage-labels.md) for current coverage and policy.
 
 ## Decision matrix
 
@@ -61,7 +61,7 @@ schema is inferred from raw Wiktionary internals.
 | Grammatical gender | High in de/hi/pl/nl/cs and useful for noun learning | Low: optional normalized sense value plus raw fallback | **Persist now** |
 | Examples | Lower coverage but already useful and licensed subset is implemented | Existing model | **Keep current persistence** |
 | Forms / inflections | Often high coverage, but p95 929 and max 1,857 for Turkish | High; language-specific filtering and UI policy unresolved | **Transient only; defer persistence** |
-| Usage / register labels | Not retained in the generated runtime index | Requires a reviewed whitelist and index change | **Defer** |
+| Usage / register / grammar labels | 8.2651% of 12-language senses; useful only at source-sense scope | Optional compact v3 payload field; persistence would require ownership/edit semantics | **Show transiently; defer persistence** |
 | Synonym / antonym graph | Outside the compact index and current UX | High | **Reject for Task 14** |
 | Audio, etymology | Licensing/storage not reviewed for this workflow | High | **Reject for Task 14** |
 
@@ -76,3 +76,5 @@ schema is inferred from raw Wiktionary internals.
 - Provider results change the editor only after an explicit row tap. A second tap removes unchanged
   session-owned fields; user-edited values survive with provider ownership detached.
 - Forms remain visible in suggestions but are not included in Room or JSON backup.
+- Whitelisted usage/grammar labels remain attached to transient provider senses and are not copied
+  into a user vocabulary sense or backup.

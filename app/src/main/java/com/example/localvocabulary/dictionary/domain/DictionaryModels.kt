@@ -77,6 +77,7 @@ enum class DictionaryCapability {
     GRAMMATICAL_GENDER,
     INFLECTION,
     MORPHOLOGY_LOOKUP,
+    SENSE_LABELS,
     ETYMOLOGY,
 }
 
@@ -287,6 +288,7 @@ data class ExternalDictionarySense(
     val partOfSpeech: String? = null,
     val sourcePartOfSpeech: String? = null,
     val grammaticalGender: String? = null,
+    val labels: List<DictionarySenseLabel> = emptyList(),
     val examples: List<DictionaryExample> = emptyList(),
     val availableExampleCount: Int = examples.size,
     val sourceSenseId: String? = null,

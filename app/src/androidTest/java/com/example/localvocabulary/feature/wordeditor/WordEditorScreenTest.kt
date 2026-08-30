@@ -26,6 +26,8 @@ import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabel
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabelType
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
 import com.example.localvocabulary.dictionary.reference.ExternalDictionaryReference
@@ -410,6 +412,69 @@ class WordEditorScreenTest {
             useUnmergedTree = true,
         )
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun noSenseLabelsProduceNoEmptyMetadataRow() {
+        val base = suggestionGroup("kaikki", "Kaikki / Wiktionary", "Wasser")
+        setSuggestionContent(listOf(base))
+        composeRule.onNodeWithTag("dictionary_sense_labels", useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun multipleSenseLabelsRemainCompactAndAccessible() {
+        val base = suggestionGroup("kaikki", "Kaikki / Wiktionary", "Wasser")
+        val labeledEntry = base.entries.single().let { entry ->
+            entry.copy(
+                senses = listOf(
+                    entry.senses.single().copy(
+                        labels = listOf(
+                            DictionarySenseLabel(
+                                DictionarySenseLabelType.REGIONAL,
+                                "Southern Germany and neighboring Alpine regions",
+                            ),
+                            DictionarySenseLabel(DictionarySenseLabelType.TRANSITIVE),
+                            DictionarySenseLabel(DictionarySenseLabelType.ARCHAIC),
+                            DictionarySenseLabel(DictionarySenseLabelType.INFORMAL),
+                        ),
+                    ),
+                ),
+            )
+        }
+        setSuggestionContent(listOf(base.copy(entries = listOf(labeledEntry))))
+
+        composeRule.onNodeWithText(
+            "informal · archaic · transitive · +1",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            "사용 정보: informal · archaic · transitive · " +
+                "regional: Southern Germany and neighboring Alpine regions",
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun oneSenseLabelHasNoSyntheticEmptyOrOverflowMetadata() {
+        val base = suggestionGroup("kaikki", "Kaikki / Wiktionary", "chat")
+        val entry = base.entries.single().let { value ->
+            value.copy(
+                senses = listOf(
+                    value.senses.single().copy(
+                        labels = listOf(
+                            DictionarySenseLabel(DictionarySenseLabelType.INFORMAL),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        setSuggestionContent(listOf(base.copy(entries = listOf(entry))))
+
+        composeRule.onNodeWithText("informal", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("+1", substring = true, useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test

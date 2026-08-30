@@ -3,8 +3,11 @@ package com.example.localvocabulary.feature.wordeditor
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderError
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabel
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabelType
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
+import com.example.localvocabulary.dictionary.domain.normalizedSenseLabels
 
 data class DictionarySuggestionGroup(
     val providerId: DictionaryProviderId,
@@ -83,3 +86,51 @@ internal fun DictionarySuggestionGroup.selectableEntries(): List<ExternalDiction
     }.take(MAX_SELECTABLE_ROWS_PER_PROVIDER)
 
 internal const val MAX_SELECTABLE_ROWS_PER_PROVIDER = 25
+
+internal data class CompactSenseLabelText(
+    val visibleText: String,
+    val accessibilityText: String,
+)
+
+internal fun List<DictionarySenseLabel>.toCompactSenseLabelText(
+    maxVisibleLabels: Int = 3,
+): CompactSenseLabelText? {
+    require(maxVisibleLabels > 0)
+    val labels = normalizedSenseLabels()
+    if (labels.isEmpty()) return null
+    val allText = labels.joinToString(" · ", transform = DictionarySenseLabel::displayText)
+    val visibleCount = minOf(maxVisibleLabels, labels.size)
+    val visibleLabels = labels.take(visibleCount)
+        .joinToString(" · ", transform = DictionarySenseLabel::displayText)
+    val hiddenCount = labels.size - visibleCount
+    return CompactSenseLabelText(
+        visibleText = if (hiddenCount > 0) "$visibleLabels · +$hiddenCount" else visibleLabels,
+        accessibilityText = allText,
+    )
+}
+
+private fun DictionarySenseLabel.displayText(): String {
+    val base = when (type) {
+        DictionarySenseLabelType.FORMAL -> "formal"
+        DictionarySenseLabelType.INFORMAL -> "informal"
+        DictionarySenseLabelType.COLLOQUIAL -> "colloquial"
+        DictionarySenseLabelType.SLANG -> "slang"
+        DictionarySenseLabelType.VULGAR -> "vulgar"
+        DictionarySenseLabelType.OFFENSIVE -> "offensive"
+        DictionarySenseLabelType.DEROGATORY -> "derogatory"
+        DictionarySenseLabelType.LITERARY -> "literary"
+        DictionarySenseLabelType.ARCHAIC -> "archaic"
+        DictionarySenseLabelType.OBSOLETE -> "obsolete"
+        DictionarySenseLabelType.DATED -> "dated"
+        DictionarySenseLabelType.RARE -> "rare"
+        DictionarySenseLabelType.TRANSITIVE -> "transitive"
+        DictionarySenseLabelType.INTRANSITIVE -> "intransitive"
+        DictionarySenseLabelType.COUNTABLE -> "countable"
+        DictionarySenseLabelType.UNCOUNTABLE -> "uncountable"
+        DictionarySenseLabelType.AUXILIARY -> "auxiliary"
+        DictionarySenseLabelType.IMPERSONAL -> "impersonal"
+        DictionarySenseLabelType.REGIONAL -> "regional"
+        DictionarySenseLabelType.DIALECTAL -> "dialectal"
+    }
+    return regionalDetail?.let { "$base: $it" } ?: base
+}

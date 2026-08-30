@@ -11,6 +11,7 @@ import com.example.localvocabulary.dictionary.domain.DictionaryQuery
 import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
 import com.example.localvocabulary.dictionary.domain.DictionarySearchResult
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabelType
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMapper
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMappingResult
 import kotlinx.coroutines.test.runTest
@@ -35,6 +36,7 @@ class KaikkiProviderTest {
         assertTrue(DictionaryCapability.INFLECTION in descriptor.capabilities)
         assertTrue(DictionaryCapability.MORPHOLOGY_LOOKUP in descriptor.capabilities)
         assertTrue(DictionaryCapability.EXAMPLE_SENTENCES in descriptor.capabilities)
+        assertTrue(DictionaryCapability.SENSE_LABELS in descriptor.capabilities)
         assertEquals(KaikkiProvider.INDEXED_ENTRY_COUNT, descriptor.dataset?.entryCount)
         assertEquals(
             DictionaryPermission.PERMITTED,
@@ -57,6 +59,13 @@ class KaikkiProviderTest {
         assertEquals("adjective", entry.senses.single().partOfSpeech)
         assertEquals("adj", entry.senses.single().sourcePartOfSpeech)
         assertEquals("neuter", entry.senses.single().grammaticalGender)
+        assertEquals(
+            listOf(
+                DictionarySenseLabelType.INFORMAL,
+                DictionarySenseLabelType.TRANSITIVE,
+            ),
+            entry.senses.single().labels.map { it.type },
+        )
         assertEquals(3, entry.senses.single().availableExampleCount)
         assertEquals(
             listOf("Das Wasser ist kalt.", "Das Wasser kocht."),
@@ -76,6 +85,9 @@ class KaikkiProviderTest {
         val sense = mapping.seed.draft.senses.single()
         assertEquals("water; a body of water", sense.meaning)
         assertEquals("adjective", sense.partOfSpeech)
+        assertFalse(sense.meaning.contains("informal"))
+        assertFalse(sense.partOfSpeech.contains("transitive"))
+        assertTrue(mapping.seed.draft.notes.isEmpty())
         assertEquals(
             listOf("Das Wasser ist kalt.", "Das Wasser kocht."),
             sense.examples,
@@ -107,6 +119,10 @@ class KaikkiProviderTest {
             DictionaryContentField.GRAMMATICAL_GENDER in mapping.seed.copiedProviderFields,
         )
         assertFalse(DictionaryContentField.INFLECTION in mapping.seed.copiedProviderFields)
+        assertEquals(
+            entry.senses.single().labels,
+            mapping.seed.transientEntry.senses.single().labels,
+        )
         assertFalse(provenance.modifiedAfterImport)
     }
 
@@ -168,6 +184,92 @@ class KaikkiProviderTest {
         assertTrue(mapped.seed.draft.senses.single().examples.isEmpty())
     }
 
+    @Test
+    fun `usage labels remain on their source sense and unknown codes are ignored`() = runTest {
+        val source = match()
+        val first = source.entry.senses.single()
+        val result = provider(
+            RecordingLookup(
+                KaikkiLookupResult.Matches(
+                    listOf(
+                        source.copy(
+                            entry = source.entry.copy(
+                                senses = listOf(
+                                    first.copy(
+                                        usageLabels = listOf("informal", "unknown", "informal"),
+                                    ),
+                                    first.copy(
+                                        order = 1,
+                                        sourceSenseId = "neutral-sense",
+                                        glosses = listOf("neutral meaning"),
+                                        usageLabels = emptyList(),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    isTruncated = false,
+                ),
+            ),
+        ).search(query("Wasser", "de", "en")) as DictionarySearchResult.Success
+
+        assertEquals(
+            listOf(DictionarySenseLabelType.INFORMAL),
+            result.page.entries.single().senses[0].labels.map { it.type },
+        )
+        assertTrue(result.page.entries.single().senses[1].labels.isEmpty())
+    }
+
+    @Test
+    fun `reviewed raw label codes map to provider neutral types`() = runTest {
+        val source = match()
+        val reviewedCodes = listOf(
+            "formal",
+            "informal",
+            "colloquial",
+            "slang",
+            "vulgar",
+            "offensive",
+            "derogatory",
+            "literary",
+            "archaic",
+            "obsolete",
+            "dated",
+            "rare",
+            "transitive",
+            "intransitive",
+            "countable",
+            "uncountable",
+            "auxiliary",
+            "impersonal",
+            "regional",
+            "dialectal",
+        )
+        val result = provider(
+            RecordingLookup(
+                KaikkiLookupResult.Matches(
+                    records = listOf(
+                        source.copy(
+                            entry = source.entry.copy(
+                                senses = listOf(
+                                    source.entry.senses.single().copy(
+                                        usageLabels = reviewedCodes,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    isTruncated = false,
+                ),
+            ),
+        ).search(query("Wasser", "de", "en")) as DictionarySearchResult.Success
+
+        assertEquals(
+            DictionarySenseLabelType.entries,
+            result.page.entries.single().senses.single().labels.map { it.type },
+        )
+    }
+
     private fun provider(
         lookup: KaikkiLookup = RecordingLookup(KaikkiLookupResult.NoMatch),
     ) = KaikkiProvider(lookup)
@@ -200,6 +302,7 @@ class KaikkiProviderTest {
                     ),
                     availableExampleCount = 3,
                     grammaticalGender = "neuter",
+                    usageLabels = listOf("transitive", "informal", "transitive"),
                 ),
             ),
         ),

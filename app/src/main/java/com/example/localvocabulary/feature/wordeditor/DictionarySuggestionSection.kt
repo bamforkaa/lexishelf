@@ -22,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
@@ -150,6 +152,7 @@ private fun DictionarySuggestionEntryRow(
         }
     val availableFormCount = entry.linguisticFeatures.totalInflectionCount
     val availableExampleCount = sense?.availableExampleCount ?: 0
+    val senseLabelText = sense?.labels.orEmpty().toCompactSenseLabelText()
     val secondaryText = buildList {
         if (primaryMeaning != entry.headword) add(entry.headword)
         if (readings.isNotEmpty()) add("읽기 ${readings.joinToString { it.text }}")
@@ -193,6 +196,21 @@ private fun DictionarySuggestionEntryRow(
                         secondaryText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (senseLabelText != null) {
+                    Text(
+                        senseLabelText.visibleText,
+                        modifier = Modifier
+                            .testTag("dictionary_sense_labels")
+                            .semantics {
+                                contentDescription =
+                                    "사용 정보: ${senseLabelText.accessibilityText}"
+                            },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 candidate.morphologyContext?.let { context ->
@@ -321,6 +339,9 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
             if (readings.isNotEmpty()) Text(readings.joinToString { it.text })
             entry.senses.forEach { sense ->
                 Text(sense.meanings.joinToString(separator = "; ") { it.text })
+                sense.labels.toCompactSenseLabelText()?.let { labels ->
+                    MetadataLabel(labels.accessibilityText)
+                }
             }
             MetadataLabel(
                 listOfNotNull(

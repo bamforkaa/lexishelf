@@ -13,6 +13,8 @@ import com.example.localvocabulary.dictionary.domain.DictionaryPermission
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryReading
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabel
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabelType
 import com.example.localvocabulary.dictionary.domain.DictionaryUsagePolicy
 import com.example.localvocabulary.dictionary.domain.DictionaryVocabularyImportMode
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
@@ -255,6 +257,47 @@ class DictionarySuggestionSynthesizerTest {
         assertEquals(null, candidates.first().morphologyContext)
         assertEquals("Haus", candidates.last().morphologyContext?.lemma)
         assertNotEquals(candidates.first().key, candidates.last().key)
+    }
+
+    @Test
+    fun `usage label remains scoped to its source contribution`() {
+        val primaryEntry = entry(
+            "korean-basic-dictionary",
+            "water",
+            "en",
+            sourceEntryId = "primary",
+        )
+        val labeledEntry = entry(
+            "kaikki",
+            "water",
+            "en",
+            sourceEntryId = "labeled",
+        ).let { value ->
+            value.copy(
+                senses = listOf(
+                    value.senses.single().copy(
+                        labels = listOf(
+                            DictionarySenseLabel(DictionarySenseLabelType.INFORMAL),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        val candidate = DictionarySuggestionSynthesizer.synthesize(
+            listOf(
+                group("kaikki", "Kaikki", labeledEntry),
+                group("korean-basic-dictionary", "한국어기초사전", primaryEntry),
+            ),
+        ).single().candidates.single()
+
+        assertEquals("korean-basic-dictionary", candidate.primarySource.providerId.value)
+        assertTrue(candidate.primaryEntry.senses.single().labels.isEmpty())
+        assertEquals(
+            listOf(DictionarySenseLabelType.INFORMAL),
+            candidate.sources.single { it.providerId.value == "kaikki" }
+                .entry.senses.single().labels.map { it.type },
+        )
     }
 
     private fun group(

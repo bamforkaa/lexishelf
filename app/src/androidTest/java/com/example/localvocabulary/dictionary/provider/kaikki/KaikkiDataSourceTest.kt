@@ -100,6 +100,10 @@ class KaikkiDataSourceTest {
             listOf("Das Wasser ist kalt."),
             matches.records.first().entry.senses.first().retainedExamples,
         )
+        assertEquals(
+            listOf("informal", "transitive"),
+            matches.records.first().entry.senses.first().usageLabels,
+        )
         assertEquals("Cafe\u0301", unicode.records.single().entry.headword)
         assertFalse(matches.isTruncated)
     }
@@ -256,7 +260,7 @@ class KaikkiDataSourceTest {
 
     private companion object {
         const val nounPayload =
-            """{"w":"Wasser","p":"noun","n":["/ˈvasɐ/"],"f":[],"fc":2,"s":[{"o":0,"i":"sense-1","g":["water"],"e":["Das Wasser ist kalt."],"x":1,"d":"neuter"},{"o":1,"i":"sense-2","g":["body of water"],"e":[],"x":0,"d":null}]}"""
+            """{"w":"Wasser","p":"noun","n":["/ˈvasɐ/"],"f":[],"fc":2,"s":[{"o":0,"i":"sense-1","g":["water"],"e":["Das Wasser ist kalt."],"x":1,"d":"neuter","u":["informal","transitive"]},{"o":1,"i":"sense-2","g":["body of water"],"e":[],"x":0,"d":null}]}"""
         const val namePayload =
             """{"w":"Wasser","p":"name","n":[],"f":[],"fc":0,"s":[{"o":0,"i":"sense-name","g":["surname"],"x":0,"d":null}]}"""
         const val cafePayload =

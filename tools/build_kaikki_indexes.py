@@ -33,6 +33,7 @@ from tools.kaikki_form_policy import (
     select_display_forms,
     select_morphology_forms,
 )
+from tools.kaikki_usage_label_policy import normalize_sense_labels
 
 _WHITESPACE = re.compile(r"\s+")
 _GENDER_TAGS = frozenset(
@@ -54,6 +55,8 @@ class LanguageBuildStats:
     entries_with_forms: int
     entries_with_examples: int
     entries_with_gender: int
+    entries_with_usage_labels: int
+    labeled_sense_count: int
     selected_display_form_count: int
     morphology_row_count: int
     rejected_morphology_entry_count: int
@@ -84,6 +87,8 @@ class _MutableStats:
     entries_with_forms: int = 0
     entries_with_examples: int = 0
     entries_with_gender: int = 0
+    entries_with_usage_labels: int = 0
+    labeled_sense_count: int = 0
     selected_display_form_count: int = 0
     morphology_row_count: int = 0
     rejected_morphology_entry_count: int = 0
@@ -319,6 +324,7 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
     senses: list[dict[str, object]] = []
     has_examples = False
     has_gender = False
+    has_usage_labels = False
     for sense_order, raw_sense in enumerate(raw_senses):
         if not isinstance(raw_sense, dict):
             continue
@@ -327,18 +333,21 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
             continue
         examples, example_count = _examples(raw_sense.get("examples"))
         gender = _gender(entry_tags + _strings(raw_sense.get("tags")))
+        usage_labels = normalize_sense_labels(raw_sense.get("tags"))
         has_examples = has_examples or example_count > 0
         has_gender = has_gender or gender is not None
-        senses.append(
-            {
-                "o": sense_order,
-                "i": _text(raw_sense.get("id")),
-                "g": glosses,
-                "e": examples,
-                "x": example_count,
-                "d": gender,
-            }
-        )
+        has_usage_labels = has_usage_labels or bool(usage_labels)
+        compact_sense = {
+            "o": sense_order,
+            "i": _text(raw_sense.get("id")),
+            "g": glosses,
+            "e": examples,
+            "x": example_count,
+            "d": gender,
+        }
+        if usage_labels:
+            compact_sense["u"] = list(usage_labels)
+        senses.append(compact_sense)
     if not senses:
         return
 
@@ -390,6 +399,8 @@ def _insert_entry(output: _LanguageOutput, raw_entry: Mapping[str, object]) -> N
     stats.selected_display_form_count += len(selected_forms)
     stats.entries_with_examples += int(has_examples)
     stats.entries_with_gender += int(has_gender)
+    stats.entries_with_usage_labels += int(has_usage_labels)
+    stats.labeled_sense_count += sum("u" in sense for sense in senses)
 
 
 def _stable_entry_id(
@@ -617,6 +628,8 @@ def _finish_language_output(output: _LanguageOutput) -> LanguageBuildStats:
         entries_with_forms=stats.entries_with_forms,
         entries_with_examples=stats.entries_with_examples,
         entries_with_gender=stats.entries_with_gender,
+        entries_with_usage_labels=stats.entries_with_usage_labels,
+        labeled_sense_count=stats.labeled_sense_count,
         selected_display_form_count=stats.selected_display_form_count,
         morphology_row_count=stats.morphology_row_count,
         rejected_morphology_entry_count=stats.rejected_morphology_entry_count,

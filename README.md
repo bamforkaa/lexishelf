@@ -19,6 +19,10 @@
 > Task 16: 저장된 vocabulary의 뜻·reading·발음 등을 힌트로 보고 headword를 손글씨 또는
 > 키보드로 답하는 session-only 쓰기 연습 MVP를 제공합니다. 범위·정답 판정·retry 정책은
 > [쓰기 연습 문서](docs/writing-practice.md)를 참고하세요.
+>
+> Task 18: Kaikki의 raw tag를 직접 노출하지 않고, 실제 12개 언어와 English source를
+> 실측한 sense-level usage/register/grammar whitelist만 사전 제안에 transient하게 표시합니다.
+> [usage label 문서](docs/usage-labels.md)를 참고하세요.
 
 개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
 
@@ -34,7 +38,7 @@
 - Word Editor headword 기반의 registry 공통 inline suggestion, CC-CEDICT 중국어 exact lookup
 - 한국어기초사전의 한국어↔11개 외국어 양방향 exact/reverse lookup
 - PanLex filtered index의 12개 언어(`de/hi/pl/la/nl/pt/it/tr/cs/sv/fi/uk`)↔한국어 양방향 exact fallback
-- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, bounded principal-form display, source-attested form→lemma fallback, POS·발음·문법 성·source-ordered usage example import
+- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, bounded principal-form display, source-attested form→lemma fallback, sense별 learner-facing usage/grammar label, POS·발음·문법 성·source-ordered usage example import
 - 400ms debounce, provider별 raw 결과/오류 격리, result-language 중심 exact 합성, 명시적 autofill과 sense 단위 provenance
 - provider dataset과 독립된 base APK, SAF local pack install/update/delete/one-step rollback
 - 한국어 결과 우선·영어 fallback 동시 표시, provider/pair당 최대 20개 query 결과와 합성 후 최대 25개 materialized row
@@ -81,7 +85,7 @@
 
 PanLex는 체크섬을 검증한 2019-09-01 공식 CSV snapshot에서 위 12개 representative variety와 `kor-000`의 동일 meaning 직접 관계 1,098,758개만 189,714,432-byte SQLite로 필터합니다. pivot translation이나 provider에 없는 linguistic field는 만들지 않습니다. snapshot에 내장된 CC0 grant와 현재 PanLex 사이트의 CC BY-NC-SA 4.0 조건은 서로 구분하며, 현재 metadata는 고정한 과거 artifact에만 적용합니다. source, checksum, 후보 coverage, 신규 언어별 QA sample과 생성 절차는 [PanLex 데이터셋 문서](docs/panlex-dataset.md)에 있습니다.
 
-Kaikki provider는 English Wiktionary `2026-08-05` dump의 공식 `2026-08-23` Wiktextract raw extraction을 checksum으로 고정하고 per-language compact SQLite/pack으로 변환합니다. Schema v3는 raw table을 그대로 노출하지 않고 학습 가치가 확인된 대표형만 최대 8개 표시하며, 별도 reverse index의 source-metadata eligibility를 통과한 실제 relation으로 surface→lemma를 찾은 뒤 기존 provider를 exact-only로 재조회합니다. exact 원문 case와 source order로 정렬한 첫 lemma는 기본 분석, 나머지는 다른 형태 분석으로 명시합니다. 영어는 full dictionary 대신 compact morphology-only pack을 사용합니다. 명시적인 row tap은 gloss/POS, textual pronunciation, grammatical gender와 `type=example`이고 외부 `ref`가 없는 source-ordered usage example을 provenance와 함께 가져옵니다. forms와 morphology context는 transient metadata이며 Room/backup에 저장하지 않습니다. 자세한 정책은 [forms 문서](docs/linguistic-forms.md)와 [morphology 문서](docs/morphology-search.md)에 있습니다.
+Kaikki provider는 English Wiktionary `2026-08-05` dump의 공식 `2026-08-23` Wiktextract raw extraction을 checksum으로 고정하고 per-language compact SQLite/pack으로 변환합니다. Schema v3는 raw table을 그대로 노출하지 않고 학습 가치가 확인된 대표형만 최대 8개 표시하며, 별도 reverse index의 source-metadata eligibility를 통과한 실제 relation으로 surface→lemma를 찾은 뒤 기존 provider를 exact-only로 재조회합니다. exact 원문 case와 source order로 정렬한 첫 lemma는 기본 분석, 나머지는 다른 형태 분석으로 명시합니다. 영어는 full dictionary 대신 compact morphology-only pack을 사용합니다. sense `tags`는 reviewed whitelist에 포함된 register/temporal/grammar/region label만 suggestion에서 transient하게 표시하며 unknown/raw/topic/category tag는 노출하지 않습니다. 명시적인 row tap은 gloss/POS, textual pronunciation, grammatical gender와 `type=example`이고 외부 `ref`가 없는 source-ordered usage example을 provenance와 함께 가져옵니다. forms, sense labels와 morphology context는 Room/backup에 저장하지 않습니다. 자세한 정책은 [usage label 문서](docs/usage-labels.md), [forms 문서](docs/linguistic-forms.md)와 [morphology 문서](docs/morphology-search.md)에 있습니다.
 
 `Add word`는 선택 화면 없이 Word Editor를 바로 엽니다. 유효한 source language와 registry가 제공하는 result language pair가 있으면 headword를 기준으로 400ms 후 모든 지원 pair를 자동 검색하며, 빈 문자열과 동일 query/pair 집합은 다시 검색하지 않습니다. 결과는 `ko`, `en`, 기타 result language 순서로 동시에 표시합니다. 같은 result language·headword·meaning·restriction이고 POS/sense가 충돌하지 않는 후보만 합치며 출처는 모두 표시합니다. 합성된 selectable row가 4개 이하면 내용 높이만 사용하는 일반 목록이고, 5개 이상이면 높이 352dp의 단일 `LazyColumn` 안에서 끝까지 스크롤합니다. row를 누르면 deterministic primary source가 기존 generic mapper를 통과하고 다시 누르면 해당 suggestion이 추가한 미수정 contribution만 제거합니다. 사용자가 수정한 내용은 보존하며 `Use`/`Use this sense` button은 없습니다. provider 오류는 해당 result-language 영역에만 있어 다른 결과와 수동 저장을 막지 않습니다.
 
@@ -102,7 +106,7 @@ NAVER 링크는 dictionary content provider가 아닙니다. 현재 `en`, `ja`, 
 - Gradle Version Catalog와 Gradle Wrapper
 - JUnit 4, AndroidX Test, Room testing, Compose UI test
 
-프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md), [쓰기 연습 ADR](docs/decisions/0015-session-only-writing-practice.md)을 참고하세요.
+프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md), [쓰기 연습 ADR](docs/decisions/0015-session-only-writing-practice.md), [usage label ADR](docs/decisions/0018-learner-facing-sense-label-whitelist.md)을 참고하세요.
 
 ## 개발 환경 설정
 

@@ -49,7 +49,17 @@ FIXTURE_ENTRIES = (
                     },
                 ],
             },
-            {"id": "en-Wasser-de-noun-2", "glosses": ["urine"]},
+            {
+                "id": "en-Wasser-de-noun-2",
+                "glosses": ["urine"],
+                "tags": [
+                    "informal",
+                    "uncountable",
+                    "plural",
+                    "unknown-future-tag",
+                    "informal",
+                ],
+            },
         ],
     },
     {
@@ -100,6 +110,8 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             self.assertEqual(1, de.entries_with_forms)
             self.assertEqual(1, de.entries_with_examples)
             self.assertEqual(1, de.entries_with_gender)
+            self.assertEqual(1, de.entries_with_usage_labels)
+            self.assertEqual(1, de.labeled_sense_count)
             self.assertGreater(de.compressed_source_bytes, 0)
             self.assertGreater(de.generated_database_bytes, 0)
 
@@ -129,6 +141,8 @@ class KaikkiIndexBuilderTest(unittest.TestCase):
             )
             self.assertNotIn("quotation", " ".join(first["s"][0]["e"]))
             self.assertEqual("neuter", first["s"][0]["d"])
+            self.assertNotIn("u", first["s"][0])
+            self.assertEqual(["informal", "uncountable"], first["s"][1]["u"])
             self.assertEqual("de", metadata["language_tag"])
             with closing(sqlite3.connect(root / "generated" / "de.db")) as database:
                 morphology = database.execute(

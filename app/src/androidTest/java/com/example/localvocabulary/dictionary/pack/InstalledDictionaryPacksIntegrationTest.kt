@@ -74,6 +74,24 @@ class InstalledDictionaryPacksIntegrationTest {
         )
         Log.i("DictionaryPackBenchmark", "kaikki-de-first-query=${elapsed}ms")
 
+        val sehen = lookup.exactLookup("sehen", "de", 20) as KaikkiLookupResult.Matches
+        val sehenLabels = sehen.records.flatMap { record ->
+            record.entry.senses.flatMap { it.usageLabels }
+        }
+        assertTrue("transitive" in sehenLabels)
+        assertTrue("intransitive" in sehenLabels)
+
+        val wissenschaft = lookup.exactLookup(
+            "Wissenschaft",
+            "de",
+            20,
+        ) as KaikkiLookupResult.Matches
+        val countabilityLabels = wissenschaft.records.flatMap { record ->
+            record.entry.senses.flatMap { it.usageLabels }
+        }
+        assertTrue("countable" in countabilityLabels)
+        assertTrue("uncountable" in countabilityLabels)
+
         val vietnamese = lookup.exactLookup("ăn", "vi", 20)
         assertTrue(vietnamese is KaikkiLookupResult.Matches)
         assertEquals(

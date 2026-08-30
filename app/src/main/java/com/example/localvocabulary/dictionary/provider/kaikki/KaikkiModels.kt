@@ -27,6 +27,7 @@ internal data class KaikkiSenseRecord(
     @SerialName("e") val retainedExamples: List<String> = emptyList(),
     @SerialName("x") val availableExampleCount: Int = 0,
     @SerialName("d") val grammaticalGender: String? = null,
+    @SerialName("u") val usageLabels: List<String> = emptyList(),
 )
 
 internal data class KaikkiMatch(

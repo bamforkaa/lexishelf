@@ -8,8 +8,11 @@ import com.example.localvocabulary.dictionary.domain.DictionaryPronunciation
 import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabel
+import com.example.localvocabulary.dictionary.domain.DictionarySenseLabelType
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.ExternalDictionarySense
+import com.example.localvocabulary.dictionary.domain.normalizedSenseLabels
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -62,6 +65,8 @@ internal fun KaikkiMatch.toExternalEntry(
             partOfSpeech = normalizedPartOfSpeech(entry.rawPartOfSpeech),
             sourcePartOfSpeech = entry.rawPartOfSpeech.takeIf(String::isNotBlank),
             grammaticalGender = sense.grammaticalGender,
+            labels = sense.usageLabels.mapNotNull(::toDictionarySenseLabel)
+                .normalizedSenseLabels(),
             examples = sense.retainedExamples.map { text ->
                 DictionaryExample(text = text, language = sourceLanguage)
             },
@@ -77,6 +82,33 @@ internal fun KaikkiMatch.toExternalEntry(
 }
 
 private const val EN_PR_PREFIX = "enPR: "
+
+private fun toDictionarySenseLabel(code: String): DictionarySenseLabel? {
+    val type = when (code) {
+        "formal" -> DictionarySenseLabelType.FORMAL
+        "informal" -> DictionarySenseLabelType.INFORMAL
+        "colloquial" -> DictionarySenseLabelType.COLLOQUIAL
+        "slang" -> DictionarySenseLabelType.SLANG
+        "vulgar" -> DictionarySenseLabelType.VULGAR
+        "offensive" -> DictionarySenseLabelType.OFFENSIVE
+        "derogatory" -> DictionarySenseLabelType.DEROGATORY
+        "literary" -> DictionarySenseLabelType.LITERARY
+        "archaic" -> DictionarySenseLabelType.ARCHAIC
+        "obsolete" -> DictionarySenseLabelType.OBSOLETE
+        "dated" -> DictionarySenseLabelType.DATED
+        "rare" -> DictionarySenseLabelType.RARE
+        "transitive" -> DictionarySenseLabelType.TRANSITIVE
+        "intransitive" -> DictionarySenseLabelType.INTRANSITIVE
+        "countable" -> DictionarySenseLabelType.COUNTABLE
+        "uncountable" -> DictionarySenseLabelType.UNCOUNTABLE
+        "auxiliary" -> DictionarySenseLabelType.AUXILIARY
+        "impersonal" -> DictionarySenseLabelType.IMPERSONAL
+        "regional" -> DictionarySenseLabelType.REGIONAL
+        "dialectal" -> DictionarySenseLabelType.DIALECTAL
+        else -> return null
+    }
+    return DictionarySenseLabel(type)
+}
 
 private fun String.wikiPathSegment(): String = URLEncoder
     .encode(this, StandardCharsets.UTF_8.toString())
