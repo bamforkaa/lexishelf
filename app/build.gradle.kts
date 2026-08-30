@@ -43,7 +43,6 @@ abstract class StageDictionaryPackAssets @Inject constructor(
             into(outputDirectory)
         }
     }
-
 }
 
 val localProperties = Properties().apply {
@@ -81,7 +80,7 @@ val buildDebugDictionaryPacks by tasks.registering(Exec::class) {
         }
         add(pythonCommand)
         addAll(listOf("-m", "tools.build_dictionary_packs"))
-        listOf("cc-cedict", "korean-basic", "panlex", "jmdict").forEach { dataset ->
+        dictionaryDatasets.forEach { dataset ->
             addAll(listOf("--pack", dataset))
         }
         if (debugKaikkiPackLanguages.isNotEmpty()) {
@@ -163,7 +162,10 @@ android {
 
     sourceSets {
         // Runtime datasets are installed as dictionary packs, never bundled in the base APK.
-        getByName("main").assets.setSrcDirs(listOf("src/main/pack-metadata"))
+        getByName("main").assets.directories.apply {
+            clear()
+            add("src/main/pack-metadata")
+        }
         getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 

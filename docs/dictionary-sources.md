@@ -62,7 +62,7 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
   local persistence, user editing, backup/export, redistribution이 가능하다. provider policy는
   `PERMITTED` / `COPY_EXPORTABLE_FIELDS`이지만 license 의무가 사라진다는 뜻이 아니다.
 - Settings / Dictionary Sources에 source, release, acknowledgement, official/license link를 표시한다.
-  explicit `Use`로 추가된 reading/gloss/POS에는 source ID·license·release provenance를 보존하고
+  명시적인 suggestion row 선택으로 추가된 reading/gloss/POS에는 source ID·license·release provenance를 보존하고
   JSON backup에도 함께 내보낸다.
 - 비영어 gloss distribution은 권리 범위를 별도 확인하기 전에 등록하지 않는다.
 - 수동 update 절차는 정의했지만 자동 update 주기/manifest와 downloadable pack 설치·정리 UX는
@@ -131,8 +131,8 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 저장/재배포 결정:
 
 - descriptor의 local persistence와 redistribution은 CC BY-SA 4.0 조건 아래 `PERMITTED`, cache는 `PERMITTED`로 기록한다.
-- 현재 Room schema 4와 backup schema 3은 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태와 entry-level reading provenance를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 explicit `Use`가 English gloss와 pinyin reading을 generic field로 추가할 수 있다.
-- 검색 결과의 pinyin은 generic reading field로 명시적 `Use` 때만 저장하며 entry-level provenance를 함께 보존한다. notes에 넣지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
+- 현재 Room schema 6과 backup schema 5는 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태, entry-level reading provenance, ordered pronunciation provenance와 grammatical gender를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 명시적인 suggestion row 선택이 English gloss와 pinyin reading을 generic field로 추가할 수 있다.
+- 검색 결과의 pinyin은 generic reading field로 명시적인 suggestion row 선택 때만 저장하며 entry-level provenance를 함께 보존한다. notes에 넣지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
 - user-authored sense에는 provenance가 없고 imported sense에는 provenance가 있다. 사용자가 imported text를 자유롭게 수정할 수 있지만 출처는 유지되고 수정 여부가 표시된다. JSON backup도 이 구분을 보존한다.
 - 검색 결과 도착이나 provider refresh는 editor/Room을 변경하지 않는다. 같은 source entry/sense를 반복 선택하면 accidental duplicate를 추가하지 않는다.
 - full GZip은 저장소에 없다. 사용자는 브라우저로 공식 artifact를 내려받아 configured dataset root에 두고 generic `.dictpack`으로 만든다. 정확한 install/update/rollback 절차는 [dictionary-packs.md](dictionary-packs.md)에 있다.
@@ -183,7 +183,7 @@ API 대신 local dataset을 선택한 이유:
 저장/재배포 결정:
 
 - 확인한 text license 조건 아래 local persistence, cache와 redistribution을 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다. `PERMITTED`는 attribution/ShareAlike 의무가 사라진다는 의미가 아니다.
-- explicit `Use`로 가져온 한국어/외국어 translation과 명시적 POS에는 provider/source entry/source sense/license/release/import/수정 provenance가 함께 저장되고 JSON backup에도 유지된다.
+- 명시적인 suggestion row 선택으로 가져온 한국어/외국어 translation과 명시적 POS에는 provider/source entry/source sense/license/release/import/수정 provenance가 함께 저장되고 JSON backup에도 유지된다.
 - 공식 전체 export의 ID가 관련 관용구에서 재사용되므로 source entry reference는 공식 ID와 표제어를 함께 사용하고 공식 sense ID도 별도로 보존한다.
 - provider refresh나 새 release는 저장된 user-authored/provider-derived sense를 자동 수정하지 않는다.
 - 생성 SQLite와 원본 ZIP은 Git/base APK에 포함하지 않고 generic pack으로 설치한다. 생성 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md), 설치 lifecycle은 [dictionary-packs.md](dictionary-packs.md)에 있다.
@@ -223,7 +223,7 @@ API 대신 local dataset을 선택한 이유:
 저장/재배포 결정:
 
 - 고정 artifact의 내장 CC0 grant에 따라 local persistence, redistribution과 cache를 `PERMITTED`, import mode를 `COPY_EXPORTABLE_FIELDS`로 기록한다. 새 PanLex 배포물에는 이 결정을 재사용하지 않는다.
-- 명시적 `Use`로 선택한 translation에 PanLex expression/meaning/source ID, release, source/license를 sense provenance로 저장하고 JSON backup에도 유지한다.
+- 명시적인 suggestion row 선택으로 가져온 translation에 PanLex expression/meaning/source ID, release, source/license를 sense provenance로 저장하고 JSON backup에도 유지한다.
 - 전체 PanLex dataset은 user Room이나 backup에 넣지 않는다. 검색 result는 transient이며 refresh가 저장된 사용자 data를 바꾸지 않는다.
 - 다른 언어를 거치는 pivot translation, definition/POS/example 추론은 하지 않는다.
 - source snapshot, coverage, converter와 update 절차는 [panlex-dataset.md](panlex-dataset.md), 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md)에 기록했다.

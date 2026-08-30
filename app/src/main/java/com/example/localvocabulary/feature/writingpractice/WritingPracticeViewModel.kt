@@ -12,6 +12,7 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
 import com.example.localvocabulary.vocabulary.domain.WordbookRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -207,30 +208,31 @@ class WritingPracticeViewModel @Inject constructor(
             it.copy(isLoadingEligibility = true, errorMessage = null)
         }
         eligibilityJob = viewModelScope.launch {
-            runCatching { vocabularyRepository.findPracticeItems(filter) }
-                .onSuccess { candidates ->
-                    val eligible = candidates.filter { PracticeQuestionFactory.create(it) != null }
-                    eligibleItems = eligible
-                    mutableUiState.update {
-                        it.copy(
-                            eligibleCount = eligible.size,
-                            excludedCount = candidates.size - eligible.size,
-                            isLoadingEligibility = false,
-                            errorMessage = null,
-                        )
-                    }
+            try {
+                val candidates = vocabularyRepository.findPracticeItems(filter)
+                val eligible = candidates.filter { PracticeQuestionFactory.create(it) != null }
+                eligibleItems = eligible
+                mutableUiState.update {
+                    it.copy(
+                        eligibleCount = eligible.size,
+                        excludedCount = candidates.size - eligible.size,
+                        isLoadingEligibility = false,
+                        errorMessage = null,
+                    )
                 }
-                .onFailure { error ->
-                    eligibleItems = emptyList()
-                    mutableUiState.update {
-                        it.copy(
-                            eligibleCount = 0,
-                            excludedCount = 0,
-                            isLoadingEligibility = false,
-                            errorMessage = error.message ?: "연습할 단어를 불러오지 못했습니다.",
-                        )
-                    }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                eligibleItems = emptyList()
+                mutableUiState.update {
+                    it.copy(
+                        eligibleCount = 0,
+                        excludedCount = 0,
+                        isLoadingEligibility = false,
+                        errorMessage = error.message ?: "연습할 단어를 불러오지 못했습니다.",
+                    )
                 }
+            }
         }
     }
 

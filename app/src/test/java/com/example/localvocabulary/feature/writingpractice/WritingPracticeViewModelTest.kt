@@ -14,9 +14,11 @@ import com.example.localvocabulary.vocabulary.domain.VocabularyTag
 import com.example.localvocabulary.vocabulary.domain.VocabularyWordbook
 import com.example.localvocabulary.vocabulary.domain.WordbookRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,6 +171,30 @@ class WritingPracticeViewModelTest {
         assertEquals(2, viewModel.uiState.value.excludedCount)
     }
 
+    @Test
+    fun `cancelled stale eligibility lookup does not surface as an error`() = runTest {
+        val repository = FakePracticeVocabularyRepository(
+            items = defaultItems(),
+            suspendFirstLookupUntilCancelled = true,
+        )
+        val viewModel = viewModel(repository)
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isLoadingEligibility)
+        viewModel.onAction(WritingPracticeAction.ScopeTypeSelected(PracticeScopeType.LANGUAGE))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoadingEligibility)
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(0, viewModel.uiState.value.eligibleCount)
+
+        viewModel.onAction(WritingPracticeAction.LanguageSelected("ja"))
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(1, viewModel.uiState.value.eligibleCount)
+    }
+
     private fun viewModel(
         repository: VocabularyRepository,
         savedState: Map<String, Any?> = emptyMap(),
@@ -185,8 +211,10 @@ private class FakePracticeVocabularyRepository(
     private val items: List<VocabularyPracticeItem>,
     private val wordbookMembers: Map<Long, Set<Long>> = mapOf(8L to setOf(1L, 2L)),
     private val tagMembers: Map<Long, Set<Long>> = mapOf(9L to setOf(1L, 3L)),
+    private val suspendFirstLookupUntilCancelled: Boolean = false,
 ) : VocabularyRepository {
     var lastFilter: VocabularyPracticeFilter? = null
+    private var lookupCount = 0
 
     override fun observeEntries(query: String, tagId: Long?): Flow<List<VocabularyEntry>> =
         flowOf(emptyList())
@@ -200,6 +228,9 @@ private class FakePracticeVocabularyRepository(
     override suspend fun findPracticeItems(
         filter: VocabularyPracticeFilter,
     ): List<VocabularyPracticeItem> {
+        if (suspendFirstLookupUntilCancelled && lookupCount++ == 0) {
+            awaitCancellation()
+        }
         lastFilter = filter
         return items.filter { item ->
             (filter.languageTag == null || item.languageTag == filter.languageTag) &&

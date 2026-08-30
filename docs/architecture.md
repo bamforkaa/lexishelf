@@ -66,7 +66,7 @@ WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> provide
                              |               Korean JSON-derived read-only SQLite
                              |               PanLex CSV-derived filtered read-only SQLite
                              |
-               explicit Use action -> DictionaryEntryDraftMapper
+               explicit suggestion-row selection -> DictionaryEntryDraftMapper
                              |
                editable user/import draft -> VocabularyRepository -> Room
 

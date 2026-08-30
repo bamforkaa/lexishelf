@@ -78,12 +78,12 @@ Mapping policy:
   a distinct `ja → ko` provider.
 - Official DTD-expanded POS labels are retained as editable strings. A broad enum was rejected
   because it loses transitivity, conjugation class and other source detail.
-- All applicable senses are shown in order, but UI offers `Use this sense` per sense.
-- Explicit Use copies only the chosen gloss/POS and primary reading. Alternative spellings and
+- All applicable senses are shown in order, and each sense row is independently selectable.
+- Explicit row selection copies only the chosen gloss/POS and primary reading. Alternative spellings and
   readings remain transient; the user's current headword is the persistent canonical writing.
 
-Reading was introduced as a first-class vocabulary field in Room v4 and remains in current v5. Provider-neutral entry-field provenance
-records its source independently from sense meaning/POS provenance. Backup v3 round-trips both.
+Reading was introduced as a first-class vocabulary field in Room v4 and remains in current Room v6. Provider-neutral entry-field provenance
+records its source independently from sense meaning/POS provenance. Current backup v5 round-trips both and retains v3 import compatibility.
 Editing or clearing reading marks its provenance modified; refresh has no persistence path.
 
 PC lookup measurement after the final payload choice: new connection plus first `食べる` lookup

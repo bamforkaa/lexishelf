@@ -1,8 +1,8 @@
 package com.example.localvocabulary.dictionary.pack
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -66,7 +66,7 @@ class AndroidDictionaryPackRepository @Inject constructor(
     override suspend fun installFromUri(uri: String): DictionaryPackInstallResult =
         withContext(Dispatchers.IO) {
             runCatching {
-                val parsed = Uri.parse(uri)
+                val parsed = uri.toUri()
                 require(parsed.scheme == "content" || parsed.scheme == "file") {
                     "Only user-selected local files are supported"
                 }
