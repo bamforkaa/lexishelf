@@ -64,6 +64,17 @@ data class InstalledDictionaryPack(
     val canRollback: Boolean,
 )
 
+data class DictionaryPackInstallExpectation(
+    val packId: String,
+    val providerId: String,
+    val datasetVersion: String,
+    val manifestSchemaVersion: Int,
+    val datasetSchemaVersion: Int,
+    val supportedLanguagePairs: List<DictionaryPackLanguagePair>,
+    val payloadSizeBytes: Long,
+    val payloadSha256: String,
+)
+
 sealed interface DictionaryPackInstallResult {
     data class Installed(val pack: InstalledDictionaryPack) : DictionaryPackInstallResult
     data class Rejected(val reason: String) : DictionaryPackInstallResult

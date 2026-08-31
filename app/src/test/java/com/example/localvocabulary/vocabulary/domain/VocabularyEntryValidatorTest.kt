@@ -47,6 +47,15 @@ class VocabularyEntryValidatorTest {
     }
 
     @Test
+    fun `multi word headword preserves meaningful internal whitespace`() {
+        val result = VocabularyEntryValidator.validate(
+            validDraft().copy(headword = "  look forward to  "),
+        ) as VocabularyValidationResult.Valid
+
+        assertEquals("look forward to", result.draft.headword)
+    }
+
+    @Test
     fun `underscore language identifier is rejected`() {
         val result = VocabularyEntryValidator.validate(validDraft(languageTag = "en_US"))
 

@@ -4,7 +4,7 @@
 
 The editor keeps each `DictionaryProvider` response as an immutable raw group. A presentation/application layer then derives result-language groups and visible candidates. It does not create a synthetic provider, write provider results to Room, or bypass `DictionaryEntryDraftMapper`.
 
-The measurements below were made on 2026-08-27 against the generated databases under `D:\lang-Database`. Counts are selectable sense/candidate rows after each provider's existing exact lookup mapping, not estimates from documentation.
+The measurements below were made on 2026-08-27 against generated databases under the configured dictionary dataset root. Counts are selectable sense/candidate rows after each provider's existing exact lookup mapping, not estimates from documentation.
 
 ## Measured overlap
 

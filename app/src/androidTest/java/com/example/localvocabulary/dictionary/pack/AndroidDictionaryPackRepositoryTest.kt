@@ -71,6 +71,33 @@ class AndroidDictionaryPackRepositoryTest {
     }
 
     @Test
+    fun catalogLanguagePairMismatchIsRejectedBeforeActivationAndPreservesActiveVersion() {
+        val firstPayload = "old".encodeToByteArray()
+        val first = manifest("test-pack-catalog", "test-provider-catalog", "1", firstPayload)
+        installedPackIds += first.packId
+        assertTrue(repository.install(pack(first, firstPayload)) is DictionaryPackInstallResult.Installed)
+
+        val updatePayload = "new".encodeToByteArray()
+        val update = manifest(first.packId, first.providerId, "2", updatePayload)
+        val expectation = DictionaryPackInstallExpectation(
+            packId = update.packId,
+            providerId = update.providerId,
+            datasetVersion = update.datasetVersion,
+            manifestSchemaVersion = update.manifestSchemaVersion,
+            datasetSchemaVersion = update.datasetSchemaVersion,
+            supportedLanguagePairs = emptyList(),
+            payloadSizeBytes = update.payload.sizeBytes,
+            payloadSha256 = update.payload.sha256,
+        )
+
+        assertTrue(
+            repository.install(pack(update, updatePayload), expectation) is
+                DictionaryPackInstallResult.Rejected,
+        )
+        assertEquals("1", repository.activePack(DictionaryProviderId(first.providerId))!!.manifest.datasetVersion)
+    }
+
+    @Test
     fun updateSupportsRollbackAndCleansObsoleteThirdVersion() = runTest {
         val packId = "test-pack-rollback"
         val providerId = "test-provider-rollback"

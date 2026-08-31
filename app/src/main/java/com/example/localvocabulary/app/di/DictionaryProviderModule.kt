@@ -1,5 +1,16 @@
 package com.example.localvocabulary.app.di
 
+import android.content.Context
+import com.example.localvocabulary.BuildConfig
+import com.example.localvocabulary.dictionary.catalog.DefaultDictionaryCatalogRepository
+import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogEndpoint
+import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogRepository
+import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogStorage
+import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogTransport
+import com.example.localvocabulary.dictionary.catalog.DownloadedDictionaryPackInstaller
+import com.example.localvocabulary.dictionary.catalog.FileDictionaryCatalogStorage
+import com.example.localvocabulary.dictionary.catalog.OkHttpDictionaryCatalogTransport
+import com.example.localvocabulary.dictionary.catalog.RepositoryDownloadedDictionaryPackInstaller
 import com.example.localvocabulary.dictionary.domain.DictionaryProvider
 import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResolver
 import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictPackSource
@@ -36,6 +47,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Singleton
 
 @Module
@@ -62,6 +74,37 @@ abstract class DictionaryProviderModule {
         fun provideDictionaryPackResolver(
             repository: AndroidDictionaryPackRepository,
         ): DictionaryPackResolver = repository
+
+        @Provides
+        @Singleton
+        fun provideDictionaryCatalogEndpoint(): DictionaryCatalogEndpoint =
+            DictionaryCatalogEndpoint(BuildConfig.DICTIONARY_CATALOG_URL)
+
+        @Provides
+        @Singleton
+        fun provideDictionaryCatalogTransport(
+            transport: OkHttpDictionaryCatalogTransport,
+        ): DictionaryCatalogTransport = transport
+
+        @Provides
+        @Singleton
+        fun provideDictionaryCatalogStorage(
+            @ApplicationContext context: Context,
+        ): DictionaryCatalogStorage = FileDictionaryCatalogStorage(
+            context.filesDir.resolve("dictionary-catalog"),
+        )
+
+        @Provides
+        @Singleton
+        fun provideDownloadedDictionaryPackInstaller(
+            installer: RepositoryDownloadedDictionaryPackInstaller,
+        ): DownloadedDictionaryPackInstaller = installer
+
+        @Provides
+        @Singleton
+        fun provideDictionaryCatalogRepository(
+            repository: DefaultDictionaryCatalogRepository,
+        ): DictionaryCatalogRepository = repository
 
         @Provides
         @Singleton

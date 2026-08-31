@@ -13,9 +13,16 @@ import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyQuery
 import com.example.localvocabulary.dictionary.domain.DictionaryMorphologyResult
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.domain.DictionaryResultKind
+import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictDataSource
+import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictHeadwordForm
+import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictLookupResult
+import com.example.localvocabulary.dictionary.provider.cccedict.CcCedictPackSource
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictDataSource
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictIndexSource
 import com.example.localvocabulary.dictionary.provider.jmdict.JmDictLookupResult
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryDataSource
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryIndexSource
+import com.example.localvocabulary.dictionary.provider.koreanbasic.KoreanBasicDictionaryLookupResult
 import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiDataSource
 import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiIndexSource
 import com.example.localvocabulary.dictionary.provider.kaikki.KaikkiLookupResult
@@ -36,6 +43,41 @@ import org.junit.runner.RunWith
 /** Real-pack checks for the configured debug bundle and optional Test-AVD staging flow. */
 @RunWith(AndroidJUnit4::class)
 class InstalledDictionaryPacksIntegrationTest {
+    @Test
+    fun bundledKoreanBasicPackReportsActualMultiWordExactCoverage() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val application = context.applicationContext as DictionaryApplication
+        application.bundledDictionaryPackBootstrapper.state
+            .filterIsInstance<BundledDictionaryPackBootstrapState.Complete>()
+            .first()
+        val repository = AndroidDictionaryPackRepository(
+            context,
+            AndroidDictionaryPackPayloadValidator(),
+            DictionaryPackManifestCodec(),
+        )
+        assumeTrue(
+            "The optional Korean Basic Dictionary debug pack is not configured for this build",
+            repository.activePack(DictionaryProviderId("korean-basic-dictionary")) != null,
+        )
+        val lookup = KoreanBasicDictionaryDataSource(KoreanBasicDictionaryIndexSource(repository))
+
+        listOf(
+            "take care of",
+            "look forward to",
+            "by the way",
+            "kick the bucket",
+        ).forEach { phrase ->
+            assertTrue(
+                "$phrase should be an exact English reverse key in the pinned dataset",
+                lookup.exactLookup(phrase, "en", "ko") is KoreanBasicDictionaryLookupResult.Matches,
+            )
+        }
+        assertTrue(
+            lookup.exactLookup("make a decision", "en", "ko") is
+                KoreanBasicDictionaryLookupResult.NoMatch,
+        )
+    }
+
     @Test
     fun bundledKaikkiPacksResolveByLanguagePairAndPerformRealExactLookups() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -116,6 +158,13 @@ class InstalledDictionaryPacksIntegrationTest {
             "DictionaryPackBenchmark",
             "kaikki-de-morphology-plus-lemma=$morphologyAndLemmaLookupMillis ms",
         )
+        val ging = lookup.resolve(
+            DictionaryMorphologyQuery(
+                surface = "ging",
+                sourceLanguage = Bcp47LanguageTag.requireValid("de"),
+            ),
+        ) as DictionaryMorphologyResult.Resolved
+        assertEquals("gehen", ging.candidates.first().lemma)
 
         val englishQueries = mapOf(
             "is" to listOf("be"),
@@ -186,6 +235,15 @@ class InstalledDictionaryPacksIntegrationTest {
             }
         }
         Log.i("DictionaryPackBenchmark", report.joinToString(" | "))
+        if (repository.activePack(DictionaryProviderId("cc-cedict")) != null) {
+            val lookup = CcCedictDataSource(CcCedictPackSource(repository))
+            val lookupResult = lookup.exactLookup(
+                "你好",
+                CcCedictHeadwordForm.SIMPLIFIED,
+                20,
+            )
+            assertTrue(lookupResult is CcCedictLookupResult.Matches)
+        }
         if (repository.activePack(DictionaryProviderId("jmdict")) != null) {
             val lookup = JmDictDataSource(JmDictIndexSource(repository))
             lateinit var lookupResult: JmDictLookupResult

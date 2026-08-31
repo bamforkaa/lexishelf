@@ -38,6 +38,8 @@ com.example.localvocabulary/
 └── dictionary/
     ├── domain/             provider contract, capability/failure/source models
     ├── importer/           licensed result → transient editor seed guard/mapping
+    ├── catalog/            strict public catalog, HTTPS transport, cache/download orchestration
+    ├── pack/               generic manifest validation, atomic install/activation/rollback
     ├── provider/cccedict/  active-pack GZip reader, v1/v2 parser, exact index, common mapping
     ├── provider/koreanbasic/ read-only SQLite exact/reverse lookup, common mapping
     ├── provider/panlex/    filtered read-only SQLite direct relation lookup, common mapping
@@ -53,6 +55,10 @@ Compose Screen -> ViewModel -> Repository interface <- Room repository -> DAO ->
                            \-> Settings interface <- DataStore repository
 
 Backup Screen -> BackupViewModel -> backup contracts <- JSON/SAF/Room implementations
+
+Settings Screen -> SettingsViewModel -> DictionaryCatalogRepository
+                                      -> strict catalog codec + HTTPS allowlist transport
+                                      -> staged archive -> DictionaryPackRepository -> active pack
 
 WordEditorScreen -> WordEditorViewModel -> DictionaryProviderRegistry -> providers
                              |                          |
@@ -229,6 +235,22 @@ Room repository를 호출하지 않습니다. 자세한 형식과 수치는 [jmd
 가져오기 흐름은 `파일 읽기 → JSON parsing → schema version 분기 → 전체/필드/관계 validation → preview → 사용자 확인 → Room transaction`입니다. `ValidatedBackup`만 repository import 경계에 전달할 수 있어 parse되지 않은 문서가 DB 단계로 들어가지 않습니다. 실제 반영은 outer `VocabularyDatabase.withTransaction` 안에서 실행되며 aggregate 저장의 nested Room transaction도 같은 transaction에 참여합니다. 예외가 발생하면 삭제·태그·단어·관계 변경을 모두 rollback합니다.
 
 기본 병합은 stable ID가 같은 entry의 뜻/예문/메모/태그 관계/시간을 포함한 aggregate 전체를 예측 가능하게 교체하고, 새 stable ID는 추가하며, 백업에 없는 기존 entry는 보존합니다. field-level merge는 하지 않습니다. 전체 교체는 UI에서 별도 선택과 미리보기를 거칩니다. normalized tag identity가 같으면 기존 tag row를 재사용하므로 공유 태그가 중복되지 않습니다. 세부 schema와 version migration 규칙은 [backup.md](backup.md), 결정 근거는 [ADR-0002](decisions/0002-versioned-json-backup.md)에 있습니다.
+
+## 공개 dictionary catalog와 release asset 경계
+
+공개 catalog schema v1은 app이 지원하는 16개 pack identity만 허용합니다. codec은 unknown field를
+거부하고 catalog/pack schema, provider ID, BCP 47 language pair, archive/payload size와 SHA-256,
+source/license/redistribution metadata를 activation 전에 확인합니다. 기본 catalog URL은 GitHub의
+`latest/download` stable endpoint이고, 각 pack URL은 같은 repository의 immutable version tag asset이어야
+합니다. HTTP와 임의 host redirect는 거부합니다.
+
+remote catalog는 검증 성공 후에만 atomic cache로 교체합니다. download는 `.part`에 순차적으로 기록하고
+archive checksum을 streaming 검증한 뒤 기존 generic pack installer에 expected manifest identity를 전달합니다.
+installer가 manifest와 payload를 모두 검증하기 전에는 active pointer가 바뀌지 않습니다. 실패·취소 후에는
+임시 파일만 지우므로 설치된 pack과 local vocabulary는 유지됩니다. base APK와 Git에는 dictionary binary를
+포함하지 않습니다. JMdict는 local/development capability만 유지하고 public allowlist에서는 명시적으로
+거부합니다. 결정과 threat boundary는 [ADR-0019](decisions/0019-public-dictionary-catalog.md), 정확한 artifact
+matrix는 [public dictionary artifacts](public-dictionary-artifacts.md)에 있습니다.
 
 ## 테스트 전략
 

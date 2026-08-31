@@ -1,0 +1,6 @@
+# Copy this file to the repository root as signing.properties. The copied file is gitignored.
+# Never commit the real keystore path, alias, or passwords.
+storeFile=<KEYSTORE_PATH>
+storePassword=<KEYSTORE_PASSWORD>
+keyAlias=<KEY_ALIAS>
+keyPassword=<KEY_PASSWORD>

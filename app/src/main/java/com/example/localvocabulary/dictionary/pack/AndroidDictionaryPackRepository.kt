@@ -63,7 +63,10 @@ class AndroidDictionaryPackRepository @Inject constructor(
             .sortedByDescending { it.manifest.datasetVersion }
             .toList()
 
-    override suspend fun installFromUri(uri: String): DictionaryPackInstallResult =
+    override suspend fun installFromUri(
+        uri: String,
+        expectation: DictionaryPackInstallExpectation?,
+    ): DictionaryPackInstallResult =
         withContext(Dispatchers.IO) {
             runCatching {
                 val parsed = uri.toUri()
@@ -71,19 +74,23 @@ class AndroidDictionaryPackRepository @Inject constructor(
                     "Only user-selected local files are supported"
                 }
                 context.contentResolver.openInputStream(parsed)?.use { input ->
-                    install(input = input)
+                    install(input = input, expectation = expectation)
                 } ?: error("Unable to open selected pack")
             }.getOrElse { error ->
                 DictionaryPackInstallResult.Rejected(error.message ?: "Dictionary pack install failed")
             }.also { refresh() }
         }
 
-    internal fun install(input: java.io.InputStream): DictionaryPackInstallResult {
+    internal fun install(
+        input: java.io.InputStream,
+        expectation: DictionaryPackInstallExpectation? = null,
+    ): DictionaryPackInstallResult {
         ensureDirectory(root)
         val incoming = File(root, ".incoming-${UUID.randomUUID()}")
         ensureDirectory(incoming)
         return try {
             val extracted = extractAndVerify(input, incoming)
+            expectation?.validate(extracted.manifest)
             payloadValidator.validate(extracted.manifest, extracted.payload).getOrThrow()
             activate(extracted.manifest, extracted.payload, incoming)
         } catch (error: Exception) {
@@ -309,6 +316,29 @@ class AndroidDictionaryPackRepository @Inject constructor(
         const val LEGACY_DICTIONARY_DIRECTORY = "dictionary"
         const val LOG_TAG = "DictionaryPackStorage"
         val UNSAFE_PATH = Regex("[^A-Za-z0-9._-]")
+    }
+}
+
+private fun DictionaryPackInstallExpectation.validate(manifest: DictionaryPackManifest) {
+    require(manifest.packId == packId) { "Downloaded pack ID does not match the catalog" }
+    require(manifest.providerId == providerId) { "Downloaded provider does not match the catalog" }
+    require(manifest.datasetVersion == datasetVersion) {
+        "Downloaded dataset version does not match the catalog"
+    }
+    require(manifest.manifestSchemaVersion == manifestSchemaVersion) {
+        "Downloaded manifest schema does not match the catalog"
+    }
+    require(manifest.datasetSchemaVersion == datasetSchemaVersion) {
+        "Downloaded dataset schema does not match the catalog"
+    }
+    require(manifest.supportedLanguagePairs == supportedLanguagePairs) {
+        "Downloaded language pairs do not match the catalog"
+    }
+    require(manifest.payload.sizeBytes == payloadSizeBytes) {
+        "Downloaded payload size does not match the catalog"
+    }
+    require(manifest.payload.sha256 == payloadSha256) {
+        "Downloaded payload checksum does not match the catalog"
     }
 }
 

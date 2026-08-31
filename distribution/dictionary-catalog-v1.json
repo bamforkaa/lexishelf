@@ -1,0 +1,831 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "v0.1.0",
+  "generatedAt": "2026-08-31T00:00:00Z",
+  "packs": [
+    {
+      "packId": "cc-cedict.zh-en",
+      "providerId": "cc-cedict",
+      "displayName": "CC-CEDICT",
+      "section": "SPECIALIZED",
+      "description": "중국어 → 영어 · 병음과 상세 영어 gloss",
+      "datasetVersion": "2026-08-22T08:27:42Z",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 1,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "zh-Hans",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "zh-Hant",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/cc-cedict.zh-en-2026-08-22T08_27_42Z.dictpack",
+      "downloadSizeBytes": 3971412,
+      "installedSizeBytes": 3969462,
+      "sha256": "4387661a039a8698396918927e8fb7ebe2dee2dff49d8534fda4ef1c1433b06b",
+      "payloadSha256": "f552a8f4e3beddd2fcf2b5ad670cff24668ee8c60da839489492722e361f8dc5",
+      "sourceName": "CC-CEDICT / MDBG",
+      "sourceArtifactId": "cedict_1_0_ts_utf-8_mdbg.txt.gz",
+      "sourceArtifactSha256": "f552a8f4e3beddd2fcf2b5ad670cff24668ee8c60da839489492722e361f8dc5",
+      "sourceUrl": "https://cc-cedict.org/editor/editor.php?handler=Download",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "CC-CEDICT data from MDBG, CC BY-SA 4.0.",
+      "shareAlike": true,
+      "transformationNotice": "원본 UTF-8 GZip을 내용 변경 없이 검증 가능한 .dictpack으로 재포장했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "zh",
+        "zh-Hans",
+        "zh-Hant"
+      ]
+    },
+    {
+      "packId": "korean-basic.multilingual",
+      "providerId": "korean-basic-dictionary",
+      "displayName": "한국어기초사전",
+      "section": "KOREAN_MEANINGS",
+      "description": "영어·일본어·중국어·프랑스어 등 ↔ 한국어 · 수록 범위는 제한적",
+      "datasetVersion": "2026-08-19",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 1,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "en",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "ja",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ja",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "fr",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "fr",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "es",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "es",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "ar",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ar",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "mn",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "mn",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "vi",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "vi",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "th",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "th",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "id",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "id",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "ru",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ru",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "zh",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "zh",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/korean-basic.multilingual-2026-08-19.dictpack",
+      "downloadSizeBytes": 67967805,
+      "installedSizeBytes": 211701760,
+      "sha256": "96299228644b29a89b205c3d66f2d4d774b8267dc4fa249ace11da3402067a63",
+      "payloadSha256": "f76134c04668dd20897d50afab04dff6cf96de914e0eb96ce58cc8e7e4d7103b",
+      "sourceName": "국립국어원 한국어기초사전",
+      "sourceArtifactId": "korean-basic-dictionary-json.zip",
+      "sourceArtifactSha256": "7cf41e62a2a36158a8be2b6d2f84c086221e9b29d4345c44e5497eebf21c8c40",
+      "sourceUrl": "https://krdict.korean.go.kr/download/downloadPopup",
+      "licenseName": "CC BY-SA 2.0 KR",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/kr/",
+      "attribution": "한국어기초사전 - 국립국어원 제공, CC BY-SA 2.0 KR.",
+      "shareAlike": true,
+      "transformationNotice": "공식 전체 JSON의 text만 SQLite exact index로 변환했으며 이미지·음원·멀티미디어는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "en",
+        "ja",
+        "fr",
+        "es",
+        "ar",
+        "mn",
+        "vi",
+        "th",
+        "id",
+        "ru",
+        "zh"
+      ]
+    },
+    {
+      "packId": "panlex.ko-fallback",
+      "providerId": "panlex",
+      "displayName": "PanLex (pinned 2019 snapshot)",
+      "section": "KOREAN_MEANINGS",
+      "description": "선택 언어 ↔ 한국어 · 폭넓은 어휘 fallback이며 완전한 사전이 아님",
+      "datasetVersion": "2019-09-01",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 1,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "de",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "de",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "hi",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "hi",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "pl",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "pl",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "la",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "la",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "nl",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "nl",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "pt",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "pt",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "it",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "it",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "tr",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "tr",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "cs",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "cs",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "sv",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "sv",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "fi",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "fi",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "uk",
+          "resultLanguage": "ko",
+          "resultKind": "TRANSLATION"
+        },
+        {
+          "sourceLanguage": "ko",
+          "resultLanguage": "uk",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/panlex.ko-fallback-2019-09-01.dictpack",
+      "downloadSizeBytes": 72462030,
+      "installedSizeBytes": 189714432,
+      "sha256": "d613ba1a2308bed5a7e34f658e45c5e37b1ee7988de9b3273d3bbda88e537a66",
+      "payloadSha256": "10b780bc4f05d0d6d82d8772fc57364b469dd59991699d8fe01ea54de13d8280",
+      "sourceName": "PanLex Database",
+      "sourceArtifactId": "panlex-20190901-csv.zip",
+      "sourceArtifactSha256": "e7a53a3851ce4cecd8e60497a2e0d0c3285cdfb67d4ce65da466beee315bb3be",
+      "sourceUrl": "https://web.archive.org/web/20240614064246id_/https://db.panlex.org/panlex-20190901-csv.zip",
+      "licenseName": "CC0 1.0 (pinned artifact only)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "PanLex Database; citation to panlex.org is recommended.",
+      "shareAlike": false,
+      "transformationNotice": "체크섬으로 고정한 2019-09-01 CSV에서 검토한 언어 variety의 직접 co-denotation 관계만 SQLite로 인덱싱했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "de",
+        "hi",
+        "pl",
+        "la",
+        "nl",
+        "pt",
+        "it",
+        "tr",
+        "cs",
+        "sv",
+        "fi",
+        "uk"
+      ]
+    },
+    {
+      "packId": "kaikki.de-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — German",
+      "section": "ENGLISH_DETAILS",
+      "description": "German → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "de",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.de-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 75425130,
+      "installedSizeBytes": 278564864,
+      "sha256": "7d882f44a6ece49e2f26bdc221bdfe6c4ea3ad97328192df5d3533fb80949738",
+      "payloadSha256": "8c2bd10f2dd5baeb68e532fc9a9b2c24fecf37357e05528c25528e0aff6b7434",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "de"
+      ]
+    },
+    {
+      "packId": "kaikki.hi-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Hindi",
+      "section": "ENGLISH_DETAILS",
+      "description": "Hindi → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "hi",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.hi-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 12101389,
+      "installedSizeBytes": 80261120,
+      "sha256": "947689b87b85ae5e3860af31b7fd0c8e275e30586990867ebd2c94717dd4b324",
+      "payloadSha256": "ae40dc3f370ceca1f2ba17b4eb206a6c86c010316b1e9c658adfe74472873486",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "hi"
+      ]
+    },
+    {
+      "packId": "kaikki.pl-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Polish",
+      "section": "ENGLISH_DETAILS",
+      "description": "Polish → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "pl",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.pl-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 36313162,
+      "installedSizeBytes": 139321344,
+      "sha256": "ab1e66aa187e1154a0762a032b6799fa9f67cd5ecadfaefad8942e822b3ccd88",
+      "payloadSha256": "17717cac8d0d582a09a2a92b94e565b307e683df55f27f712c545e4c50534e37",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "pl"
+      ]
+    },
+    {
+      "packId": "kaikki.nl-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Dutch",
+      "section": "ENGLISH_DETAILS",
+      "description": "Dutch → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "nl",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.nl-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 21186398,
+      "installedSizeBytes": 69165056,
+      "sha256": "bf138387627302211e7723dbd1d5ab164467c969454fffe22f8dbd6e1e7a3638",
+      "payloadSha256": "b9a44f7f31cca425a5b756777cc81f5c29e48f9c228e0dcf3f61eb6556ff1ebc",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "nl"
+      ]
+    },
+    {
+      "packId": "kaikki.pt-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Portuguese",
+      "section": "ENGLISH_DETAILS",
+      "description": "Portuguese → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "pt",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.pt-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 54897494,
+      "installedSizeBytes": 215515136,
+      "sha256": "53664633f81e21f91c224c1a0f839af2d8069b723c1b0d9fa4dabe14fe14c49b",
+      "payloadSha256": "94bc852d8acf494dd90ca74d0223e36f70d154ee1db00c4c5d3167d31d084fad",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "pt"
+      ]
+    },
+    {
+      "packId": "kaikki.tr-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Turkish",
+      "section": "ENGLISH_DETAILS",
+      "description": "Turkish → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "tr",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.tr-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 14497191,
+      "installedSizeBytes": 79482880,
+      "sha256": "73c44ee6e545eaff769ce401b0b5f0a9c63de315c3007ad731c602e3cb3282f3",
+      "payloadSha256": "a2af78a690ad7accf67d94c17d262c9e50b7e49cac3d0d5764bc52c5a1e72351",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "tr"
+      ]
+    },
+    {
+      "packId": "kaikki.cs-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Czech",
+      "section": "ENGLISH_DETAILS",
+      "description": "Czech → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "cs",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.cs-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 18573780,
+      "installedSizeBytes": 78475264,
+      "sha256": "76df5a1a590f5008e0dde0424b1aa820e619adaac486df2404cb72810dd4bddc",
+      "payloadSha256": "a0908145f898a3981e986e83140c133ec689c1fd4358c550e38e47fb82fc1730",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "cs"
+      ]
+    },
+    {
+      "packId": "kaikki.sv-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Swedish",
+      "section": "ENGLISH_DETAILS",
+      "description": "Swedish → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "sv",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.sv-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 35261263,
+      "installedSizeBytes": 131198976,
+      "sha256": "f508722266882c3212cfc1c80bbe2401b862bfdee073f4ed1a287891203dfa6b",
+      "payloadSha256": "432f2b478f0fec891cf62231a350d5ec18d0451c877af5b17fa71763710b6d2f",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "sv"
+      ]
+    },
+    {
+      "packId": "kaikki.uk-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Ukrainian",
+      "section": "ENGLISH_DETAILS",
+      "description": "Ukrainian → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "uk",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.uk-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 18832406,
+      "installedSizeBytes": 100118528,
+      "sha256": "4a04aafa70f9db5bbc7b02974d2ff73935dd09e9ff27ec4f10a0c9f0d8d944c8",
+      "payloadSha256": "75d0858dbfaef8e82643e03ea0d90e5409fd5f837989376a1b0003e7ebaa1b55",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "uk"
+      ]
+    },
+    {
+      "packId": "kaikki.vi-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Vietnamese",
+      "section": "ENGLISH_DETAILS",
+      "description": "Vietnamese → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "vi",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.vi-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 5612545,
+      "installedSizeBytes": 16904192,
+      "sha256": "82277df9ebfe931f63e498dcb2e86477815e6ec40cf44987b42f7b07a5c75a7f",
+      "payloadSha256": "d94562e43f0d825575f3901bd5f51d78b1c54edc90c86942af84d858928a497b",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "vi"
+      ]
+    },
+    {
+      "packId": "kaikki.th-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Thai",
+      "section": "ENGLISH_DETAILS",
+      "description": "Thai → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "th",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.th-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 2712695,
+      "installedSizeBytes": 9351168,
+      "sha256": "c5c2480052258d7bd23f97e328d172de664280a3df7fe448b1f310bf34b2e878",
+      "payloadSha256": "ba396a48cb2aa05caf62af251eacb1bd9e3b658f6615ef261ba31e0c78536f07",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "th"
+      ]
+    },
+    {
+      "packId": "kaikki.id-en",
+      "providerId": "kaikki",
+      "displayName": "Kaikki — Indonesian",
+      "section": "ENGLISH_DETAILS",
+      "description": "Indonesian → 영어 · 품사·발음·활용형·예문은 원자료에 있을 때만 제공",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "id",
+          "resultLanguage": "en",
+          "resultKind": "TRANSLATION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.id-en-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 6868814,
+      "installedSizeBytes": 19464192,
+      "sha256": "92e280fcac081318afdb5129b88dff459c464a7161f1c8e735ec784d086c62b8",
+      "payloadSha256": "4dd903190b1fcb8534b114e3f81ffb3f486498ee47511ce675e827e442a0df96",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary data extracted by Wiktextract and distributed through Kaikki.org. Wiktionary text is dual-licensed under CC BY-SA 4.0 and GFDL 1.1+; this pack uses the CC BY-SA 4.0 option.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "id"
+      ]
+    },
+    {
+      "packId": "kaikki.en-morphology",
+      "providerId": "kaikki",
+      "displayName": "English Morphology",
+      "section": "SPECIALIZED",
+      "description": "is → be · went → go · source-attested 영어 form → lemma",
+      "datasetVersion": "enwiktionary-2026-08-05",
+      "manifestSchemaVersion": 1,
+      "datasetSchemaVersion": 3,
+      "supportedLanguagePairs": [
+        {
+          "sourceLanguage": "en",
+          "resultLanguage": "en",
+          "resultKind": "MONOLINGUAL_DEFINITION"
+        }
+      ],
+      "downloadUrl": "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki.en-morphology-enwiktionary-2026-08-05.dictpack",
+      "downloadSizeBytes": 29322956,
+      "installedSizeBytes": 86433792,
+      "sha256": "4d55f17056d419c582b00ec35c76ae6b79a0d99a981edd8b66f9335d0b1b7fdf",
+      "payloadSha256": "46647d48363dd2bdf92ba685cd072b1b26544ed29ea663c04387313d9449aa1c",
+      "sourceName": "English Wiktionary via Kaikki.org / Wiktextract",
+      "sourceArtifactId": "raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz",
+      "sourceArtifactSha256": "e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65",
+      "sourceUrl": "https://kaikki.org/dictionary/rawdata.html",
+      "licenseName": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "English Wiktionary form-to-lemma metadata extracted by Wiktextract and distributed through Kaikki.org, CC BY-SA 4.0.",
+      "shareAlike": true,
+      "transformationNotice": "English Wiktionary text를 언어별 SQLite index로 변환했으며 외부 인용문, media/audio와 별도 라이선스 자료는 제외했습니다.",
+      "redistributionAllowed": true,
+      "publicDistributionDecision": "PUBLIC_DISTRIBUTION_ALLOWED",
+      "recommendedFor": [
+        "en"
+      ]
+    }
+  ]
+}

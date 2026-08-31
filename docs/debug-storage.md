@@ -1,6 +1,6 @@
 # Debug 앱 저장공간 감사
 
-Task 15.1에서 `Medium_Phone_Manual` AVD를 read-only overlay로 실행해 기존 사용자 데이터를
+Task 15.1에서 manual QA AVD를 read-only overlay로 실행해 기존 사용자 데이터를
 변경하지 않고 `com.example.localvocabulary`의 실제 저장공간을 측정했다. 아래 값은
 2026-08-28 측정값이며 Android의 화면 표시와 비교하기 쉽도록 MiB로 환산했다.
 
@@ -52,7 +52,7 @@ ML Kit model은 사용자가 해당 언어를 선택했을 때 SDK가 내려받�
 
 ## 로컬 Kaikki schema 정합성
 
-2026-08-28 감사 당시 `D:\lang-Database`의 Kaikki `de`/`vi` generated DB는 SQLite
+2026-08-28 개발 dataset root의 Kaikki `de`/`vi` generated DB는 SQLite
 `PRAGMA user_version=3`이었지만 reviewed converter, pack manifest와 runtime 계약은 schema 2였다.
 이는 잠시 도입됐다가 되돌린 semantic form-selection schema 3의 외부 generated artifact가 Git
 rollback과 무관하게 남은 것이었다. 앱이 이를 `Dictionary schema 3 does not match manifest 2`로
@@ -77,7 +77,7 @@ display forms와 `morphology_forms` reverse index를 포함하며 schema 2와 3�
 APK 크기를 비교할 때는 오래된 증분 산출물이 섞이지 않도록 한 번은 clean build를 사용한다.
 
 ```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:JAVA_HOME = '<ANDROID_STUDIO_INSTALL>\jbr'
 .\gradlew.bat clean assembleDebug
 Get-Item .\app\build\outputs\apk\debug\app-debug.apk |
   Select-Object FullName, Length, LastWriteTime

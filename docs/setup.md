@@ -9,16 +9,16 @@
 | 운영체제 | Windows build `10.0.26200`, Gradle 식별값 `Windows 11 10.0 amd64` | 사용 가능 |
 | CPU | Intel64, x64/AMD64 프로세스와 OS | 사용 가능 |
 | Git | `2.54.0.windows.1` | 사용 가능 |
-| Android Studio | `C:\Program Files\Android\Android Studio`, build `AI-261.26222.65.2613.15948027` | 설치됨 |
+| Android Studio | `<ANDROID_STUDIO_INSTALL>`, build `AI-261.26222.65.2613.15948027` | 설치됨 |
 | JDK | Studio 내장 JBR/JDK `25.0.2`와 `javac 25.0.2` | 설치됨, PATH 미등록 |
-| `JAVA_HOME` | `C:\Program Files\Java\jdk-21`을 가리키지만 해당 경로가 없음 | 수정 필요 |
-| Android SDK | `C:\Users\a6230\AppData\Local\Android\Sdk` | 설치됨 |
+| `JAVA_HOME` | 존재하지 않는 JDK directory를 가리킴 | 수정 필요 |
+| Android SDK | default per-user Android SDK location | 설치됨 |
 | SDK Platform | Android 17 / API 37, revision 2 | 설치됨 |
 | Build Tools | `36.0.0` | 설치됨, AGP 9.3 기본 버전과 일치 |
 | adb | `1.0.41`, platform-tools `37.0.1-15733141` | 직접 경로로 사용 가능 |
 | Emulator | `37.1.11.0` | 실행 파일 설치됨 |
 | Command-line Tools | `cmdline-tools/latest/bin/sdkmanager.bat` 없음 | 선택 설치 필요 |
-| 시스템 이미지/AVD | `Medium_Phone` AVD, Android 17/API 37, `emulator-5554` | 실행 및 계측 테스트 확인 |
+| 시스템 이미지/AVD | test AVD, Android 17/API 37, `<EMULATOR_SERIAL>` | 실행 및 계측 테스트 확인 |
 | 전역 Gradle | 없음 | 정상; 설치하지 않음 |
 | Gradle Wrapper | 프로젝트의 Gradle `9.5.0` Wrapper | 사용 가능 |
 | 전역 Kotlin CLI | `kotlinc` 없음 | 별도 설치 불필요 |
@@ -33,7 +33,7 @@ WMI/CIM을 통한 Windows 제품명 세부 조회는 현재 권한에서 `Access
 잘못된 전역 `JAVA_HOME`을 자동으로 변경하지 않았습니다. 현재 PowerShell 세션에만 Studio 내장 JBR을 지정합니다.
 
 ```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:JAVA_HOME = '<ANDROID_STUDIO_INSTALL>\jbr'
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 java -version
 .\gradlew.bat --version
@@ -42,7 +42,7 @@ java -version
 `local.properties`에는 다음 SDK 경로가 있으며 `.gitignore`에 포함됩니다.
 
 ```properties
-sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
+sdk.dir=<ANDROID_SDK_PATH>
 ```
 
 검사 명령:
@@ -54,6 +54,11 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 .\gradlew.bat lintDebug
 ```
 
+release 후보를 검사할 때는 `assembleRelease`, `bundleRelease`, `lintRelease`를 추가합니다. 현재
+repository에는 production signing 설정이 없으므로 생성되는 release APK/AAB는 archive 검사
+대상일 뿐 배포용 signed artifact가 아닙니다. version/signing/artifact/privacy 점검은
+[release 문서](release.md)와 [release checklist](release-checklist.md)를 따릅니다.
+
 백업/복원은 Android 시스템 파일 선택기(Storage Access Framework)를 사용하므로 별도 storage permission이나 SDK 도구 설치가 필요하지 않습니다. 실제 기기 또는 AVD에서 파일 제공자를 열 수 있어야 하며 수동 절차는 [backup.md](backup.md)에 있습니다.
 
 ## 선택 사항: 손글씨 인식 모델
@@ -62,8 +67,9 @@ sdk.dir=C\:\\Users\\a6230\\AppData\\Local\\Android\\Sdk
 필요합니다. APK에는 언어 모델을 묶지 않습니다. Word Editor의 손글씨 버튼을 누르고 모델
 다운로드를 선택하면 현재 BCP 47 언어에 맞는 모델 하나만 내려받습니다. 공식 안내 기준 모델당
 저장 공간은 약 20MB입니다. 다운로드 때문에 `INTERNET` permission이 필요하지만 별도 API key,
-서버나 사전 network provider는 없습니다. 모델이 설치된 뒤 인식 입력과 결과 처리는 기기에서
-이뤄집니다. 자세한 출처, privacy와 Manual QA는 [handwriting.md](handwriting.md)에 있습니다.
+앱 backend나 사전 network provider는 없습니다. 인식 input/result는 기기에서 처리되지만 ML Kit
+SDK의 diagnostics/usage metadata와 model update 통신은 별도이므로 공개 배포 privacy 고지에서
+숨기지 않습니다. 자세한 출처, privacy와 Manual QA는 [handwriting.md](handwriting.md)에 있습니다.
 
 ## 선택 사항: CC-CEDICT local dataset
 
@@ -81,7 +87,7 @@ MDBG는 automated/scripted access를 금지하므로 project script가 다운로
 
 ```powershell
 Copy-Item C:\path\to\korean-basic-dictionary-json.zip `
-  D:\lang-Database\korean-basic\source\korean-basic-dictionary-json.zip
+  D:\dictionary-data\korean-basic\source\korean-basic-dictionary-json.zip
 python -m tools.build_krdict_index
 ```
 
@@ -95,7 +101,7 @@ PanLex provider도 network permission이나 Android SDK 추가 도구 없이 별
 
 ```powershell
 Copy-Item C:\path\to\panlex-20190901-csv.zip `
-  D:\lang-Database\panlex\source\panlex-20190901-csv.zip
+  D:\dictionary-data\panlex\source\panlex-20190901-csv.zip
 python -X utf8 -m tools.build_panlex_index
 ```
 
@@ -107,7 +113,7 @@ Android build는 JMdict를 다운로드하지 않습니다. 공식 `JMdict_e.gz`
 release를 확인하고 다음을 실행합니다.
 
 ```powershell
-Copy-Item C:\path\to\JMdict_e.gz D:\lang-Database\jmdict\source\JMdict_e.gz
+Copy-Item C:\path\to\JMdict_e.gz D:\dictionary-data\jmdict\source\JMdict_e.gz
 python -m tools.build_jmdict_index
 ```
 
@@ -119,7 +125,7 @@ python -m tools.build_jmdict_index
 Android/Gradle build는 Kaikki 원본을 다운로드하거나 runtime JSON parsing을 하지 않습니다. 공식 raw page에서 current English Wiktionary extraction gzip을 명시적으로 받은 뒤, [Kaikki dataset 문서](kaikki-dataset.md)의 dump date·bytes·SHA-256을 확인해 다음 exact 이름으로 둡니다.
 
 ```text
-D:\lang-Database\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz
+D:\dictionary-data\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz
 ```
 
 `python -X utf8 -m tools.build_kaikki_indexes`는 production 12개 `<language>.db`와 compact
@@ -170,7 +176,7 @@ python -X utf8 -m tools.build_dictionary_packs --pack kaikki
 
 ### 4. 에뮬레이터와 AVD 준비
 
-현재 `Medium_Phone` API 37 AVD가 구성되어 있으며 `adb devices -l`에서 `emulator-5554 device`로 확인했습니다. 새 컴퓨터에서 같은 환경을 준비하려면 다음 절차를 사용합니다.
+검증 당시 API 37 test AVD가 구성되어 있으며 `adb devices -l`에서 `<EMULATOR_SERIAL> device`로 확인했습니다. 새 컴퓨터에서 같은 환경을 준비하려면 다음 절차를 사용합니다.
 
 1. `Tools > SDK Manager > SDK Platforms`에서 Android 17/API 37의 Google APIs x86_64 시스템 이미지를 설치합니다.
 2. `Tools > Device Manager > Add a new device > Create Virtual Device`를 선택합니다.
@@ -207,10 +213,10 @@ Android SDK 경로와 dictionary dataset 경로는 별개입니다. converter는
 2. gitignored `local.properties`의 `dictionaryDataDir`
 3. 저장소 내부 gitignored `.local/dictionary-data`
 
-Windows에서 `D:\lang-Database`를 지속적으로 사용할 때는 project root의 gitignored `local.properties`에 다음 값을 추가하는 방법을 권장합니다.
+Windows에서 별도의 dataset directory를 지속적으로 사용할 때는 project root의 gitignored `local.properties`에 다음 값을 추가하는 방법을 권장합니다.
 
 ```properties
-dictionaryDataDir=D\:\\lang-Database
+dictionaryDataDir=D\:\\dictionary-data
 bundleDictionaryPacksInDebug=true
 debugDictionaryPackLanguages=de,vi
 ```
@@ -220,7 +226,7 @@ debugDictionaryPackLanguages=de,vi
 현재 PowerShell session에서만 우선 적용하려면 환경 변수를 사용합니다.
 
 ```powershell
-$env:LANG_DATABASE_DIR = 'D:\lang-Database'
+$env:LANG_DATABASE_DIR = 'D:\dictionary-data'
 ```
 
 그다음 converter/pack builder를 실행합니다. 각 도구는 실제로 선택한 root를 `Dictionary dataset root:` 다음 줄에 출력합니다.
@@ -237,11 +243,11 @@ python -m tools.build_dictionary_packs
 
 생성한 `.dictpack`은 설정 화면의 `로컬 pack 설치`로 고릅니다. 앱은 Storage Access Framework를 사용하므로 storage permission이 필요하지 않습니다. Android runtime 저장 경로는 `noBackupFilesDir/dictionary-packs`이며 Windows root와 무관합니다. 자세한 layout/manifest/update/rollback은 [dictionary-packs.md](dictionary-packs.md)에 있습니다.
 
-Manual QA에서는 Test AVD를 끄고 `Medium_Phone_Manual`만 연결한 뒤 다음처럼 core pack과 필요한 Kaikki pack을 Downloads에 staging할 수 있습니다.
+Manual QA에서는 test AVD를 끄고 `<MANUAL_AVD_NAME>`만 연결한 뒤 다음처럼 core pack과 필요한 Kaikki pack을 Downloads에 staging할 수 있습니다.
 
 ```powershell
 python -m tools.build_dictionary_packs
-python -m tools.stage_dictionary_packs --avd-name Medium_Phone_Manual `
+python -m tools.stage_dictionary_packs --avd-name <MANUAL_AVD_NAME> `
   --kaikki-language de --kaikki-language vi
 ```
 
@@ -264,7 +270,7 @@ debug bundle은 압축 pack과 활성화된 unpacked payload를 함께 차지하
 | `.\gradlew.bat clean` | 성공, stale 증분 산출물 제거 |
 | `.\gradlew.bat assembleDebug` 최종 실행 | 성공, schema 2 `de`/`vi` pack을 포함한 `app-debug.apk` 264,611,485 bytes 생성 |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,410,667 bytes 생성 |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone_Test(AVD) - 17`에서 115개 발견 / 114개 실행·통과 / staged-pack opt-in 테스트 1개 건너뜀 / 실패 0. 번들 `de`/`vi` 실제 조회 통합 테스트는 실행·통과 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, API 37 test AVD에서 115개 발견 / 114개 실행·통과 / staged-pack opt-in 테스트 1개 건너뜀 / 실패 0. 번들 `de`/`vi` 실제 조회 통합 테스트는 실행·통과 |
 
 중간 실패도 숨기지 않습니다.
 
@@ -288,13 +294,13 @@ lint의 네 warning은 Gradle 9.7.1, Compose/serialization compiler plugin 2.4.1
 | `\.\gradlew.bat testDebugUnitTest` | 성공, 12 suites / 56 tests / 실패·오류·건너뜀 0 |
 | `\.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
 | `\.\gradlew.bat assembleDebug` | 성공, code-only `app-debug.apk` 14,046,842 bytes |
-| `\.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 `Medium_Phone`은 기존 사용자 데이터가 있는 수동 QA AVD이며 test-only AVD가 아님 |
+| `\.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 기기는 기존 사용자 데이터가 있는 수동 QA AVD이며 test-only AVD가 아님 |
 
 변경 전 기존 APK는 14,032,994 bytes였고 full CC-CEDICT GZip 없이 provider/UI/NOTICE만 포함한 APK 증가는 13,848 bytes입니다. full artifact가 없으므로 데이터셋 포함 APK 크기와 첫 parse 시간/peak memory는 측정하지 않았습니다.
 
 중간 실패:
 
-- 첫 기준선 실행은 global `JAVA_HOME=C:\Program Files\Java\jdk-21`이 존재하지 않아 Gradle 시작 전 실패했습니다. 시스템 설정을 바꾸지 않고 Studio JBR을 process-local로 사용했습니다.
+- 첫 기준선 실행은 global `JAVA_HOME`이 존재하지 않는 JDK를 가리켜 Gradle 시작 전 실패했습니다. 시스템 설정을 바꾸지 않고 Studio JBR을 process-local로 사용했습니다.
 - sandbox 안의 첫 Wrapper 실행은 Gradle 9.5.0 다운로드가 `Permission denied: getsockopt`로 실패했고 승인된 외부 실행에서 wrapper distribution을 받은 뒤 성공했습니다.
 - 첫 production compile은 존재하지 않는 `Char.isNotWhitespace` reference와 잘못 명시한 Compose `weight` import로 실패했습니다. lambda와 scope extension 사용으로 수정한 뒤 성공했습니다.
 - 첫 새 test compile은 `VocabularySenseDraft`의 필수 `partOfSpeech`, `examples` 인자가 빠져 실패했습니다. fixture draft를 완전하게 만든 뒤 전체 56 tests가 통과했습니다.
@@ -324,9 +330,9 @@ Room v2→v3 aggregate 보존, provenance Room round trip, backup v1 호환성�
 | `.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 93,170,569 bytes |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,265,280 bytes |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 28개 통과 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 API 37 test AVD에서 28개 통과 |
 
-Task 5.2의 CC-CEDICT asset 포함 APK 18,588,003 bytes와 비교하면 provider 코드와 한국어기초사전 index 포함 후 74,582,566 bytes 증가했습니다. APK 안에서 211,701,760-byte SQLite asset은 deflate되어 74,551,231 bytes를 차지합니다. 수동 QA 데이터가 있는 `Medium_Phone`은 연결하지 않았고 명시적으로 분리된 `Medium_Phone_Test`만 계측 대상으로 사용했습니다.
+Task 5.2의 CC-CEDICT asset 포함 APK 18,588,003 bytes와 비교하면 provider 코드와 한국어기초사전 index 포함 후 74,582,566 bytes 증가했습니다. APK 안에서 211,701,760-byte SQLite asset은 deflate되어 74,551,231 bytes를 차지합니다. 수동 QA 데이터가 있는 AVD는 연결하지 않았고 명시적으로 분리된 test AVD만 계측 대상으로 사용했습니다.
 
 중간 결함도 기록합니다.
 
@@ -345,7 +351,7 @@ Task 5.2의 CC-CEDICT asset 포함 APK 18,588,003 bytes와 비교하면 provider
 | `.\gradlew.bat lintDebug` | 성공, 0 errors / 기존 dependency version warning 4개 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 116,588,051 bytes |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,265,338 bytes |
-| `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 `emulator-5554`가 `Medium_Phone_Manual`이어서 수동 QA data를 보호함 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 실행하지 않음. 연결된 유일한 기기가 manual QA AVD여서 수동 QA data를 보호함 |
 
 Task 6 기준 APK 93,170,569 bytes에서 23,417,482 bytes 증가했습니다. 53,211,136-byte PanLex SQLite asset은 APK 안에서 23,301,486 bytes로 deflate되었습니다. Android datasource의 네 언어 양방향 exact/normalization/ranking/truncation/malformed fixture는 AndroidTest APK에 컴파일됐지만 test-only AVD에서 실행된 것으로 표현하지 않습니다.
 
@@ -366,7 +372,7 @@ Task 6 기준 APK 93,170,569 bytes에서 23,417,482 bytes 증가했습니다. 53
 | `.\gradlew.bat lintDebug` | 성공 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 144,462,083 bytes |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,283,741 bytes |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 37개 통과 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 API 37 test AVD에서 37개 통과 |
 
 full asset 계측 test의 강제 첫 복사는 531ms, 첫 open + `食べる` exact query는 19ms였습니다. 중간에 추가한 Compose test가 동일 POS node 두 개를 단일 node로 기대해 37개 중 1개가 실패했습니다. production UI는 두 sense의 POS를 정상 표시하고 있었으며, test expectation을 2개로 바로잡은 뒤 해당 화면 test 5개와 전체 37개를 순서대로 재실행해 통과했습니다.
 
@@ -381,9 +387,9 @@ Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payl
 | `.\gradlew.bat lintDebug` | 성공, errors 0 / dependency·version warning 6개 |
 | `.\gradlew.bat assembleDebug` | 성공, `app-debug.apk` 18,466,693 bytes |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,289,772 bytes |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 유일한 `Medium_Phone_Test(AVD) - 17`에서 47개 발견, 45개 실행·통과, optional staged-pack test 2개 건너뜀 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, 연결된 API 37 test AVD에서 47개 발견, 45개 실행·통과, optional staged-pack test 2개 건너뜀 |
 
-`/data/local/tmp/local-vocabulary-packs`에 실제 생성 pack을 staging하고 opt-in 계측 test를 별도로 실행했습니다. 한 pack 설치와 네 pack 동시 설치가 모두 성공했으며 측정값은 CC-CEDICT 229ms, JMdict 1,130ms, 한국어기초사전 5,023ms, PanLex 1,756ms였습니다. 설치 직후 JMdict 첫 exact query는 20ms였습니다. 이 값은 해당 Test AVD의 단일 계측값이며 일반 기기의 benchmark로 간주하지 않습니다.
+`<DEVICE_TEMP_PATH>`에 실제 생성 pack을 staging하고 opt-in 계측 test를 별도로 실행했습니다. 한 pack 설치와 네 pack 동시 설치가 모두 성공했으며 측정값은 CC-CEDICT 229ms, JMdict 1,130ms, 한국어기초사전 5,023ms, PanLex 1,756ms였습니다. 설치 직후 JMdict 첫 exact query는 20ms였습니다. 이 값은 해당 test AVD의 단일 계측값이며 일반 기기의 benchmark로 간주하지 않습니다.
 
 중간 실패 두 건은 production 결함이 아니었습니다. pack repository test가 test-only 내부 설치 후 명시적 refresh를 누락했고, Compose test가 sense별로 두 번 표시되는 headword를 한 node로 기대했습니다. 두 test expectation/setup만 바로잡은 뒤 관련 test 11개와 전체 계측 suite를 재실행해 통과했습니다. pack이 0개인 기본 상태에서도 전체 editor 및 수동 저장 흐름은 정상이며, 실제 pack 1개/4개 상태는 opt-in integration test에서 검증했습니다.
 
@@ -400,7 +406,7 @@ Task 9에서 dataset 포함 debug APK 144,462,083 bytes로부터 dictionary payl
 | `.\gradlew.bat lintDebug` | 성공 |
 | `.\gradlew.bat assembleDebug` | 성공, 최종 검증 파일 `app-debug.apk` 201,374,823 bytes |
 | `.\gradlew.bat assembleDebugAndroidTest` | 성공, `app-debug-androidTest.apk` 1,414,953 bytes |
-| `.\gradlew.bat connectedDebugAndroidTest` | 성공, `Medium_Phone_Test`에서 92개 발견 / 실패 0 / optional staged-pack 2개 건너뜀 |
+| `.\gradlew.bat connectedDebugAndroidTest` | 성공, API 37 test AVD에서 92개 발견 / 실패 0 / optional staged-pack 2개 건너뜀 |
 | opt-in real PanLex pack 계측 | 성공, production install/activation 4,906ms / 첫 `nl → ko` exact query 15ms |
 
 수동 QA AVD는 연결하지 않았습니다. Test AVD만 headless로 시작했고, 전체 suite 후 opt-in pack test를 별도로 실행했습니다. 당시 Task 11에서는 Room schema v5와 backup schema v4를 변경하지 않았습니다.

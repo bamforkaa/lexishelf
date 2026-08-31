@@ -16,6 +16,7 @@ ksp = "2.3.10"
 lifecycle = "2.11.0"
 mlkitDigitalInk = "19.0.0"
 navigation = "2.9.8"
+okhttp = "5.5.0"
 room = "2.8.4"
 serialization = "1.10.0"
 
@@ -51,6 +52,7 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 mlkit-digital-ink-recognition = { module = "com.google.mlkit:digital-ink-recognition", version.ref = "mlkitDigitalInk" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

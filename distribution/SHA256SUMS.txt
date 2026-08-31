@@ -1,0 +1,17 @@
+4387661a039a8698396918927e8fb7ebe2dee2dff49d8534fda4ef1c1433b06b  cc-cedict.zh-en-2026-08-22T08_27_42Z.dictpack
+96299228644b29a89b205c3d66f2d4d774b8267dc4fa249ace11da3402067a63  korean-basic.multilingual-2026-08-19.dictpack
+d613ba1a2308bed5a7e34f658e45c5e37b1ee7988de9b3273d3bbda88e537a66  panlex.ko-fallback-2019-09-01.dictpack
+7d882f44a6ece49e2f26bdc221bdfe6c4ea3ad97328192df5d3533fb80949738  kaikki.de-en-enwiktionary-2026-08-05.dictpack
+947689b87b85ae5e3860af31b7fd0c8e275e30586990867ebd2c94717dd4b324  kaikki.hi-en-enwiktionary-2026-08-05.dictpack
+ab1e66aa187e1154a0762a032b6799fa9f67cd5ecadfaefad8942e822b3ccd88  kaikki.pl-en-enwiktionary-2026-08-05.dictpack
+bf138387627302211e7723dbd1d5ab164467c969454fffe22f8dbd6e1e7a3638  kaikki.nl-en-enwiktionary-2026-08-05.dictpack
+53664633f81e21f91c224c1a0f839af2d8069b723c1b0d9fa4dabe14fe14c49b  kaikki.pt-en-enwiktionary-2026-08-05.dictpack
+73c44ee6e545eaff769ce401b0b5f0a9c63de315c3007ad731c602e3cb3282f3  kaikki.tr-en-enwiktionary-2026-08-05.dictpack
+76df5a1a590f5008e0dde0424b1aa820e619adaac486df2404cb72810dd4bddc  kaikki.cs-en-enwiktionary-2026-08-05.dictpack
+f508722266882c3212cfc1c80bbe2401b862bfdee073f4ed1a287891203dfa6b  kaikki.sv-en-enwiktionary-2026-08-05.dictpack
+4a04aafa70f9db5bbc7b02974d2ff73935dd09e9ff27ec4f10a0c9f0d8d944c8  kaikki.uk-en-enwiktionary-2026-08-05.dictpack
+82277df9ebfe931f63e498dcb2e86477815e6ec40cf44987b42f7b07a5c75a7f  kaikki.vi-en-enwiktionary-2026-08-05.dictpack
+c5c2480052258d7bd23f97e328d172de664280a3df7fe448b1f310bf34b2e878  kaikki.th-en-enwiktionary-2026-08-05.dictpack
+92e280fcac081318afdb5129b88dff459c464a7161f1c8e735ec784d086c62b8  kaikki.id-en-enwiktionary-2026-08-05.dictpack
+4d55f17056d419c582b00ec35c76ae6b79a0d99a981edd8b66f9335d0b1b7fdf  kaikki.en-morphology-enwiktionary-2026-08-05.dictpack
+061f10a24858338233fb5a3c224b24719836427f0f133877e1896b60f92fa103  dictionary-catalog-v1.json

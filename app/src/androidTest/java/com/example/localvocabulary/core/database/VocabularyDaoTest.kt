@@ -269,6 +269,31 @@ class VocabularyDaoTest {
     }
 
     @Test
+    fun multiWordExpressionsRoundTripAndRemainSearchable() = runTest {
+        val phrases = listOf(
+            "take care of",
+            "look forward to",
+            "by the way",
+            "kick the bucket",
+            "make a decision",
+        )
+
+        phrases.forEachIndexed { index, phrase ->
+            database.vocabularyDao().saveEntry(
+                entry = entry(headword = phrase, modifiedAt = index.toLong() + 1),
+                senses = listOf(SenseWrite("manual meaning $index", "", emptyList())),
+                tagIds = emptySet(),
+            )
+        }
+
+        phrases.forEach { phrase ->
+            val result = database.vocabularyDao().observeEntries(phrase, null).first().single()
+            assertEquals(phrase, result.entry.headword)
+        }
+        assertEquals(phrases, database.vocabularyDao().findPracticeRows(null, null, null).map { it.headword })
+    }
+
+    @Test
     fun practiceProjectionFiltersInSqlAndReturnsOnlyCompactHintFields() = runTest {
         val practiceTagId = insertTag("practice")
         val wordbookId = insertWordbook("writing")

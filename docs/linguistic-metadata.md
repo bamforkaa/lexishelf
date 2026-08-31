@@ -5,7 +5,7 @@ The source of truth for the numbers below is the twelve generated SQLite indexes
 `<dictionaryDataDir>/kaikki/generated`. Reproduce the report with:
 
 ```powershell
-python -X utf8 -m tools.report_kaikki_metadata --root D:\lang-Database
+python -X utf8 -m tools.report_kaikki_metadata --root D:\dictionary-data
 ```
 
 The report reads the databases in SQLite read-only mode. “Present” counts entries, not senses.

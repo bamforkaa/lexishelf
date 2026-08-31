@@ -48,6 +48,30 @@ abstract class StageDictionaryPackAssets @Inject constructor(
 val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
 }
+val signingProperties = Properties().apply {
+    rootProject.file("signing.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
+}
+
+fun releaseSigningValue(propertyName: String, environmentName: String): String? =
+    System.getenv(environmentName)?.trim()?.takeIf(String::isNotEmpty)
+        ?: signingProperties.getProperty(propertyName)?.trim()?.takeIf(String::isNotEmpty)
+
+val releaseStoreFile = releaseSigningValue("storeFile", "LEXISHELF_KEYSTORE_FILE")
+val releaseStorePassword = releaseSigningValue("storePassword", "LEXISHELF_KEYSTORE_PASSWORD")
+val releaseKeyAlias = releaseSigningValue("keyAlias", "LEXISHELF_KEY_ALIAS")
+val releaseKeyPassword = releaseSigningValue("keyPassword", "LEXISHELF_KEY_PASSWORD")
+val releaseSigningConfigured = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+val requireProductionSigning = providers.gradleProperty("requireProductionSigning")
+    .orNull
+    ?.toBooleanStrictOrNull() == true
+val dictionaryCatalogUrl = providers.gradleProperty("dictionaryCatalogUrl").orNull
+    ?: System.getenv("LEXISHELF_DICTIONARY_CATALOG_URL")?.trim()?.takeIf(String::isNotEmpty)
+    ?: "https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json"
 val bundleDictionaryPacksInDebug =
     localProperties.getProperty("bundleDictionaryPacksInDebug")?.toBooleanStrictOrNull() == true
 val dictionaryDatasetRoot = System.getenv("LANG_DATABASE_DIR")
@@ -148,7 +172,39 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
+    }
+
+    defaultConfig {
+        buildConfigField(
+            "String",
+            "DICTIONARY_CATALOG_URL",
+            "\"${dictionaryCatalogUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
+        )
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("production") {
+                storeFile = file(requireNotNull(releaseStoreFile))
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("production")
+            }
+        }
     }
 
     compileOptions {
@@ -211,6 +267,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.mlkit.digital.ink.recognition)
+    implementation(libs.okhttp)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
@@ -235,4 +292,24 @@ dependencies {
 
     debugImplementation(libs.compose.ui.test.manifest)
     debugImplementation(libs.compose.ui.tooling)
+}
+
+val verifyProductionSigning by tasks.registering {
+    group = "verification"
+    description = "Fails unless an external production signing identity is configured."
+    doLast {
+        check(releaseSigningConfigured) {
+            "Production signing is not configured. Set the four LEXISHELF_KEYSTORE_* / " +
+                "LEXISHELF_KEY_* environment variables or create untracked signing.properties."
+        }
+        check(file(requireNotNull(releaseStoreFile)).isFile) {
+            "The configured production keystore file does not exist."
+        }
+    }
+}
+
+if (requireProductionSigning) {
+    tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+        dependsOn(verifyProductionSigning)
+    }
 }

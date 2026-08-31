@@ -88,7 +88,7 @@ Editing or clearing reading marks its provenance modified; refresh has no persis
 
 PC lookup measurement after the final payload choice: new connection plus first `食べる` lookup
 8.364 ms; 100 warm lookups median 0.060 ms and p95 0.073 ms. `PRAGMA integrity_check` returned
-`ok`. On `Medium_Phone_Test` AVD, a forced first asset copy took 531 ms and the following first
+`ok`. On the API 37 test AVD, a forced first asset copy took 531 ms and the following first
 open plus `食べる` query took 19 ms. These are single-run diagnostic figures, not thresholds.
 
 ## Manual QA samples

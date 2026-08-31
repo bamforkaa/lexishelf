@@ -100,6 +100,20 @@ class WritingPracticeViewModelTest {
     }
 
     @Test
+    fun `multi word expression is accepted as the exact writing practice answer`() = runTest {
+        val phrase = "look forward to"
+        val viewModel = viewModel(
+            FakePracticeVocabularyRepository(listOf(item(1, phrase, "en", "기대하다"))),
+        )
+        advanceUntilIdle()
+        viewModel.onAction(WritingPracticeAction.Start)
+        viewModel.onAction(WritingPracticeAction.AnswerChanged(phrase))
+        viewModel.onAction(WritingPracticeAction.Submit)
+
+        assertEquals(true, viewModel.uiState.value.feedback?.isCorrect)
+    }
+
+    @Test
     fun `wrong first attempt remains one error after retry succeeds and restart resets statistics`() = runTest {
         val viewModel = viewModel(FakePracticeVocabularyRepository(listOf(item(1, "Wasser", "de", "물"))))
         advanceUntilIdle()

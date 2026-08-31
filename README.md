@@ -1,190 +1,150 @@
-# Local Vocabulary
+<h1 align="center">LexiShelf</h1>
 
-> Task 13: 모든 지원 result-language pair를 함께 검색하고 raw provider 결과 위에서
-> 보수적으로 동일한 후보만 합성합니다. 제안은 한국어 → 영어 → 기타 언어 순서이며,
-> 여러 출처와 deterministic primary provenance를 보존합니다. 실제 overlap과 규칙은
-> [사전 제안 합성 문서](docs/dictionary-synthesis.md)를 참고하세요.
->
-> Task 14: 실제 12개 Kaikki index의 linguistic metadata coverage를 측정한 뒤
-> textual pronunciation과 grammatical gender만 명시적 row tap으로 가져오도록 승격했습니다.
-> forms는 편차가 커 transient로 유지합니다. 수치와 결정은
-> [linguistic metadata 문서](docs/linguistic-metadata.md)를 참고하세요.
->
-> Task 15.1: Word Editor와 저장된 단어 검색에 Google ML Kit Digital Ink Recognition 기반의
-> 공용 로컬 손글씨 입력을 제공합니다. Canvas를 먼저 작성한 뒤 같은 Ink에 다른 언어 모델을
-> 선택할 수 있으며, 후보를 눌렀을 때만 기존 입력 흐름으로 들어갑니다. 모델·privacy·지원
-> 언어 동작은
-> [손글씨 입력 문서](docs/handwriting.md)를 참고하세요.
->
-> Task 16: 저장된 vocabulary의 뜻·reading·발음 등을 힌트로 보고 headword를 손글씨 또는
-> 키보드로 답하는 session-only 쓰기 연습 MVP를 제공합니다. 범위·정답 판정·retry 정책은
-> [쓰기 연습 문서](docs/writing-practice.md)를 참고하세요.
->
-> Task 18: Kaikki의 raw tag를 직접 노출하지 않고, 실제 12개 언어와 English source를
-> 실측한 sense-level usage/register/grammar whitelist만 사전 제안에 transient하게 표시합니다.
-> [usage label 문서](docs/usage-labels.md)를 참고하세요.
+<p align="center">
+  Android용 local-first 다국어 단어장과 오프라인 사전 도구
+</p>
 
-개인용 Android local-first 단어장 프로젝트입니다. 사용자가 직접 입력한 단어와 표현은 Room에 저장되고, 선택적으로 설치한 CC-CEDICT, 한국어기초사전과 PanLex local dataset을 오프라인 검색해 참고할 수 있습니다.
+<p align="center">
+  <a href="https://github.com/Bamfor/lexishelf/releases">Releases</a> ·
+  <a href="#설치">설치</a> ·
+  <a href="#기능">기능</a> ·
+  <a href="#사전-pack">사전 데이터</a> ·
+  <a href="PRIVACY.md">개인정보</a> ·
+  <a href="#라이선스와-데이터-출처">라이선스</a>
+</p>
 
-## 현재 구현 상태
+<p align="center">
+  <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
+  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-4f46e5">
+  <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
+</p>
 
-구현됨:
+## 개요
 
-- 단어/표현, BCP 47 언어 태그, 여러 뜻, 뜻별 품사와 여러 예문, 메모 입력 및 수정
-- Room 기반 로컬 저장과 트랜잭션 단위 aggregate 갱신
-- 서로 분리된 단어장과 태그의 생성·이름 변경·삭제, 단어장 상세의 검색/언어/태그 기반 batch add/remove
-- 단어/뜻/예문/메모 텍스트 검색과 언어/단어장/태그 필터
-- 단어 목록, 상세, 추가·수정, 단어장/태그 관리, 기본 언어 설정 화면
-- Word Editor headword 기반의 registry 공통 inline suggestion, CC-CEDICT 중국어 exact lookup
-- 한국어기초사전의 한국어↔11개 외국어 양방향 exact/reverse lookup
-- PanLex filtered index의 12개 언어(`de/hi/pl/la/nl/pt/it/tr/cs/sv/fi/uk`)↔한국어 양방향 exact fallback
-- Kaikki/Wiktextract의 12개 언어(`de/hi/pl/nl/pt/tr/cs/sv/uk/vi/th/id`)→영어 exact fallback, bounded principal-form display, source-attested form→lemma fallback, sense별 learner-facing usage/grammar label, POS·발음·문법 성·source-ordered usage example import
-- 400ms debounce, provider별 raw 결과/오류 격리, result-language 중심 exact 합성, 명시적 autofill과 sense 단위 provenance
-- provider dataset과 독립된 base APK, SAF local pack install/update/delete/one-step rollback
-- 한국어 결과 우선·영어 fallback 동시 표시, provider/pair당 최대 20개 query 결과와 합성 후 최대 25개 materialized row
-- reading 근처의 NAVER 공식 사전 reference link(user tap `ACTION_VIEW` only, fetch/scrape 없음)
-- Storage Access Framework 기반 UTF-8 JSON 백업/복원, import 미리보기와 명시적 충돌 정책
-- Hilt 의존성 주입, Navigation Compose, DataStore 설정
-- Word Editor와 vocabulary 검색의 언어별 on-device 손글씨 인식, 안정 Canvas,
-  획 취소/전체 지우기와 명시적 후보 선택
-- 전체/언어/단어장/태그 범위의 10/20/전체 쓰기 연습, 손글씨·키보드 답안과 세션 요약
-- online API/local dataset을 함께 수용하는 `DictionaryProvider` 계약, capability/usage policy, provider registry와 안전한 editor seed 경계
-- 도메인/매핑/repository/ViewModel 단위 테스트, Room DAO 테스트, Compose UI 테스트
+LexiShelf는 단어와 표현을 직접 정리하고 기기 안에서 계속 사용할 수 있는 개인용 Android
+단어장입니다. 여러 뜻, 예문, 메모, 태그와 단어장을 편집할 수 있고, 필요한 경우에만 검토된
+사전 pack을 내려받아 입력을 보조합니다. 사전에 없는 표현도 항상 직접 저장할 수 있습니다.
 
-구현하지 않음:
+사용자 단어장은 Room에 로컬로 저장됩니다. 계정, 프로젝트 운영 backend, cloud sync, 광고와
+앱 자체 analytics가 없습니다. 사전 pack을 설치한 뒤 단어장과 로컬 사전 검색은 offline에서도
+동작합니다.
 
-- Cambridge 또는 그 밖의 online 사전 연동
-- CC-CEDICT pinyin/prefix/fuzzy 검색, 한국어기초사전 prefix/fuzzy 검색과 자동 dataset download/update
-- AI/LLM 정의, 기계번역, 로그인, 클라우드 동기화, 분석, 광고, 백엔드, 프록시
-- SRS, 장기 복습 이력, 획순·필체 점수
+## 기능
 
-사전 검색과 사용자 단어장 기능은 계속 로컬에서 동작합니다. 다만 손글씨 인식 언어 모델을
-사용자가 처음 내려받을 때 ML Kit가 network를 사용하므로 `INTERNET` permission이 있습니다.
-설치된 모델의 실제 인식은 기기에서 수행됩니다.
+- 언어 태그가 있는 단어와 multi-word expression 저장
+- 여러 뜻, 품사, 예문, reading, 발음, 문법 성, 메모와 즐겨찾기 편집
+- 서로 독립적인 태그와 단어장, 로컬 검색과 필터
+- 선택한 local dictionary 결과를 검토하고 수정한 뒤 저장
+- 영어 활용형을 lemma로 찾는 morphology 보조 검색
+- ML Kit의 기기 내 손글씨 인식과 언어 모델 선택 설치
+- session-only Writing Practice
+- versioned JSON backup 내보내기, 검증과 conflict policy가 있는 복원
+- 사전 데이터가 하나도 없어도 동작하는 manual vocabulary workflow
 
-## 언어와 사전 공급자
+단어와 구는 같은 `VocabularyEntry` 모델을 사용합니다. idiom, phrasal verb, collocation과 일반
+phrase를 별도 entity 없이 저장하고, 필요하면 기존 태그로 분류할 수 있습니다.
 
-수동 입력은 유효한 BCP 47 언어 태그(예: `en`, `ko`, `ja`, `zh-Hant`)를 사용하므로 특정 언어 목록으로 제한하지 않습니다. 이는 각 언어의 사전 지원을 의미하지 않습니다. 실제 provider는 다음 다섯 개이며 모두 `LOCAL_DATASET`입니다. 앱의 `INTERNET` permission은 사전 검색이 아니라 사용자가 요청한 ML Kit 손글씨 모델 다운로드에만 필요합니다.
+## Screenshots
 
-- `cc-cedict`: `zh-Hans → en`, `zh-Hant → en` exact headword lookup
-- `korean-basic-dictionary`: `ko`와 `en`, `ja`, `fr`, `es`, `ar`, `mn`, `vi`, `th`, `id`, `ru`, `zh` 사이의 양방향 translation exact lookup
-- `panlex`: `ko`와 `de`, `hi`, `pl`, `la`, `nl`, `pt`, `it`, `tr`, `cs`, `sv`, `fi`, `uk` 사이의 양방향 direct translation exact lookup
-- `jmdict`: `ja → en` exact kanji/kana lookup
-- `kaikki`: `de`, `hi`, `pl`, `nl`, `pt`, `tr`, `cs`, `sv`, `uk`, `vi`, `th`, `id` → `en` exact English Wiktionary fallback
+개인 단어와 식별 가능한 emulator 데이터가 없는 실제 화면을 검수한 뒤 추가합니다. 현재는 가짜
+mockup이나 placeholder 이미지를 싣지 않습니다.
 
-대용량 dataset은 release base APK asset으로 읽지 않습니다. 일반 설치에서는 configurable dataset root에서 `.dictpack`을 만들고 설정 화면에서 SAF로 설치합니다. pack이 없어도 build와 수동 Word Editor는 정상 동작하고 suggestion 영역에만 dataset unavailable이 표시됩니다. 자세한 root/manifest/install 절차는 [dictionary pack 문서](docs/dictionary-packs.md)에 있습니다.
+## 설치
 
-로컬 QA에서는 `local.properties`에 `bundleDictionaryPacksInDebug=true`를 지정할 수 있습니다. 그러면 `assembleDebug`/`installDebug`가 configured dataset root의 core pack 네 개, `debugDictionaryPackLanguages`로 명시한 Kaikki 언어 pack, compact English morphology pack을 재생성해 debug APK에 포함합니다. 앱을 처음 열면 동일한 production manifest/size/SHA-256/payload 검증과 atomic activation을 거치며, 같은 payload가 이미 활성화돼 있으면 재설치하지 않습니다. 이 옵션을 끄면 기존 SAF 설치 및 `tools.stage_dictionary_packs` 흐름을 사용합니다.
+공개 `v0.1.0`이 게시되면 다음 순서로 설치합니다.
 
-이 debug 편의 옵션은 압축 pack을 APK에 넣고 실행 시 app-private storage에 다시 풀기 때문에
-저장공간을 이중으로 사용합니다. active와 직전 rollback version 하나도 정상적으로 유지합니다.
-실제 AVD 측정값, legacy 정리와 release 차이는 [debug 저장공간 감사](docs/debug-storage.md)에
-기록했습니다.
+1. [GitHub Releases](https://github.com/Bamfor/lexishelf/releases)에서
+   `LexiShelf-v0.1.0.apk`와 `SHA256SUMS.txt`를 받습니다.
+2. checksum을 확인하고 Android에서 APK 설치를 허용합니다.
+3. LexiShelf를 실행합니다.
+4. **설정 → 사전 데이터**를 엽니다.
+5. 자신의 언어와 목적에 맞는 pack만 선택해 내려받습니다.
 
-한국어기초사전은 공식 전체 JSON을 개발 시 읽기 전용 SQLite exact/reverse index로 변환합니다. 생성 DB는 저장소에 포함되지 않으며 없을 때도 다른 provider와 수동 입력은 정상 동작합니다. 2026-08-19 자료의 설치·변환·업데이트 절차와 attribution은 [한국어기초사전 데이터셋 문서](docs/korean-basic-dictionary-dataset.md)에 있습니다. 공식 중국어 번역은 script를 구분하지 않으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 `zh`로 선언합니다.
+APK에는 사전 DB나 ML Kit 언어 모델이 포함되지 않습니다. 일반 사용자는 converter,
+`local.properties`, raw DB 또는 개발용 dictionary workspace를 준비할 필요가 없습니다.
 
-PanLex는 체크섬을 검증한 2019-09-01 공식 CSV snapshot에서 위 12개 representative variety와 `kor-000`의 동일 meaning 직접 관계 1,098,758개만 189,714,432-byte SQLite로 필터합니다. pivot translation이나 provider에 없는 linguistic field는 만들지 않습니다. snapshot에 내장된 CC0 grant와 현재 PanLex 사이트의 CC BY-NC-SA 4.0 조건은 서로 구분하며, 현재 metadata는 고정한 과거 artifact에만 적용합니다. source, checksum, 후보 coverage, 신규 언어별 QA sample과 생성 절차는 [PanLex 데이터셋 문서](docs/panlex-dataset.md)에 있습니다.
+공식 sideload build는 GitHub `v0.1.0` Release에 첨부된 `LexiShelf-v0.1.0.apk`뿐입니다.
+checksum과 [release 문서](docs/release.md)의 signing certificate fingerprint를 함께 확인하세요.
+소스에서 만든 unsigned archive나 제3자가 다시 서명한 APK는 공식 배포 APK가 아닙니다.
 
-Kaikki provider는 English Wiktionary `2026-08-05` dump의 공식 `2026-08-23` Wiktextract raw extraction을 checksum으로 고정하고 per-language compact SQLite/pack으로 변환합니다. Schema v3는 raw table을 그대로 노출하지 않고 학습 가치가 확인된 대표형만 최대 8개 표시하며, 별도 reverse index의 source-metadata eligibility를 통과한 실제 relation으로 surface→lemma를 찾은 뒤 기존 provider를 exact-only로 재조회합니다. exact 원문 case와 source order로 정렬한 첫 lemma는 기본 분석, 나머지는 다른 형태 분석으로 명시합니다. 영어는 full dictionary 대신 compact morphology-only pack을 사용합니다. sense `tags`는 reviewed whitelist에 포함된 register/temporal/grammar/region label만 suggestion에서 transient하게 표시하며 unknown/raw/topic/category tag는 노출하지 않습니다. 명시적인 row tap은 gloss/POS, textual pronunciation, grammatical gender와 `type=example`이고 외부 `ref`가 없는 source-ordered usage example을 provenance와 함께 가져옵니다. forms, sense labels와 morphology context는 Room/backup에 저장하지 않습니다. 자세한 정책은 [usage label 문서](docs/usage-labels.md), [forms 문서](docs/linguistic-forms.md)와 [morphology 문서](docs/morphology-search.md)에 있습니다.
+## 사전 pack
 
-`Add word`는 선택 화면 없이 Word Editor를 바로 엽니다. 유효한 source language와 registry가 제공하는 result language pair가 있으면 headword를 기준으로 400ms 후 모든 지원 pair를 자동 검색하며, 빈 문자열과 동일 query/pair 집합은 다시 검색하지 않습니다. 결과는 `ko`, `en`, 기타 result language 순서로 동시에 표시합니다. 같은 result language·headword·meaning·restriction이고 POS/sense가 충돌하지 않는 후보만 합치며 출처는 모두 표시합니다. 합성된 selectable row가 4개 이하면 내용 높이만 사용하는 일반 목록이고, 5개 이상이면 높이 352dp의 단일 `LazyColumn` 안에서 끝까지 스크롤합니다. row를 누르면 deterministic primary source가 기존 generic mapper를 통과하고 다시 누르면 해당 suggestion이 추가한 미수정 contribution만 제거합니다. 사용자가 수정한 내용은 보존하며 `Use`/`Use this sense` button은 없습니다. provider 오류는 해당 result-language 영역에만 있어 다른 결과와 수동 저장을 막지 않습니다.
+| 데이터 소스 | 적합한 용도 | 방향 | 선택 다운로드 |
+| --- | --- | --- | --- |
+| 한국어기초사전 | 수록 범위 안의 한국어 뜻 | 11개 지원 언어 ↔ 한국어 | 67,967,805 bytes |
+| PanLex pinned snapshot | 한국어 lexical fallback | 선택 12개 언어 ↔ 한국어 | 72,462,030 bytes |
+| CC-CEDICT | 중국어 병음과 상세 영어 gloss | 중국어 → 영어 | 3,971,412 bytes |
+| Kaikki language packs | 품사·발음·활용형·예문이 포함될 수 있는 영어 fallback | 언어별 → 영어 | 언어별 독립 pack |
+| English Morphology | `is → be`, `went → go` 같은 form 검색 | 영어 form → lemma | 29,322,956 bytes |
 
-외부 사전 결과는 persistent `VocabularyEntry`와 별도인 임시 domain model입니다. raw provider result도 그대로 유지하며 presentation-only synthesis가 이를 대체하지 않습니다. 결과 도착만으로 편집 필드를 바꾸지 않고 사용자가 suggestion row를 명시적으로 눌렀을 때만 deterministic primary entry가 `DictionaryEntryDraftMapper`를 통과합니다. 허용된 gloss/번역은 새 sense로 추가되며 provider/source/license/dataset/import 시점과 수정 여부가 sense provenance로 Room과 JSON backup에 보존됩니다. reading, textual pronunciation과 sense grammatical gender는 서로 다른 field로 저장하며 각각 provenance를 보존합니다. 선택 상태는 normalized lexical content와 contributing source identity set으로 만든 stable key로 추적하며 기존 사용자 field를 자동으로 덮어쓰거나 지우지 않습니다.
+Kaikki는 `de`, `hi`, `pl`, `nl`, `pt`, `tr`, `cs`, `sv`, `uk`, `vi`, `th`, `id`를 각각
+독립 pack으로 제공합니다. 600MB 이상의 aggregate bundle이나 “모두 설치” 기본 동작은 없습니다.
+화면에서 다운로드 크기와 설치 후 예상 크기를 먼저 보여 줍니다.
 
-Language, Wordbook, Tag는 서로 다른 개념입니다. 언어는 canonical BCP 47 entry metadata이고 Settings와 Word Editor가 같은 searchable picker를 사용해 `日本語 · ja`처럼 이름과 code를 함께 표시합니다. catalog 밖의 valid tag도 직접 입력할 수 있으며, picker에서 추가한 canonical tag는 DataStore의 사용자 언어 catalog에 저장되어 다음 실행에도 이름·code로 다시 검색할 수 있습니다. 플랫폼 Locale metadata가 있으면 autonym/localized/English 이름을 표시하고 없으면 raw canonical tag를 사용합니다. Wordbook은 `JLPT N2` 같은 사용자 컬렉션, Tag는 `음식` 같은 annotation이며 서로 독립적인 relation과 관리/필터 UI를 사용합니다. 단어장 상세의 batch add/remove는 vocabulary row를 수정하거나 삭제하지 않고 교차 관계만 한 transaction에서 갱신합니다. 기존 `en`, `ja` 같은 사용자 태그는 자동 변환하거나 삭제하지 않습니다. 새 단어 저장 시 같은 canonical language와 NFC/trim/공백/case 정규화 headword가 있으면 경고하고, 기존 단어 열기 또는 명시적인 별도 저장을 선택하게 합니다. homograph를 위한 별도 저장은 계속 허용합니다.
+한국어기초사전이나 PanLex를 설치해도 모든 단어에 한국어 뜻이 생기는 것은 아닙니다. dataset의
+coverage는 제한적이고 PanLex는 완전한 dictionary가 아니라 폭넓은 lexical fallback입니다.
 
-NAVER 링크는 dictionary content provider가 아닙니다. 현재 `en`, `ja`, `zh`(script variant 포함), `fr`, `de`, `es`, `ru`, `ar`, `hi`, `pl`, `mn`, `la`의 확인된 공식 destination만 중앙 mapping하며, headword만 URI encode합니다. 링크를 누르기 전 network request가 없고 NAVER content를 import/provenance/Room/backup에 넣지 않습니다. unsupported language나 빈 headword에서는 숨깁니다.
+JMdict provider와 converter는 local/development 사용을 위해 유지되지만, EDRDG가 요구하는 정기
+업데이트 절차를 공개 v1에서 맡지 않으므로 **JMdict pack은 public catalog와 GitHub Release에
+포함하지 않습니다.**
 
-공급자별 라이선스 조사 상태와 구현 차단 조건은 [docs/dictionary-sources.md](docs/dictionary-sources.md)에 기록했습니다.
+정확한 pack version, archive/payload/source checksum, 설치 크기와 artifact별 배포 결정은
+[public artifact audit](docs/public-dictionary-artifacts.md)과
+[catalog JSON](distribution/dictionary-catalog-v1.json)에 있습니다. 사전 내용에는 각 데이터
+소스의 별도 license가 적용됩니다.
 
-## 기술 구성
+## 개인정보
 
-- Kotlin(AGP 9 내장 Kotlin), Jetpack Compose, Material 3
-- Room, Coroutines/Flow, DataStore
-- Google ML Kit Digital Ink Recognition `19.0.0`(언어 모델 on-demand download)
-- Navigation Compose, Hilt, KSP
-- Gradle Version Catalog와 Gradle Wrapper
-- JUnit 4, AndroidX Test, Room testing, Compose UI test
+- 단어, 뜻, 예문, 메모, 태그와 단어장은 기기 안에 저장됩니다.
+- 계정, 프로젝트 운영 backend와 앱 자체 analytics가 없습니다.
+- 손글씨 stroke와 recognition candidate는 Room/backup에 저장되지 않고 인식은 기기에서
+  수행됩니다.
+- 네트워크는 catalog/pack 다운로드, ML Kit model/SDK 동작, 사용자가 누른 외부 NAVER 사전
+  링크에 사용될 수 있습니다.
+- 앱은 사용자 vocabulary를 업로드하지 않습니다.
 
-프로젝트는 단일 `app` 모듈이지만 presentation은 package-by-feature로, domain/data/database/provider 경계는 명시적으로 분리했습니다. 자세한 내용은 [architecture](docs/architecture.md), [pack ADR](docs/decisions/0009-installable-dictionary-packs.md), [Kaikki ADR](docs/decisions/0011-kaikki-per-language-english-fallback.md), [linguistic metadata ADR](docs/decisions/0013-persist-pronunciation-and-grammatical-gender.md), [손글씨 ADR](docs/decisions/0014-local-digital-ink-handwriting-input.md), [쓰기 연습 ADR](docs/decisions/0015-session-only-writing-practice.md), [usage label ADR](docs/decisions/0018-learner-facing-sense-label-whitelist.md)을 참고하세요.
+ML Kit SDK가 수집할 수 있는 diagnostics/usage metadata와 GitHub/NAVER로 전달되는 정보까지
+포함한 전체 고지는 [PRIVACY.md](PRIVACY.md)에 있습니다.
 
-## 개발 환경 설정
+## 소스에서 빌드
 
-현재 컴퓨터의 점검 결과와 새 Windows 컴퓨터에서 재현하는 절차는 [docs/setup.md](docs/setup.md)에 있습니다. 전역 Gradle은 설치하지 않습니다.
-
-현재 셸에서는 Android Studio 내장 JBR을 다음처럼 임시로 지정할 수 있습니다.
+필요한 환경은 최신 stable Android Studio, Android SDK 37, compatible JDK와 Android emulator
+또는 USB device입니다. Gradle은 별도 설치하지 말고 repository의 Wrapper를 사용합니다.
 
 ```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat --version
-```
-
-빌드와 검사:
-
-```powershell
+git clone https://github.com/Bamfor/lexishelf.git
+cd lexishelf
+$env:JAVA_HOME = '<ANDROID_STUDIO_INSTALL>\jbr'
 .\gradlew.bat testDebugUnitTest
 .\gradlew.bat lintDebug
 .\gradlew.bat assembleDebug
-.\gradlew.bat assembleDebugAndroidTest
 ```
 
-### 대용량 dictionary dataset 경로
+macOS/Linux에서는 `./gradlew`를 사용합니다. Android SDK 위치는 gitignored
+`local.properties`가 관리합니다. 사전 원본 재생성과 public release signing은 일반 build의
+전제조건이 아닙니다. 전체 절차는 [setup](docs/setup.md), [signing](docs/signing.md),
+[release checklist](docs/release-checklist.md)에 있습니다.
 
-Windows에서 `D:\lang-Database`를 계속 사용할 때는 project root의 gitignored `local.properties`에 다음 값을 두는 방법을 권장합니다.
+## 라이선스와 데이터 출처
 
-```properties
-dictionaryDataDir=D\:\\lang-Database
-bundleDictionaryPacksInDebug=true
-```
+Application source code is available under the [MIT License](LICENSE). 이 라이선스는 LexiShelf가
+작성한 source code에 적용됩니다.
 
-현재 PowerShell session에서만 잠시 덮어쓰려면 다음 환경 변수를 사용합니다.
+Dictionary content, 변환된 pack과 third-party software에는 각각의 별도 라이선스가 적용되며
+MIT로 재라이선스되지 않습니다.
+[NOTICE.md](NOTICE.md), [dictionary source review](docs/dictionary-sources.md),
+[artifact audit](docs/public-dictionary-artifacts.md)를 확인하세요. 사전 데이터의 정확성이나 특정
+목적 적합성은 보증하지 않습니다.
 
-```powershell
-$env:LANG_DATABASE_DIR = 'D:\lang-Database'
-```
+## 개발 문서
 
-실제 우선순위는 `LANG_DATABASE_DIR` → `local.properties`의 `dictionaryDataDir` → `.local/dictionary-data`입니다. 이 설정을 바꿔도 기존 source/generated/packs 파일은 자동 이동되지 않습니다. 기존 dataset directory를 새 root의 동일한 layout으로 직접 옮기거나 새 root에서 converter와 pack builder를 다시 실행해야 합니다. 자세한 layout과 설치 절차는 [docs/dictionary-packs.md](docs/dictionary-packs.md)에 있습니다.
-
-생성되는 개발용 APK는 `app/build/outputs/apk/debug/app-debug.apk`입니다. 연결된 기기에 설치하려면 SDK의 adb를 직접 사용합니다.
-
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r .\app\build\outputs\apk\debug\app-debug.apk
-```
-
-에뮬레이터 또는 기기가 준비된 뒤 계측 테스트를 실행합니다.
-
-```powershell
-.\gradlew.bat connectedDebugAndroidTest
-```
-
-## 데이터와 백업
-
-사용자 데이터는 앱 전용 Room 데이터베이스에 저장되며 OS 클라우드 백업은 비활성화했습니다. 목록 화면의 `백업`에서 Android 시스템 파일 선택기를 열어 UTF-8 JSON 파일을 내보내거나 가져올 수 있습니다. 앱은 공용 저장소 권한을 요청하지 않습니다.
-
-가져오기는 파일 전체를 읽고 JSON/schema/데이터/참조를 검증한 뒤 미리보기를 표시합니다. 사용자가 확인하기 전에는 DB를 변경하지 않으며, 확인 후 반영도 하나의 Room transaction에서 수행합니다. 기본 정책은 stable ID가 같은 단어 aggregate만 갱신하고 새 단어를 추가하며 그 밖의 기존 데이터는 유지하는 병합입니다. 전체 교체는 사용자가 명시적으로 선택해야 합니다. 정확한 schema와 정책은 [docs/backup.md](docs/backup.md)에 있습니다.
-
-백업 schema v5에는 단어, reading, 순서가 있는 textual pronunciation, 뜻/품사/문법 성/예문, 메모, Wordbook/Tag와 각 관계, 생성·수정 시간과 provider-derived provenance가 포함됩니다. 직접 작성한 field에는 provenance가 없습니다. 사용자 언어 catalog를 포함한 앱 설정, API key, credential, secret은 포함되지 않으며 기존 schema v1/v2/v3/v4 파일도 계속 가져올 수 있습니다. vocabulary에 저장된 BCP 47 값은 그대로 백업되며 catalog에 없는 현재 값도 picker가 임시 항목으로 표시하므로 언어 identity가 손실되지 않습니다. 현재 모델에는 favorite와 review metadata가 없어 해당 필드도 없습니다.
-
-손글씨 stroke, recognition 후보와 모델 설치 상태는 임시/SDK 상태이므로 Room이나 JSON backup에
-저장하지 않습니다. 사용자가 명시적으로 선택해 headword에 반영한 문자열만 일반 사용자
-입력과 같은 방식으로 저장됩니다.
-
-쓰기 연습의 문제 순서, 답안과 first-attempt 통계도 현재 세션 메모리에만 존재하며 Room,
-DataStore, JSON backup에 저장되지 않습니다. 앱의 사용자 vocabulary는 연습 중 수정되지 않습니다.
-
-## API 키와 비밀정보
-
-현재는 API를 사용하지 않으므로 입력할 키가 없습니다. [`config/api-credentials.properties.example`](config/api-credentials.properties.example)은 빈 미래 설정 구조만 보여 줍니다. 실제 키를 위한 `secrets.properties`, Android SDK 경로가 든 `local.properties`, keystore 파일은 `.gitignore` 대상입니다. 향후 사용자 입력 키를 클라이언트에 저장하더라도 서버 측 비밀과 같은 보호 수준을 제공할 수 없음을 UI와 문서에 표시해야 합니다.
-
-## 알려진 제한
-
-- 복습, 즐겨찾기와 audio 필드는 후속 마일스톤입니다. 굴절 forms는 transient suggestion metadata로만 유지합니다.
-- 쓰기 연습은 저장된 headword 하나만 exact 정답으로 인정하며 alternate spelling, morphology,
-  synonym, fuzzy matching과 장기 학습 이력은 아직 지원하지 않습니다.
-- 프로세스가 강제 종료되면 저장 전 편집 초안이 복원되지 않을 수 있습니다. 저장된 데이터는 영향을 받지 않습니다.
-- 손글씨 언어 모델은 언어별 약 20MB이며 최초 사용 전에 사용자가 직접 다운로드해야 합니다. 모델이 없거나 지원하지 않는 언어여도 키보드 입력과 저장은 정상 동작합니다.
-- 외부 사전 데이터는 라이선스·저장·편집·재배포 조건이 확인되기 전까지 다운로드하거나 저장하지 않습니다.
-- clean clone과 zero-pack 앱은 dictionary lookup 대신 `LocalDatasetUnavailable`을 표시합니다. pack 전달은 현재 local SAF/ADB 개발 흐름뿐이며 remote catalog/signature는 구현하지 않았습니다.
-- CC-CEDICT raw GZip은 설치 pack에서 첫 검색 때 메모리 exact index로 변환되므로 첫 query memory/latency를 별도로 관찰해야 합니다.
-- PanLex source snapshot은 2019년 자료이고 현재 official distribution/API가 unavailable하므로 최신성에 한계가 있습니다. 새 PanLex 배포물은 현재 공식 라이선스가 달라 별도 검토 없이 교체하지 않습니다.
-- Room schema version은 6입니다. v1→v2는 backup stable ID, v2→v3는 sense provenance, v3→v4는 reading과 entry-field provenance, v4→v5는 Wordbook과 entry-wordbook 관계, v5→v6는 ordered pronunciation/provenance와 sense grammatical gender를 기존 aggregate를 보존하며 추가합니다. destructive migration은 사용하지 않습니다.
+- [Architecture](docs/architecture.md)
+- [Setup and environment](docs/setup.md)
+- [Dictionary pack format and lifecycle](docs/dictionary-packs.md)
+- [Dictionary sources and licenses](docs/dictionary-sources.md)
+- [Backup format](docs/backup.md)
+- [Handwriting](docs/handwriting.md)
+- [Writing Practice](docs/writing-practice.md)
+- [Release and signing](docs/release.md)
+- [Architecture decisions](docs/decisions/)

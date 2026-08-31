@@ -24,7 +24,7 @@ Kaikki는 raw extraction을 보통 적어도 주 1회 갱신한다고 설명한�
 ## 개발 저장소와 명령
 
 ```text
-D:\lang-Database\kaikki\
+D:\dictionary-data\kaikki\
 ├─ source\
 │  ├─ raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz
 │  └─ filtered\<language>.jsonl.gz
@@ -36,7 +36,7 @@ D:\lang-Database\kaikki\
 
 ```powershell
 Get-FileHash `
-  D:\lang-Database\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz `
+  D:\dictionary-data\kaikki\source\raw-wiktextract-data-enwiktionary-2026-08-05.jsonl.gz `
   -Algorithm SHA256
 
 # 확정된 12개 production language만 변환
@@ -132,7 +132,7 @@ Kaikki `examples` 배열에서는 `type=example`이고 외부 `ref`가 없는 so
 
 Windows 개발 PC에서 official raw 한 번을 19개 후보로 streaming/filter/index하는 초기 측정에는 `1,082.10s`가 걸렸다. Task 15.2 당시 schema v2 converter로 선택 12개를 다시 만든 실행은 `918.96s`였고 source SHA-256 `e4dbb4a3f96338ae240c1f3fcc65b6ec73746f71ffb3907dde33c3af0e61bb65`를 먼저 검증했다. 당시 selected DB와 pack manifest의 schema는 2였다. 현재 schema v3의 무결성과 성능은 아래 Task 17 보고를 기준으로 한다.
 
-Task 15.2의 Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 당시 debug APK는 `264,611,485` bytes였다. API 37 `Medium_Phone_Test` AVD에서 production pack bootstrap/validation 후 real `Wasser`와 `ăn` exact query가 통과했고, `Wasser`의 첫 datasource lookup은 full-suite 실행 로그 기준 `24ms`였다. Task 17 debug bundle에는 이 둘과 English morphology auxiliary pack이 포함되며 현재 APK/latency는 아래 보고를 기준으로 한다. release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
+Task 15.2의 Manual/Test 개발 설정은 `debugDictionaryPackLanguages=de,vi`만 core pack과 함께 bundle했다. 당시 debug APK는 `264,611,485` bytes였다. API 37 test AVD에서 production pack bootstrap/validation 후 real `Wasser`와 `ăn` exact query가 통과했고, `Wasser`의 첫 datasource lookup은 full-suite 실행 로그 기준 `24ms`였다. Task 17 debug bundle에는 이 둘과 English morphology auxiliary pack이 포함되며 현재 APK/latency는 아래 보고를 기준으로 한다. release APK와 Kaikki 미선택 debug build는 이 pack들을 포함하지 않는다.
 
 ## 라이선스와 attribution
 

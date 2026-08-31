@@ -1,8 +1,8 @@
 # 사전 소스 라이선스 조사
 
-최종 확인일: 2026-08-26
+최종 확인일: 2026-08-31
 
-현재 실제 provider는 CC-CEDICT, 한국어기초사전, PanLex, JMdict, Kaikki 다섯 개입니다. full dataset binary와 자동 download 코드는 저장소에 없고, 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
+현재 실제 provider는 CC-CEDICT, 한국어기초사전, PanLex, JMdict, Kaikki 다섯 개입니다. full dataset binary는 Git이나 base APK에 없고, 공개 허용 목록의 release asset만 앱의 검증된 catalog 경로로 내려받습니다. 개발 converter는 원본 dataset을 자동으로 받지 않으며 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
 
 코드의 `DictionaryUsagePolicy`도 법률 판단을 대신하지 않습니다. 확인하지 않은 local persistence, redistribution, cache 값은 기본 `UNKNOWN`입니다. 검색 결과 표시는 permission과 별개지만, provider text를 Room/backup으로 이어지는 draft에 복사하려면 local persistence와 redistribution이 모두 `PERMITTED`이고 app import mode도 `COPY_EXPORTABLE_FIELDS`여야 합니다. 복사된 sense는 provider/source/license provenance를 Room과 backup에 함께 보존해야 합니다. 이 조건을 충족하지 못하는 provider는 `REFERENCE_ONLY`입니다.
 
@@ -65,8 +65,8 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
   명시적인 suggestion row 선택으로 추가된 reading/gloss/POS에는 source ID·license·release provenance를 보존하고
   JSON backup에도 함께 내보낸다.
 - 비영어 gloss distribution은 권리 범위를 별도 확인하기 전에 등록하지 않는다.
-- 수동 update 절차는 정의했지만 자동 update 주기/manifest와 downloadable pack 설치·정리 UX는
-  Task 9의 미결정 사항이다.
+- provider, converter와 local/development import는 유지하지만, license가 요구하는 정기 갱신을 보장할
+  public update channel이 없으므로 JMdict는 v0.1.0 공개 catalog와 release asset에서 제외한다.
 
 ## Kaikki / English Wiktionary / Wiktextract
 
@@ -92,7 +92,7 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 
 - 새 Kaikki/Wiktionary release마다 license/source field와 checksum이 동일한지 재검토해야 한다.
 - quotation/attributed example 또는 audio/media를 향후 표시·저장하려면 개별 source/attribution/fair-use 조건을 field별로 다시 확인해야 한다.
-- public release용 pack catalog/update channel과 CC BY-SA attribution UI의 최종 제품 검토가 필요하다.
+- 각 새 dump를 공개 catalog에 올리기 전 source/license/checksum과 CC BY-SA attribution 문구를 다시 검토해야 한다.
 
 ## CC-CEDICT
 
@@ -202,7 +202,7 @@ API 대신 local dataset을 선택한 이유:
 확인된 사실:
 
 - 체크섬으로 고정한 `panlex-20190901-csv.zip`의 내장 `LICENSE.txt`는 그 artifact를 CC0 1.0 Universal로 제공한다. copy/modify/distribute와 commercial use가 허용되며 PanLex site 또는 2014 LREC paper citation을 권장한다.
-- 2026-08-26 현재 PanLex 공식 license page는 database에 CC BY-NC-SA 4.0을 적용하고 commercial use에는 서면 허가가 필요하다고 명시한다. 과거 고정 artifact의 CC0 grant를 현재나 미래 배포물로 일반화하지 않는다.
+- 현재 PanLex 공식 license page의 조건만으로 과거 snapshot의 조건을 추론하지 않는다. 과거 고정 artifact의 내장 CC0 grant를 현재나 미래 배포물로 일반화하지 않는다.
 - expression은 하나의 language variety에 속하고 denotation은 expression을 source-owned meaning에 연결한다. 이번 구현은 동일 meaning의 Korean/foreign co-denotation만 direct relation으로 사용한다.
 - distance-1 translation quality는 source group별 최대 quality를 합산하는 방식으로 설명된다. converter ranking은 이 개념을 따르고 deterministic tie-break만 추가한다.
 - 2026-08-26 현재 공식 snapshot page는 artifact 목록을 제공하지 않고 과거 API/database host는 사용할 수 없었다. 공식 URL의 archived 2019-09-01 CSV response를 size, SHA-256, ZIP CRC와 embedded CC0 license까지 확인했지만 최신 자료라고 표현하지 않는다.
@@ -231,7 +231,7 @@ API 대신 local dataset을 선택한 이유:
 미결정 사항:
 
 - 현재 official distribution/API 복구 여부와 새 release의 안정 download/checksum manifest
-- public release용 signed pack catalog와 remote delivery 정책
+- 고정한 2019 artifact 외 다른 PanLex artifact의 license와 redistribution 조건
 - 여러 source attestation의 상세 attribution을 UI에 노출할 필요
 
 ## 구현 전 공통 승인 체크리스트

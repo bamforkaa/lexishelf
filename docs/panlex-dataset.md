@@ -1,6 +1,6 @@
 # PanLex Korean lexical fallback dataset
 
-PanLex는 한국어기초사전이 지원하지 않는 언어를 보완하는 오프라인 lexical candidate 공급자다. 저장소에는 원본·생성 DB·팩을 커밋하지 않으며, canonical 개발 root인 `D:\lang-Database\panlex\{source,generated,packs}`를 사용한다.
+PanLex는 한국어기초사전이 지원하지 않는 언어를 보완하는 오프라인 lexical candidate 공급자다. 저장소에는 원본·생성 DB·팩을 커밋하지 않으며, configured dataset root의 `panlex/{source,generated,packs}`를 사용한다.
 
 ## 고정 source와 라이선스 경계
 
@@ -21,7 +21,7 @@ PanLex는 한국어기초사전이 지원하지 않는 언어를 보완하는 �
 
 2026-08-26에 복원한 ZIP은 위 크기와 SHA-256이 일치했고 모든 member의 CRC 검사도 통과했다. ZIP 안의 `LICENSE.txt`는 해당 snapshot을 CC0 1.0 Universal로 제공하며 copy, modification, redistribution과 commercial use를 허용한다고 명시한다.
 
-중요하게도 현재 [PanLex 공식 license page](https://panlex.org/license/)는 database를 CC BY-NC-SA 4.0으로 제공하고 commercial use에는 서면 허가가 필요하다고 설명한다. 따라서 이 앱의 `CC0-1.0` metadata는 체크섬이 일치하는 2019-09-01 artifact에만 적용한다. 새 snapshot이나 다른 artifact가 같은 조건이라고 추측하지 않으며, 교체 전 source·license·checksum을 다시 검토해야 한다.
+중요하게도 현재 [PanLex 공식 license page](https://panlex.org/license/)의 조건만으로 과거 artifact의 권리를 추론하지 않는다. 이 앱의 `CC0-1.0` metadata는 체크섬이 일치하고 내장 `LICENSE.txt`를 직접 확인한 2019-09-01 artifact에만 적용한다. 새 snapshot이나 다른 artifact가 같은 조건이라고 추측하지 않으며, 교체 전 source·artifact 내장 license·checksum을 다시 검토해야 한다.
 
 ## 지원 pair와 variety mapping
 
@@ -118,7 +118,7 @@ python -X utf8 -m tools.build_dictionary_packs --pack panlex
 | debug APK | 149,942,392 B | 201,374,823 B | +51,432,431 B |
 | converter wall time | 과거 미기록 | 502.454 s | 동일 5.43GB source 처리 |
 
-SQLite `PRAGMA integrity_check`는 `ok`, pack ZIP CRC 검사는 성공했다. payload SHA-256은 `10b780bc4f05d0d6d82d8772fc57364b469dd59991699d8fe01ea54de13d8280`이다. 12개 언어에서 외국어→한국어와 한국어→외국어를 각각 50개씩, 총 1,200개 warm read-only exact query로 측정한 PC latency는 median `0.0248ms`, p95 `0.0411ms`, max `0.5894ms`였다. `Medium_Phone_Test` AVD에서 72.5MB pack을 production validation/install/activation 경로로 설치하는 데 `4,906ms`, 새 `PanLexDataSource`의 첫 `nl → ko` query에 `15ms`가 걸렸다.
+SQLite `PRAGMA integrity_check`는 `ok`, pack ZIP CRC 검사는 성공했다. payload SHA-256은 `10b780bc4f05d0d6d82d8772fc57364b469dd59991699d8fe01ea54de13d8280`이다. 12개 언어에서 외국어→한국어와 한국어→외국어를 각각 50개씩, 총 1,200개 warm read-only exact query로 측정한 PC latency는 median `0.0248ms`, p95 `0.0411ms`, max `0.5894ms`였다. API 37 test AVD에서 72.5MB pack을 production validation/install/activation 경로로 설치하는 데 `4,906ms`, 새 `PanLexDataSource`의 첫 `nl → ko` query에 `15ms`가 걸렸다.
 
 pack manifest의 `createdAt`은 build 시각이므로 동일 payload를 다시 압축할 때 archive가 1 byte 정도 달라질 수 있다. 위 pack/APK 값은 최종 계측 직전 파일의 실제 크기이며, 안정성 판단은 archive byte가 아니라 payload size와 SHA-256을 사용한다.
 

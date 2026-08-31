@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,7 +25,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogSection
+import com.example.localvocabulary.dictionary.catalog.DictionaryPackDownloadState
 import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.ScreenStatePane
 import com.example.localvocabulary.core.ui.component.SectionHeader
@@ -57,6 +61,8 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         } else {
+            val publicPackIds = state.catalogPacks.mapTo(mutableSetOf()) { it.packId }
+            val localOnlyPacks = state.installedPacks.filterNot { it.packId in publicPackIds }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -91,23 +97,79 @@ fun SettingsScreen(
                     SettingsSection {
                         SectionHeader(
                             title = "사전 데이터",
-                            supportingText = "설치한 로컬 사전 pack은 오프라인 검색에 사용됩니다.",
+                            supportingText = "필요한 데이터만 내려받으세요. 설치된 pack은 오프라인에서 동작합니다.",
+                        )
+                        when (val status = state.catalogStatus) {
+                            DictionaryCatalogStatusUiState.NotLoaded,
+                            DictionaryCatalogStatusUiState.Loading,
+                            -> MetadataLabel("다운로드 목록을 불러오는 중입니다.")
+                            is DictionaryCatalogStatusUiState.Available -> {
+                                MetadataLabel(
+                                    if (status.isCached) {
+                                        "저장된 catalog ${status.catalogVersion}"
+                                    } else {
+                                        "catalog ${status.catalogVersion}"
+                                    },
+                                )
+                                status.warning?.let { MetadataLabel(it, maxLines = 3) }
+                            }
+                            is DictionaryCatalogStatusUiState.Unavailable -> {
+                                MetadataLabel(status.reason, maxLines = 3)
+                                MetadataLabel("단어장과 이미 설치한 사전은 계속 사용할 수 있습니다.", maxLines = 2)
+                            }
+                        }
+                        TextButton(
+                            onClick = { onAction(SettingsAction.RefreshDictionaryCatalog) },
+                        ) { Text("목록 새로고침") }
+                        if (state.catalogPacks.isEmpty() &&
+                            state.catalogStatus is DictionaryCatalogStatusUiState.Available
+                        ) {
+                            MetadataLabel("공개 사전 pack이 없습니다.")
+                        }
+                    }
+                }
+
+                DictionaryCatalogSection.entries.forEach { section ->
+                    val packs = state.catalogPacks.filter { it.section == section }
+                    if (packs.isNotEmpty()) {
+                        item(key = "catalog-section-$section") {
+                            SectionHeader(
+                                title = section.title(),
+                                supportingText = section.supportingText(),
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        itemsIndexed(packs, key = { _, pack -> pack.packId }) { index, pack ->
+                            DictionaryCatalogPackRow(pack = pack, onAction = onAction)
+                            if (index < packs.lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection {
+                        SectionHeader(
+                            title = "로컬/개발자 pack",
+                            supportingText = "직접 만든 .dictpack을 가져오는 개발용 경로입니다.",
+                            modifier = Modifier.padding(top = 8.dp),
                         )
                         Button(
                             onClick = onChooseDictionaryPack,
                             enabled = !state.isInstallingPack,
                         ) {
-                            Text(if (state.isInstallingPack) "설치 중…" else "로컬 pack 설치")
+                            Text(if (state.isInstallingPack) "설치 중…" else "로컬 pack 가져오기")
                         }
-                        if (state.installedPacks.isEmpty()) {
-                            MetadataLabel("설치된 사전 pack이 없습니다.", maxLines = 2)
+                        if (localOnlyPacks.isEmpty()) {
+                            MetadataLabel("공개 catalog 밖에서 설치한 pack이 없습니다.", maxLines = 2)
                         }
                     }
                 }
 
-                itemsIndexed(state.installedPacks, key = { _, pack -> pack.packId }) { index, pack ->
+                itemsIndexed(localOnlyPacks, key = { _, pack -> "local-${pack.packId}" }) { index, pack ->
                     DictionaryPackRow(pack = pack, onAction = onAction)
-                    if (index < state.installedPacks.lastIndex) {
+                    if (index < localOnlyPacks.lastIndex) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
@@ -165,7 +227,98 @@ private fun DictionaryPackRow(
 }
 
 @Composable
+private fun DictionaryCatalogPackRow(
+    pack: DictionaryCatalogPackUiState,
+    onAction: (SettingsAction) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(pack.displayName, style = MaterialTheme.typography.titleMedium)
+        if (pack.isRecommended) MetadataLabel("권장 · 현재 사용 언어에 적합")
+        Text(pack.description, style = MaterialTheme.typography.bodyMedium)
+        MetadataLabel(
+            "다운로드 약 ${formatBytes(pack.downloadSizeBytes)} · " +
+                "설치 후 약 ${formatBytes(pack.installedSizeBytes)}",
+            maxLines = 2,
+        )
+        MetadataLabel("데이터 ${pack.datasetVersion} · ${pack.licenseName}", maxLines = 2)
+
+        when (val download = pack.downloadState) {
+            is DictionaryPackDownloadState.Downloading -> {
+                val progress = if (download.totalBytes > 0) {
+                    (download.downloadedBytes.toFloat() / download.totalBytes).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                MetadataLabel(
+                    "다운로드 중 · ${formatBytes(download.downloadedBytes)} / " +
+                        formatBytes(download.totalBytes),
+                )
+                TextButton(
+                    onClick = { onAction(SettingsAction.CancelDictionaryPackDownload(pack.packId)) },
+                ) { Text("취소") }
+            }
+            DictionaryPackDownloadState.Validating -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                MetadataLabel("무결성과 pack 구조를 확인하고 있습니다.")
+                TextButton(
+                    onClick = { onAction(SettingsAction.CancelDictionaryPackDownload(pack.packId)) },
+                ) { Text("취소") }
+            }
+            DictionaryPackDownloadState.Installing -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                MetadataLabel("검증된 pack을 설치하고 있습니다.")
+            }
+            is DictionaryPackDownloadState.Failed -> {
+                MetadataLabel("실패 · ${download.reason}", maxLines = 3)
+                Button(
+                    onClick = { onAction(SettingsAction.DownloadDictionaryPack(pack.packId)) },
+                ) { Text("다시 시도") }
+            }
+            DictionaryPackDownloadState.Installed,
+            null,
+            -> CatalogPackActions(pack, onAction)
+        }
+    }
+}
+
+@Composable
+private fun CatalogPackActions(
+    pack: DictionaryCatalogPackUiState,
+    onAction: (SettingsAction) -> Unit,
+) {
+    when (pack.installStatus) {
+        DictionaryCatalogPackInstallStatus.NOT_INSTALLED -> Button(
+            onClick = { onAction(SettingsAction.DownloadDictionaryPack(pack.packId)) },
+        ) { Text("다운로드") }
+        DictionaryCatalogPackInstallStatus.INSTALLED -> {
+            MetadataLabel("설치됨")
+            TextButton(
+                onClick = { onAction(SettingsAction.DeleteDictionaryPack(pack.packId)) },
+            ) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+        }
+        DictionaryCatalogPackInstallStatus.UPDATE_AVAILABLE -> Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = { onAction(SettingsAction.DownloadDictionaryPack(pack.packId)) },
+            ) { Text("업데이트") }
+            TextButton(
+                onClick = { onAction(SettingsAction.DeleteDictionaryPack(pack.packId)) },
+            ) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+@Composable
 private fun DictionarySourceRow(source: DictionarySourceUiState) {
+    val uriHandler = LocalUriHandler.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -173,12 +326,55 @@ private fun DictionarySourceRow(source: DictionarySourceUiState) {
         Text(source.providerName, style = MaterialTheme.typography.titleMedium)
         source.attributionNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         source.licenseName?.let { MetadataLabel("라이선스 · $it", maxLines = 3) }
-        source.releaseId?.let { MetadataLabel("데이터 버전 · $it", maxLines = 2) }
+        (source.installedDatasetVersion ?: source.releaseId)?.let {
+            MetadataLabel(
+                if (source.installedDatasetVersion != null) "설치 데이터 버전 · $it" else "데이터 버전 · $it",
+                maxLines = 2,
+            )
+        }
         source.entryCount?.let { MetadataLabel("수록 항목 · $it") }
         source.format?.let { MetadataLabel("형식 · $it") }
         source.artifactName?.let { MetadataLabel("파일 · $it", maxLines = 2) }
-        source.sourceUrl?.let { MetadataLabel("출처 · $it", maxLines = 3) }
-        source.licenseUrl?.let { MetadataLabel(it, maxLines = 3) }
-        source.releasePageUrl?.let { MetadataLabel("릴리스 · $it", maxLines = 3) }
+        if (source.providerId == "jmdict") {
+            MetadataLabel("개발/로컬 통합은 유지되지만 공개 v1 pack은 배포하지 않습니다.", maxLines = 3)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            source.sourceUrl?.let { url ->
+                TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) {
+                    Text("원본 사이트")
+                }
+            }
+            source.licenseUrl?.let { url ->
+                TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) {
+                    Text("라이선스")
+                }
+            }
+            source.releasePageUrl?.let { url ->
+                TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) {
+                    Text("릴리스")
+                }
+            }
+        }
+    }
+}
+
+private fun DictionaryCatalogSection.title(): String = when (this) {
+    DictionaryCatalogSection.KOREAN_MEANINGS -> "한국어 뜻"
+    DictionaryCatalogSection.ENGLISH_DETAILS -> "상세 영어 뜻"
+    DictionaryCatalogSection.SPECIALIZED -> "전문/보조"
+}
+
+private fun DictionaryCatalogSection.supportingText(): String = when (this) {
+    DictionaryCatalogSection.KOREAN_MEANINGS -> "수록 범위 안에서 한국어 뜻을 찾기 위한 데이터입니다."
+    DictionaryCatalogSection.ENGLISH_DETAILS -> "언어별로 품사·발음·활용형·예문이 포함될 수 있습니다."
+    DictionaryCatalogSection.SPECIALIZED -> "특정 언어 상세 정보나 형태소 검색을 보완합니다."
+}
+
+private fun formatBytes(bytes: Long): String {
+    val mebibytes = bytes.toDouble() / (1024.0 * 1024.0)
+    return if (mebibytes >= 10) {
+        "${mebibytes.toInt()} MiB"
+    } else {
+        "%.1f MiB".format(mebibytes)
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required only for user-initiated ML Kit handwriting model downloads. -->
+    <!-- Used for the public dictionary catalog/packs and on-demand ML Kit models. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -13,6 +13,7 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/ic_launcher_foreground"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
         android:theme="@style/Theme.LocalVocabulary">
         <activity
             android:name=".app.MainActivity"

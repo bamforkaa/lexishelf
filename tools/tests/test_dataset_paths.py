@@ -29,9 +29,9 @@ class DatasetPathsTest(unittest.TestCase):
 
     def test_local_property_supports_escaped_windows_path(self) -> None:
         properties = self.root / "local.properties"
-        properties.write_text(r"dictionaryDataDir=D\:\\lang Database" + "\n", encoding="utf-8")
+        properties.write_text(r"dictionaryDataDir=D\:\\dictionary data" + "\n", encoding="utf-8")
         actual = resolve_dataset_root(self.root, {}, properties)
-        self.assertTrue(str(actual).endswith(r"D:\lang Database"))
+        self.assertTrue(str(actual).endswith(r"D:\dictionary data"))
 
     def test_relative_local_property_and_path_with_spaces(self) -> None:
         properties = self.root / "local.properties"
@@ -48,9 +48,9 @@ class DatasetPathsTest(unittest.TestCase):
         )
 
     def test_resolved_root_summary_is_visible_and_unambiguous(self) -> None:
-        root = Path(r"D:\lang-Database")
+        root = Path(r"D:\dictionary-data")
         self.assertEqual(
-            "Dictionary dataset root:\nD:\\lang-Database",
+            "Dictionary dataset root:\nD:\\dictionary-data",
             dataset_root_summary(root),
         )
 

@@ -32,10 +32,10 @@
 <dataset-root>/cc-cedict/source/cedict_1_0_ts_utf-8_mdbg.txt.gz
 ```
 
-`D:\lang-Database`를 설정한 PowerShell 예시는 사용자가 내려받은 정확한 파일을 지정해야 합니다.
+별도 dataset root를 설정한 PowerShell 예시는 사용자가 내려받은 정확한 파일을 지정해야 합니다.
 
 ```powershell
-$sourceDirectory = 'D:\lang-Database\cc-cedict\source'
+$sourceDirectory = 'D:\dictionary-data\cc-cedict\source'
 New-Item -ItemType Directory -Force $sourceDirectory
 Copy-Item -LiteralPath 'C:\path\chosen-by-user\cedict_1_0_ts_utf-8_mdbg.txt.gz' `
   -Destination $sourceDirectory

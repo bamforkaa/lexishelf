@@ -202,7 +202,7 @@ whitelisted sense labels increased generated size from `1,212,227,584` to `1,217
 conversion; runtime performs only bounded JSON decoding and an exact code-to-enum mapping on the
 returned suggestion senses. Room and vocabulary-list queries do not touch this metadata.
 
-On the API 37 `Medium_Phone_Test` AVD, the production bundled-pack bootstrap and real Kaikki
+On the API 37 test AVD, the production bundled-pack bootstrap and real Kaikki
 integration test returned source-attested labels for German `sehen` and `Wissenschaft`. The first
 German exact lookup took `17ms`; the existing morphology-plus-lemma check took `13ms`. The debug
 APK bundling core dictionaries, `de`, `vi`, and English morphology measured `339,955,336` bytes.

@@ -6,9 +6,12 @@ build/
 **/build/
 local.properties
 secrets.properties
+signing.properties
+keystore.properties
 *.jks
 *.keystore
 *.p12
+*.pfx
 *.apk
 *.aab
 captures/
@@ -21,3 +24,11 @@ __pycache__/
 *.py[cod]
 .local/dictionary-data/
 *.dictpack
+*.dictpack.part
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.bak
+.android/
+*.avd/
