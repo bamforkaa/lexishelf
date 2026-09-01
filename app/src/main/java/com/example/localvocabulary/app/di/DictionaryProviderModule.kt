@@ -38,9 +38,12 @@ import com.example.localvocabulary.dictionary.reference.ExternalDictionaryRefere
 import com.example.localvocabulary.dictionary.reference.NaverDictionaryLinkProvider
 import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackPayloadValidator
 import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackRepository
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackStorageSpace
 import com.example.localvocabulary.dictionary.pack.DictionaryPackPayloadValidator
 import com.example.localvocabulary.dictionary.pack.DictionaryPackRepository
 import com.example.localvocabulary.dictionary.pack.DictionaryPackResolver
+import com.example.localvocabulary.dictionary.pack.DictionaryPackStorageSpace
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -55,6 +58,12 @@ import javax.inject.Singleton
 abstract class DictionaryProviderModule {
     @Multibinds
     abstract fun dictionaryProviders(): Set<DictionaryProvider>
+
+    @Binds
+    @Singleton
+    abstract fun bindDictionaryPackStorageSpace(
+        implementation: AndroidDictionaryPackStorageSpace,
+    ): DictionaryPackStorageSpace
 
     companion object {
         @Provides

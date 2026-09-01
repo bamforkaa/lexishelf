@@ -38,6 +38,7 @@ class AndroidDictionaryPackRepositoryTest {
         context,
         DictionaryPackPayloadValidator { _, _ -> Result.success(Unit) },
         codec,
+        DictionaryPackStorageSpace { Long.MAX_VALUE },
     )
     private val installedPackIds = mutableSetOf<String>()
 
@@ -51,6 +52,7 @@ class AndroidDictionaryPackRepositoryTest {
 
     @After
     fun removeTestPacks() = runTest {
+        repository.refresh()
         installedPackIds.forEach { repository.delete(it) }
     }
 
@@ -95,6 +97,57 @@ class AndroidDictionaryPackRepositoryTest {
                 DictionaryPackInstallResult.Rejected,
         )
         assertEquals("1", repository.activePack(DictionaryProviderId(first.providerId))!!.manifest.datasetVersion)
+    }
+
+    @Test
+    fun oversizedPayloadIsRejectedBeforeExtractionAndPreservesActiveVersion() {
+        val oldPayload = "old".encodeToByteArray()
+        val first = manifest("test-pack-size-limit", "test-provider-size-limit", "1", oldPayload)
+        installedPackIds += first.packId
+        assertTrue(repository.install(pack(first, oldPayload)) is DictionaryPackInstallResult.Installed)
+
+        val newPayload = "new".encodeToByteArray()
+        val oversized = manifest(first.packId, first.providerId, "2", newPayload).copy(
+            payload = DictionaryPackPayload(
+                fileName = "fixture.db",
+                sizeBytes = MAX_DICTIONARY_PACK_PAYLOAD_BYTES + 1,
+                sha256 = sha256(newPayload),
+            ),
+        )
+
+        val result = repository.install(pack(oversized, newPayload))
+
+        assertTrue(result is DictionaryPackInstallResult.Rejected)
+        assertTrue((result as DictionaryPackInstallResult.Rejected).reason.contains("512 MiB"))
+        assertEquals("1", repository.activePack(DictionaryProviderId(first.providerId))!!.manifest.datasetVersion)
+        assertFalse(packRoot().listFiles().orEmpty().any { it.name.startsWith(".incoming-") })
+    }
+
+    @Test
+    fun insufficientStorageIsRejectedBeforeExtractionAndPreservesActiveVersion() {
+        val oldPayload = "old".encodeToByteArray()
+        val first = manifest("test-pack-storage-limit", "test-provider-storage-limit", "1", oldPayload)
+        installedPackIds += first.packId
+        assertTrue(repository.install(pack(first, oldPayload)) is DictionaryPackInstallResult.Installed)
+
+        val limitedRepository = AndroidDictionaryPackRepository(
+            context,
+            DictionaryPackPayloadValidator { _, _ -> Result.success(Unit) },
+            codec,
+            DictionaryPackStorageSpace { MIN_FREE_STORAGE_BYTES_AFTER_INSTALL },
+        )
+        val newPayload = "new".encodeToByteArray()
+        val update = manifest(first.packId, first.providerId, "2", newPayload)
+
+        val result = limitedRepository.install(pack(update, newPayload))
+
+        assertTrue(result is DictionaryPackInstallResult.Rejected)
+        assertTrue((result as DictionaryPackInstallResult.Rejected).reason.contains("Not enough storage"))
+        assertEquals(
+            "1",
+            limitedRepository.activePack(DictionaryProviderId(first.providerId))!!.manifest.datasetVersion,
+        )
+        assertFalse(packRoot().listFiles().orEmpty().any { it.name.startsWith(".incoming-") })
     }
 
     @Test

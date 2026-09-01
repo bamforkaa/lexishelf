@@ -24,6 +24,7 @@ class AndroidDictionaryPackRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val payloadValidator: DictionaryPackPayloadValidator,
     private val manifestCodec: DictionaryPackManifestCodec,
+    private val storageSpace: DictionaryPackStorageSpace,
 ) : DictionaryPackRepository, DictionaryPackResolver {
     private val root = File(context.noBackupFilesDir, "dictionary-packs")
     private val mutableInstalledPacks = MutableStateFlow(readInstalledPacks())
@@ -145,7 +146,9 @@ class AndroidDictionaryPackRepository @Inject constructor(
                     DICTIONARY_PACK_MANIFEST_FILE -> {
                         require(manifest == null) { "Duplicate manifest" }
                         val text = zip.readBytesLimited(MAX_MANIFEST_BYTES).decodeToString()
-                        manifest = manifestCodec.decode(text).getOrThrow()
+                        manifest = manifestCodec.decode(text).getOrThrow().also { parsed ->
+                            requirePayloadStorageCapacity(parsed.payload.sizeBytes, incoming)
+                        }
                     }
                     else -> {
                         val current = requireNotNull(manifest) { "Manifest must be the first pack entry" }
@@ -179,6 +182,17 @@ class AndroidDictionaryPackRepository @Inject constructor(
         require(payloadBytes == parsedManifest.payload.sizeBytes) { "Payload size mismatch" }
         require(payloadDigest == parsedManifest.payload.sha256) { "Payload checksum mismatch" }
         return ExtractedPack(parsedManifest, extractedPayload)
+    }
+
+    private fun requirePayloadStorageCapacity(payloadBytes: Long, incoming: File) {
+        require(payloadBytes <= MAX_DICTIONARY_PACK_PAYLOAD_BYTES) {
+            "Dictionary payload exceeds the 512 MiB limit"
+        }
+        val availableBytes = storageSpace.availableBytes(incoming)
+        val requiredBytes = payloadBytes + MIN_FREE_STORAGE_BYTES_AFTER_INSTALL
+        require(availableBytes >= requiredBytes) {
+            "Not enough storage space for this dictionary pack"
+        }
     }
 
     private fun activate(
@@ -318,6 +332,9 @@ class AndroidDictionaryPackRepository @Inject constructor(
         val UNSAFE_PATH = Regex("[^A-Za-z0-9._-]")
     }
 }
+
+internal const val MAX_DICTIONARY_PACK_PAYLOAD_BYTES = 512L * 1024L * 1024L
+internal const val MIN_FREE_STORAGE_BYTES_AFTER_INSTALL = 32L * 1024L * 1024L
 
 private fun DictionaryPackInstallExpectation.validate(manifest: DictionaryPackManifest) {
     require(manifest.packId == packId) { "Downloaded pack ID does not match the catalog" }

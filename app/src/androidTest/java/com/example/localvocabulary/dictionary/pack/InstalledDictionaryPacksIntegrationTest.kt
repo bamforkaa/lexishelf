@@ -54,6 +54,7 @@ class InstalledDictionaryPacksIntegrationTest {
             context,
             AndroidDictionaryPackPayloadValidator(),
             DictionaryPackManifestCodec(),
+            AndroidDictionaryPackStorageSpace(context),
         )
         assumeTrue(
             "The optional Korean Basic Dictionary debug pack is not configured for this build",
@@ -89,6 +90,7 @@ class InstalledDictionaryPacksIntegrationTest {
             context,
             AndroidDictionaryPackPayloadValidator(),
             DictionaryPackManifestCodec(),
+            AndroidDictionaryPackStorageSpace(context),
         )
         val providerId = DictionaryProviderId("kaikki")
         val germanPack = repository.activePack(providerId, pair("de"))
@@ -217,6 +219,7 @@ class InstalledDictionaryPacksIntegrationTest {
             context,
             AndroidDictionaryPackPayloadValidator(),
             DictionaryPackManifestCodec(),
+            AndroidDictionaryPackStorageSpace(context),
         )
         val report = buildList {
             packPaths.forEach { packPath ->

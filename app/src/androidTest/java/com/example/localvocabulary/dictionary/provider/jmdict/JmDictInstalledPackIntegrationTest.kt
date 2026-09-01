@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
 import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackPayloadValidator
 import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackRepository
+import com.example.localvocabulary.dictionary.pack.AndroidDictionaryPackStorageSpace
 import com.example.localvocabulary.dictionary.pack.DictionaryPackManifestCodec
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.runBlocking
@@ -25,6 +26,7 @@ class JmDictInstalledPackIntegrationTest {
                 context,
                 AndroidDictionaryPackPayloadValidator(),
                 DictionaryPackManifestCodec(),
+                AndroidDictionaryPackStorageSpace(context),
             )
             assumeTrue(
                 "Full JMdict pack is optional",
