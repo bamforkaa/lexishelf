@@ -6,6 +6,7 @@ Project download page: https://cc-cedict.org/editor/editor.php?handler=Download
 License: Creative Commons Attribution-ShareAlike 4.0 International
 License URL: https://creativecommons.org/licenses/by-sa/4.0/
 
-The dataset binary is not committed. Follow docs/cc-cedict-dataset.md and use a
-browser to obtain the official release. MDBG prohibits automated or scripted
-access to its download page.
+The dataset binary is not committed. See docs/dictionary-sources.md for the
+reviewed source and license requirements, and docs/dictionary-packs.md for the
+local pack layout and build command. Use a browser to obtain the official
+release. MDBG prohibits automated or scripted access to its download page.

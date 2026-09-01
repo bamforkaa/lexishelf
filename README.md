@@ -1,5 +1,9 @@
 <h1 align="center">LexiShelf</h1>
 
+<p align="right">
+  <strong>한국어</strong> · <a href="README.en.md">English</a>
+</p>
+
 <p align="center">
   Android용 local-first 다국어 단어장과 오프라인 사전 도구
 </p>
@@ -29,6 +33,10 @@ LexiShelf는 단어와 표현을 직접 정리하고 기기 안에서 계속 사
 사용자 단어장은 Room에 로컬로 저장됩니다. 계정, 프로젝트 운영 backend, cloud sync, 광고와
 앱 자체 analytics가 없습니다. 사전 pack을 설치한 뒤 단어장과 로컬 사전 검색은 offline에서도
 동작합니다.
+
+## 개발 방식
+
+LexiShelf는 OpenAI Codex를 활용해 개발했습니다.
 
 ## 기능
 
@@ -69,7 +77,7 @@ APK에는 사전 DB나 ML Kit 언어 모델이 포함되지 않습니다. 일반
 ### 선택 사항: 다운로드 검증
 
 Release의 `SHA256SUMS.txt`와 다운로드한 APK의 SHA-256을 비교하면 파일 무결성을 확인할 수
-있습니다. [release 문서](docs/release.md)의 signing certificate fingerprint는 APK의 서명자
+있습니다. [APK 검증 문서](docs/apk-verification.md)의 signing certificate fingerprint는 APK의 서명자
 identity를 확인하기 위한 공개 정보입니다. Android는 같은 폴더의 checksum 파일을 자동으로
 검증하지 않으므로 이 확인은 별도 도구를 사용하는 선택 절차입니다.
 
@@ -114,22 +122,40 @@ ML Kit SDK가 수집할 수 있는 diagnostics/usage metadata와 GitHub/NAVER로
 
 ## 소스에서 빌드
 
-필요한 환경은 최신 stable Android Studio, Android SDK 37, compatible JDK와 Android emulator
-또는 USB device입니다. Gradle은 별도 설치하지 말고 repository의 Wrapper를 사용합니다.
+- **필수 환경:** 최신 stable Android Studio와 Android SDK Platform 37 및 compatible Build Tools.
+  JDK는 Android Studio에 포함된 버전을 사용할 수 있으며 Kotlin과 Gradle은 별도 설치하지 않습니다.
+- **Android SDK 설정:** clone한 root directory를 Android Studio에서 열고 Gradle sync를 실행하면
+  일반적으로 SDK 경로가 들어 있는 `local.properties`가 생성됩니다. 생성되지 않거나
+  `SDK location not found` 오류가 나면 repository root에 파일을 만들고 실제 SDK 경로를 적습니다.
+
+```properties
+sdk.dir=C\:\\Users\\<USER>\\AppData\\Local\\Android\\Sdk
+```
+
+- **사전 데이터 위치:** 일반 app build와 test에는 사전 데이터가 필요하지 않습니다.
+  `<repository>/.local/dictionary-data`는 기존 provider의 pack을 직접 재생성할 때 사용하는 기본
+  workspace이며, 임의의 사전 파일을 넣는 것만으로 앱이 자동 인식하지는 않습니다. 공개
+  `.dictpack`은 build한 앱의 **설정 → 사전 데이터**에서 설치할 수 있습니다.
+- **결과:** `assembleDebug`는 필요하면 로컬 debug key를 자동 생성해
+  `app/build/outputs/apk/debug/app-debug.apk`에 서명합니다. 사용자가 key를 직접 만들 필요는 없습니다.
 
 ```powershell
 git clone https://github.com/Bamfor/lexishelf.git
 cd lexishelf
-$env:JAVA_HOME = '<ANDROID_STUDIO_INSTALL>\jbr'
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat testDebugUnitTest
 .\gradlew.bat lintDebug
 .\gradlew.bat assembleDebug
 ```
 
-macOS/Linux에서는 `./gradlew`를 사용합니다. Android SDK 위치는 gitignored
-`local.properties`가 관리합니다. 사전 원본 재생성과 public release signing은 일반 build의
-전제조건이 아닙니다. 전체 절차는 [setup](docs/setup.md), [signing](docs/signing.md),
-[release checklist](docs/release-checklist.md)에 있습니다.
+Android Studio를 다른 경로에 설치했다면 `JAVA_HOME`을 해당 설치 위치의 `jbr`로 바꿉니다.
+`gradlew.bat`는 repository에 포함된 Gradle Wrapper로, project가 지정한 Gradle version을 받아
+사용하므로 전역 Gradle 설치가 필요하지 않습니다. macOS/Linux에서는 `./gradlew`를 사용합니다.
+
+이 과정에서 생성되는 debug APK는 GitHub Release의 공식 production APK와 서명 identity가
+다릅니다. Dataset directory 설정과 전체 절차는
+[개발 환경 설정](docs/setup.md), [dictionary pack 문서](docs/dictionary-packs.md)와
+[APK 검증](docs/apk-verification.md)에 있습니다.
 
 ## 라이선스와 데이터 출처
 
@@ -149,7 +175,6 @@ MIT로 재라이선스되지 않습니다.
 - [Dictionary pack format and lifecycle](docs/dictionary-packs.md)
 - [Dictionary sources and licenses](docs/dictionary-sources.md)
 - [Backup format](docs/backup.md)
-- [Handwriting](docs/handwriting.md)
-- [Writing Practice](docs/writing-practice.md)
-- [Release and signing](docs/release.md)
-- [Architecture decisions](docs/decisions/)
+- [Public dictionary artifact audit](docs/public-dictionary-artifacts.md)
+- [APK verification](docs/apk-verification.md)
+- [Third-party software](docs/third-party-software.md)

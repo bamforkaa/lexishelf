@@ -7,10 +7,28 @@ from unittest.mock import patch
 from tools.prepare_github_release import (
     EXPECTED_SIGNER_CERT_SHA256,
     _verify_apk_signature,
+    stage_release,
 )
 
 
 class PrepareGithubReleaseTest(unittest.TestCase):
+    def test_requires_an_explicit_release_notes_file(self) -> None:
+        with TemporaryDirectory() as directory:
+            project_root = Path(directory)
+            apk = project_root / "release.apk"
+            apk.touch()
+            apksigner = project_root / "apksigner"
+            apksigner.touch()
+
+            with self.assertRaisesRegex(FileNotFoundError, "release notes Markdown"):
+                stage_release(
+                    project_root,
+                    apk,
+                    project_root / "missing-release-notes.md",
+                    project_root / "build" / "release-assets",
+                    apksigner,
+                )
+
     def test_accepts_only_the_permanent_release_certificate(self) -> None:
         with TemporaryDirectory() as directory:
             apksigner = Path(directory) / "apksigner"

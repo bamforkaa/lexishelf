@@ -31,6 +31,7 @@ EXPECTED_SIGNER_CERT_SHA256 = "1051d4c58bdc08aecc1aff17a9573e0b8bf7db061051af3b2
 def stage_release(
     project_root: Path,
     signed_apk: Path,
+    release_notes: Path,
     output: Path,
     apksigner: Path,
 ) -> list[Path]:
@@ -43,6 +44,8 @@ def stage_release(
         raise FileExistsError(f"Release staging output already exists: {output}")
     if not signed_apk.is_file() or signed_apk.suffix.lower() != ".apk":
         raise FileNotFoundError("A signed release APK is required")
+    if not release_notes.is_file():
+        raise FileNotFoundError("A release notes Markdown file is required")
     _verify_apk_signature(signed_apk, apksigner)
 
     catalog_path = project_root / "distribution" / "dictionary-catalog-v1.json"
@@ -78,7 +81,7 @@ def stage_release(
         staged.append(notice_target)
 
         release_notes_target = temporary / "RELEASE_NOTES.md"
-        shutil.copy2(project_root / "docs" / "release-template.md", release_notes_target)
+        shutil.copy2(release_notes, release_notes_target)
         staged.append(release_notes_target)
 
         for pack in catalog["packs"]:
@@ -149,6 +152,7 @@ def _verify_apk_signature(apk: Path, apksigner: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--signed-apk", type=Path, required=True)
+    parser.add_argument("--release-notes", type=Path, required=True)
     parser.add_argument("--apksigner", type=Path, required=True)
     parser.add_argument(
         "--output",
@@ -160,6 +164,7 @@ def main() -> None:
     staged = stage_release(
         project_root,
         args.signed_apk.resolve(),
+        args.release_notes.resolve(),
         args.output,
         args.apksigner.resolve(),
     )

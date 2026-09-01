@@ -81,5 +81,5 @@ settings, installed packs and catalog cache. Use the in-app JSON export before d
 ## Distribution scope
 
 This release is distributed as a GitHub APK, not through Google Play. No Google Play Data Safety
-form has been submitted. [docs/data-safety.md](docs/data-safety.md) separates future form guidance
-from the app and SDK behavior above.
+form has been submitted. Any future store submission must reassess the final app, resolved SDK
+versions and store disclosure requirements at that time.

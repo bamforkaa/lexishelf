@@ -1,6 +1,8 @@
 The Korean Basic Dictionary index is intentionally not committed.
 
-Generate korean_basic_dictionary.db from the official full JSON download by following
-docs/korean-basic-dictionary-dataset.md. The generated index contains text from the
-Korean Basic Dictionary provided by the National Institute of Korean Language under
-CC BY-SA 2.0 KR. Audio, image, video, and pronunciation media are excluded.
+Generate korean_basic_dictionary.db from the official full JSON download. See
+docs/dictionary-sources.md for the reviewed source and license requirements, and
+docs/dictionary-packs.md for the local pack layout and build command. The generated
+index contains text from the Korean Basic Dictionary provided by the National
+Institute of Korean Language under CC BY-SA 2.0 KR. Audio, image, video, and
+pronunciation media are excluded.

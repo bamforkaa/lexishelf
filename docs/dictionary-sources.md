@@ -31,12 +31,11 @@
 
 ## JMdict
 
-Task 8 구현 결정(2026-08-23): 공식 영문 전용 `JMdict_e.gz`를 `jmdict`
-(`LOCAL_DATASET`, `ja → en`)로 구현했습니다. 선택 release의 SHA-256은
+공식 영문 전용 `JMdict_e.gz`를 `jmdict` (`LOCAL_DATASET`, `ja → en`)로 구현했습니다.
+선택 release의 SHA-256은
 `11c3fb43a82ae775269e6832d117c4f52152f4d8cf49f44c16a0ed619aa98a6a`입니다. 생성
-index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
-[JMdict dataset 문서](jmdict-dataset.md)와 [ADR-0008](decisions/0008-jmdict-compact-local-index-and-reading.md)이
-정의합니다.
+index는 Git에 포함하지 않으며 로컬 개발 pack으로만 사용합니다. 공개 배포 결정은
+[public artifact audit](public-dictionary-artifacts.md)을 따릅니다.
 
 공식 출처:
 
@@ -85,8 +84,8 @@ index는 Git에 포함하지 않으며, 재생성·검증·rollback 절차는
 - 이 앱과 generated pack은 CC BY-SA 4.0 재사용 경로를 선택하고 source entry URL, Kaikki/Wiktextract attribution, release/license를 provenance에 보존한다. local persistence/redistribution/cache의 `PERMITTED`는 attribution/ShareAlike 조건을 지워 주는 값이 아니다.
 - Wiktextract 프로그램의 MIT license는 parser software에 대한 것이며 extracted Wiktionary data의 license를 대체하지 않는다.
 - Wiktionary는 외부 source의 quotation/text/image/sound에 별도 조건이나 fair use가 있을 수 있다고 경고한다. Kaikki `examples` 중 `type=example`이고 `ref`가 없는 contributor-authored usage text만 선택한 CC BY-SA 4.0 경로로 index에 넣고, `quotation`, `ref`가 있는 attributed text와 audio/image/media URL은 제외한다. import한 example은 enclosing sense의 source entry/sense/license provenance를 공유한다.
-- raw POS와 normalized generic POS를 분리한다. pronunciation/gender/forms는 검색 결과에 표시하되 explicit row tap에서 허용된 English gloss/POS/example과 textual pronunciation/gender만 generic mapper로 가져오고 forms는 transient로 유지한다. refresh는 저장된 user data를 갱신하지 않는다. 실제 field coverage와 결정은 [linguistic-metadata.md](linguistic-metadata.md)에 있다.
-- provider ID는 `kaikki`, 첫 지원 pair는 `de|hi|pl|nl|pt|tr|cs|sv|uk|vi|th|id → en`이다. 후보 coverage, 선택/제외 근거, pack 크기와 QA key는 [kaikki-dataset.md](kaikki-dataset.md)에 있다.
+- raw POS와 normalized generic POS를 분리한다. pronunciation/gender/forms는 검색 결과에 표시하되 explicit row tap에서 허용된 English gloss/POS/example과 textual pronunciation/gender만 generic mapper로 가져오고 forms는 transient로 유지한다. refresh는 저장된 user data를 갱신하지 않는다.
+- provider ID는 `kaikki`, 첫 지원 pair는 `de|hi|pl|nl|pt|tr|cs|sv|uk|vi|th|id → en`이다. 공개 pack의 범위와 크기, checksum은 [public artifact audit](public-dictionary-artifacts.md)에 기록한다.
 
 미결정 사항:
 
@@ -186,7 +185,7 @@ API 대신 local dataset을 선택한 이유:
 - 명시적인 suggestion row 선택으로 가져온 한국어/외국어 translation과 명시적 POS에는 provider/source entry/source sense/license/release/import/수정 provenance가 함께 저장되고 JSON backup에도 유지된다.
 - 공식 전체 export의 ID가 관련 관용구에서 재사용되므로 source entry reference는 공식 ID와 표제어를 함께 사용하고 공식 sense ID도 별도로 보존한다.
 - provider refresh나 새 release는 저장된 user-authored/provider-derived sense를 자동 수정하지 않는다.
-- 생성 SQLite와 원본 ZIP은 Git/base APK에 포함하지 않고 generic pack으로 설치한다. 생성 절차는 [korean-basic-dictionary-dataset.md](korean-basic-dictionary-dataset.md), 설치 lifecycle은 [dictionary-packs.md](dictionary-packs.md)에 있다.
+- 생성 SQLite와 원본 ZIP은 Git/base APK에 포함하지 않고 [generic pack](dictionary-packs.md)으로 설치한다.
 - 공식 중국어 data에 script 구분이 없으므로 `zh-Hans`/`zh-Hant`를 추측하지 않고 BCP 47 `zh`를 사용한다.
 
 ## PanLex
@@ -226,7 +225,7 @@ API 대신 local dataset을 선택한 이유:
 - 명시적인 suggestion row 선택으로 가져온 translation에 PanLex expression/meaning/source ID, release, source/license를 sense provenance로 저장하고 JSON backup에도 유지한다.
 - 전체 PanLex dataset은 user Room이나 backup에 넣지 않는다. 검색 result는 transient이며 refresh가 저장된 사용자 data를 바꾸지 않는다.
 - 다른 언어를 거치는 pivot translation, definition/POS/example 추론은 하지 않는다.
-- source snapshot, coverage, converter와 update 절차는 [panlex-dataset.md](panlex-dataset.md), 결정은 [ADR-0007](decisions/0007-panlex-filtered-local-fallback.md)에 기록했다.
+- 이 고정 snapshot의 공개 artifact, checksum과 배포 결정은 [public artifact audit](public-dictionary-artifacts.md)에 기록한다.
 
 미결정 사항:
 

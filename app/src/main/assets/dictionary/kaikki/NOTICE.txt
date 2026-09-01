@@ -2,8 +2,9 @@ Kaikki/Wiktextract generated indexes are intentionally not committed.
 
 The pinned source for this implementation is the official Kaikki raw JSONL
 extraction based on the 2026-08-05 English Wiktionary dump and published on
-2026-08-23. Its reviewed SHA-256 and build procedure are documented in
-docs/kaikki-dataset.md.
+2026-08-23. Its reviewed SHA-256 and source requirements are documented in
+docs/dictionary-sources.md and docs/public-dictionary-artifacts.md. The local
+pack layout and build command are documented in docs/dictionary-packs.md.
 
 The extracted dictionary text remains English Wiktionary content under
 CC BY-SA 4.0 and GFDL; the MIT license of the Wiktextract software does not

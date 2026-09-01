@@ -414,7 +414,6 @@ Maintain:
 * `docs/architecture.md`;
 * `docs/dictionary-sources.md`;
 * `docs/setup.md`;
-* `docs/decisions/` for significant architecture decisions;
 * `CHANGELOG.md` once releases begin.
 
 The README must explain:

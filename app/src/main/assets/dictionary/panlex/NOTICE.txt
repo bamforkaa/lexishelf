@@ -1,9 +1,11 @@
 The generated PanLex index is intentionally not committed.
 
 Generate panlex_korean_fallback.db from the pinned, checksum-verified
-PanLex 2019-09-01 CSV snapshot by following docs/panlex-dataset.md. The
-generated index contains only direct same-meaning relations for explicitly
-reviewed PanLex language varieties.
+PanLex 2019-09-01 CSV snapshot. See docs/dictionary-sources.md and
+docs/public-dictionary-artifacts.md for the reviewed source, checksum and license
+requirements, and docs/dictionary-packs.md for the local pack layout and build
+command. The generated index contains only direct same-meaning relations for
+explicitly reviewed PanLex language varieties.
 
 The embedded LICENSE.txt in that exact 2019-09-01 artifact grants CC0 1.0
 Universal. The current PanLex website publishes different license terms, so
