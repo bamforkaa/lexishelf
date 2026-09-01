@@ -1,7 +1,8 @@
 # Debug 앱 저장공간 감사
 
 Task 15.1에서 manual QA AVD를 read-only overlay로 실행해 기존 사용자 데이터를
-변경하지 않고 `com.example.localvocabulary`의 실제 저장공간을 측정했다. 아래 값은
+변경하지 않고 당시 pre-release development identity인 `com.example.localvocabulary`의 실제
+저장공간을 측정했다. 아래 값은
 2026-08-28 측정값이며 Android의 화면 표시와 비교하기 쉽도록 MiB로 환산했다.
 
 | 항목 | 실제 크기 | 설명 |

@@ -11,7 +11,8 @@ so this record does not claim the stricter A verdict.
 
 | Item | Value |
 | --- | --- |
-| application ID | `com.example.localvocabulary` |
+| application ID | `io.github.bamfor.lexishelf` |
+| source namespace | `com.example.localvocabulary` (retained without a source-package refactor) |
 | version | `0.1.0` / versionCode 1 |
 | Room | schema v6 with reviewed migrations |
 | backup | schema v5 with legacy decoders |
@@ -19,6 +20,9 @@ so this record does not claim the stricter A verdict.
 | base APK | no dictionary pack, raw dataset or ML Kit language model |
 | dictionary packs | optional GitHub Release assets installed into app-private storage |
 | JMdict | local/development integration only; no public asset/catalog entry |
+
+`com.example.localvocabulary` was used only by disposable pre-release QA builds. Android treats it
+as a different app identity; v0.1.0 does not provide or require an update path from that package.
 
 ## Catalog and download channel
 
@@ -92,6 +96,17 @@ deterministic filename order; an independent pass recomputes every hash. Its APK
 a pre-commit value embedded in source documentation, is the authoritative release APK size/hash
 record.
 There are exactly 16 `.dictpack` files, zero JMdict files, zero unsigned APKs and one signed APK.
+
+### End-user install and optional verification
+
+The normal install path is to download `LexiShelf-v0.1.0.apk`, allow installation from the browser
+or file app that opened it, launch LexiShelf, and use **Settings → Dictionary Data** to download only
+the required packs. Checksum verification is not a prerequisite for installation.
+
+Users who want an additional integrity check can compare the downloaded APK's SHA-256 with
+`SHA256SUMS.txt`. Android does not automatically read that file merely because it is beside the APK.
+The production signing certificate fingerprint below is separate public metadata used to identify
+the signer of the official APK.
 
 This workstation has no GitHub CLI, and an unauthenticated HTTPS check on 2026-09-01 returned 404
 for the repository API, v0.1.0 release API and stable catalog URL. That means the repository/release
@@ -178,29 +193,36 @@ The final local verification pass used the Gradle Wrapper and completed:
 | public catalog/release staging audit | exact 16-pack catalog; 21 assets; all 20 checksum entries verified |
 
 The final connected run used a freshly launched dedicated `Medium_Phone_Test` AVD and completed in
-4 minutes 6 seconds. The one skip requires an externally staged real pack and is deliberate; pack
+5 minutes 3 seconds. The one skip requires an externally staged real pack and is deliberate; pack
 archive/installation behavior is covered by the remaining repository/instrumentation tests and the
 separate Manual AVD release flow.
 
-Two independent pre-commit production builds used the same permanent certificate. Their SHA-256
-values were `8993ceb08fd2dc3a7bf177c363526053b2d72a82fdb8e871812f7d61ceaa1354` and
-`5f4ec02e1906f8daa952b2f001d4995ee2c31145c2da20756f95daad4283f3c7`. Different APK hashes are
-expected build outputs; `apksigner` reported the exact certificate fingerprint above for both. The
-distributable candidate is rebuilt from the release commit so its embedded Git revision matches the
-tag target; its exact size and hash are generated into staged `SHA256SUMS.txt`. That candidate must
-verify with v1, v2 and v3 signatures, one RSA 4096-bit signer and no `.dictpack`, database or named
-dictionary dataset payload.
+The package-migration baseline and its independently rebuilt update candidate had SHA-256 values
+`02b0d5073214e0fcaa460bc501d6f6320d67913afa19692a11c8683edfaebb1c` and
+`36b3dde74e8ff397d510f2201503b25abcc62ab48efed32e8a557f733c0c3ea2`. Different APK hashes are
+expected build outputs; `apksigner` reported the exact certificate fingerprint above for both, with
+v1, v2 and v3 signatures and one RSA 4096-bit signer. The distributable candidate is rebuilt once
+more from the final release commit so its embedded Git revision matches the tag target. Its exact
+size and hash are generated into staged `SHA256SUMS.txt`, and its archive must contain no `.dictpack`,
+database or named dictionary dataset payload.
 
-Fresh-install QA used a wiped `Medium_Phone_Manual` AVD, separate from the instrumentation AVD. The
-signed APK installed, cold-launched, showed the no-pack state, created `releaseword` with a sense,
-created standalone `releasetag` and `releasebook`, changed the default language to `ja`, opened the
-backup screen and restarted normally. Installing the independently rebuilt APK with `adb install -r`
-succeeded. `firstInstallTime` remained `2026-08-31 16:19:04` and `lastUpdateTime` changed from that
-value to `2026-08-31 16:32:38`; the vocabulary, tag, wordbook and DataStore language setting were
-still visible after a cold restart. The initial install intentionally had zero packs, so the
-zero-pack state was preserved. v0.1.0 implements no API credential store, making credential
-migration not applicable. Actual installed-pack update preservation remains covered by Android
-integration tests and must be exercised again in the published-URL flow.
+Fresh-install QA used `Medium_Phone_Manual`, separate from the instrumentation AVD. The disposable
+pre-release package was explicitly uninstalled and the new `io.github.bamfor.lexishelf` identity was
+confirmed absent before installing the signed baseline. It cold-launched into the empty vocabulary
+state, created `releaseword` with the `release-meaning` sense, standalone `releasetag` and standalone
+`releabooks` wordbook, changed the DataStore default language to `ja`, installed the CC-CEDICT pack
+through the Android document picker, and exported a schema-v5 JSON backup containing the created
+entry.
+
+Installing the independently rebuilt signed APK with `adb install -r` succeeded. `firstInstallTime`
+remained `2026-09-01 05:13:07` while `lastUpdateTime` changed from `2026-09-01 05:13:07` to
+`2026-09-01 05:24:25`. After a force-stop and cold launch, the vocabulary entry and sense, tag,
+wordbook, DataStore language and installed CC-CEDICT pack were all still visible. A separately
+installed unchanged Kaikki Indonesian pack was then queried in the updated app: `air` returned the
+definition `water (clear liquid H₂O)` with `Kaikki / Wiktionary` attribution, exercising an actual
+pack database read rather than only the installed-state display. v0.1.0 implements no API credential
+store, so credential migration is not applicable. The published-URL clean-device flow remains a
+post-publication requirement.
 
 The final merged manifest declares `INTERNET` plus transitive network-state, wake-lock, boot and
 foreground-service permissions used by AndroidX/ML Kit background work. It requests no contacts,
@@ -229,8 +251,8 @@ minSdk 23 and targetSdk 37.
 | --- | --- | --- | --- |
 | MIT source license | PASS | no | root `LICENSE`, README and NOTICE separate source/data/software licenses |
 | Permanent signing key | PASS locally | publication safeguard | external PKCS#12, pinned certificate, ignored credentials; two encrypted backups and one restore test remain an operator action |
-| Signed APK | PASS | no | production gate, two builds, exact `apksigner` identity and archive audit |
-| Fresh install | PASS | no | wiped Manual AVD workflow above |
+| Signed APK | PASS | no | production gate, independently rebuilt candidates, exact `apksigner` identity and archive audit |
+| Fresh install | PASS | no | old QA identity removed, new identity confirmed absent, then Manual AVD workflow above |
 | Update install | PASS | no | signer-matched `adb install -r`, timestamps and persisted Room/DataStore state above |
 | Release assets | PASS | no | fail-closed helper produced 21 assets; 16 packs, 20 verified checksums, no JMdict/unsigned APK |
 | GitHub publication | NOT RUN | yes | no `gh`/auth; unauthenticated repository and v0.1.0 API checks return 404 |

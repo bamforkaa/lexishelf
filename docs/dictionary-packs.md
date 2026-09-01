@@ -135,7 +135,7 @@ Kaikki 언어 옵션을 생략하면 production-selected 12개 Kaikki pack과 En
 
 Pack이 없으면 provider는 `LocalDatasetUnavailable`을 반환하고 Word Editor suggestion group에만 오류가 보입니다. 수동 입력/저장과 기존 vocabulary 조회는 계속 동작합니다.
 
-debug application ID 기준 실제 filesystem은 일반적으로 `/data/user/0/com.example.localvocabulary/no_backup/dictionary-packs/<providerId>/<packId>/` 아래입니다. 각 pack에는 `activation` pointer와 `versions/<datasetVersion>-<sha-prefix>/manifest.json` 및 payload가 있습니다. 이 경로에 `adb push`로 직접 파일을 넣는 것은 activation을 만들지 않고 검증을 우회하므로 정상 workflow가 아닙니다.
+debug application ID 기준 실제 filesystem은 일반적으로 `/data/user/0/io.github.bamfor.lexishelf/no_backup/dictionary-packs/<providerId>/<packId>/` 아래입니다. 각 pack에는 `activation` pointer와 `versions/<datasetVersion>-<sha-prefix>/manifest.json` 및 payload가 있습니다. 이 경로에 `adb push`로 직접 파일을 넣는 것은 activation을 만들지 않고 검증을 우회하므로 정상 workflow가 아닙니다.
 
 ## 현재 개발 pack inventory
 

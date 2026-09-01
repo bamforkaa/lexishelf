@@ -21,7 +21,7 @@ The repository contains no production key or password. `app/build.gradle.kts` re
 
 The v0.1.0 identity policy is:
 
-- purpose: sign every public sideload release for `com.example.localvocabulary`;
+- purpose: sign every public sideload release for `io.github.bamfor.lexishelf`;
 - alias: `lexishelf-release`;
 - keystore type: PKCS#12 stored outside the Git repository;
 - key: RSA 4096-bit with SHA-256 signatures;
@@ -30,7 +30,9 @@ The v0.1.0 identity policy is:
 - Gradle credentials: the ignored root `signing.properties` on this release workstation.
 
 These are identity-continuity choices, not disposable build settings. A later APK signed by a
-different identity will not be a normal update for existing sideload installations.
+different identity will not be a normal update for existing sideload installations. The earlier
+`com.example.localvocabulary` application ID was a pre-release development identity and has no
+public update-compatibility commitment.
 
 Run the JDK `keytool` interactively so passwords are prompted instead of recorded in shell history:
 
@@ -92,5 +94,5 @@ adb install -r LexiShelf-v0.1.0.apk
 ```
 
 The update test must preserve Room data, DataStore settings and installed dictionary packs. Keep the
-same production identity for every future `com.example.localvocabulary` APK unless a reviewed Android
+same production identity for every future `io.github.bamfor.lexishelf` APK unless a reviewed Android
 key-rotation plan is deliberately adopted.

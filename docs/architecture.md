@@ -46,6 +46,11 @@ com.example.localvocabulary/
     └── registry/           provider discovery and exact language-pair filtering
 ```
 
+The Kotlin/Android namespace remains `com.example.localvocabulary` to avoid a release-risking source
+package refactor. The independently configured public Android application ID is
+`io.github.bamfor.lexishelf`; manifest-relative class names and generated Hilt/Room code continue to
+resolve against the namespace.
+
 presentation 패키지는 feature별로 분리되고 domain/data/database는 Android UI와 독립된 책임을 갖습니다. 나중에 모듈을 분리할 때 이 패키지 경계를 추출점으로 사용합니다.
 
 ## 의존성 방향과 데이터 흐름

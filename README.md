@@ -55,18 +55,23 @@ mockup이나 placeholder 이미지를 싣지 않습니다.
 공개 `v0.1.0`이 게시되면 다음 순서로 설치합니다.
 
 1. [GitHub Releases](https://github.com/Bamfor/lexishelf/releases)에서
-   `LexiShelf-v0.1.0.apk`와 `SHA256SUMS.txt`를 받습니다.
-2. checksum을 확인하고 Android에서 APK 설치를 허용합니다.
+   `LexiShelf-v0.1.0.apk`를 받습니다.
+2. APK를 연 브라우저 또는 파일 앱에 설치 권한을 허용합니다.
 3. LexiShelf를 실행합니다.
-4. **설정 → 사전 데이터**를 엽니다.
-5. 자신의 언어와 목적에 맞는 pack만 선택해 내려받습니다.
+4. **설정 → 사전 데이터**에서 자신의 언어와 목적에 맞는 pack만 내려받습니다.
 
 APK에는 사전 DB나 ML Kit 언어 모델이 포함되지 않습니다. 일반 사용자는 converter,
 `local.properties`, raw DB 또는 개발용 dictionary workspace를 준비할 필요가 없습니다.
 
 공식 sideload build는 GitHub `v0.1.0` Release에 첨부된 `LexiShelf-v0.1.0.apk`뿐입니다.
-checksum과 [release 문서](docs/release.md)의 signing certificate fingerprint를 함께 확인하세요.
 소스에서 만든 unsigned archive나 제3자가 다시 서명한 APK는 공식 배포 APK가 아닙니다.
+
+### 선택 사항: 다운로드 검증
+
+Release의 `SHA256SUMS.txt`와 다운로드한 APK의 SHA-256을 비교하면 파일 무결성을 확인할 수
+있습니다. [release 문서](docs/release.md)의 signing certificate fingerprint는 APK의 서명자
+identity를 확인하기 위한 공개 정보입니다. Android는 같은 폴더의 checksum 파일을 자동으로
+검증하지 않으므로 이 확인은 별도 도구를 사용하는 선택 절차입니다.
 
 ## 사전 pack
 

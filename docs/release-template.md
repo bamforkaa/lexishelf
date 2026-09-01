@@ -10,16 +10,23 @@ packs, handwriting input, Writing Practice and JSON backup/restore.
 
 ## Install
 
-1. Download `LexiShelf-v0.1.0.apk` and `SHA256SUMS.txt` from this release.
-2. Verify the APK checksum.
-3. Allow installation from the browser/file app used to open the APK.
-4. Launch LexiShelf.
+1. Download `LexiShelf-v0.1.0.apk` from this release.
+2. Allow installation from the browser or file app used to open the APK.
+3. Launch LexiShelf.
+4. Open **Settings → Dictionary Data** and download only the packs needed for your languages.
+
+## Optional download verification
+
+Compare the downloaded APK's SHA-256 with `SHA256SUMS.txt` to verify file integrity. Android does
+not automatically read a checksum file placed beside the APK. The signing certificate fingerprint
+below identifies the signer of the official LexiShelf APK and can be inspected with Android SDK
+`apksigner` or another trusted APK inspection tool.
 
 Production signing certificate SHA-256:
 `10:51:D4:C5:8B:DC:08:AE:CC:1A:FF:17:A9:57:3E:0B:8B:F7:DB:06:10:51:AF:3B:2E:10:5E:F3:DE:A7:B4:BA`.
 
-The exact release APK byte size and SHA-256 are recorded in this release's
-`SHA256SUMS.txt`. This avoids publishing a checksum for a pre-tag build.
+The exact release APK byte size and SHA-256 are recorded in this release's `SHA256SUMS.txt`. This
+avoids publishing a checksum for a pre-tag build.
 
 ## Optional dictionary packs
 

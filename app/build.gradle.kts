@@ -162,7 +162,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.localvocabulary"
+        applicationId = "io.github.bamfor.lexishelf"
         minSdk = 23
         targetSdk = 37
         versionCode = 1
