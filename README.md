@@ -19,7 +19,7 @@
 
 <p align="center">
   <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
-  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-4f46e5">
+  <a href="https://github.com/Bamfor/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Bamfor/lexishelf?display_name=tag&amp;color=4f46e5"></a>
   <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
 </p>
@@ -34,9 +34,11 @@ LexiShelf는 단어와 표현을 직접 정리하고 기기 안에서 계속 사
 앱 자체 analytics가 없습니다. 사전 pack을 설치한 뒤 단어장과 로컬 사전 검색은 offline에서도
 동작합니다.
 
-## 개발 방식
+이 프로젝트는 제가 원하는 단어장 앱을 직접 만들어 사용해 보기 위해 시작했습니다. 개발 과정을
+기록하고, 비슷한 필요를 가진 사람이 앱을 실행해 보거나 구현을 참고할 수 있도록 소스 코드와
+설치용 APK를 함께 공개합니다.
 
-LexiShelf는 OpenAI Codex를 활용해 개발했습니다.
+개인 프로젝트이므로 업데이트 주기와 장기적인 지원은 보장하지 않습니다.
 
 ## 기능
 
@@ -156,6 +158,19 @@ Android Studio를 다른 경로에 설치했다면 `JAVA_HOME`을 해당 설치 
 다릅니다. Dataset directory 설정과 전체 절차는
 [개발 환경 설정](docs/setup.md), [dictionary pack 문서](docs/dictionary-packs.md)와
 [APK 검증](docs/apk-verification.md)에 있습니다.
+
+## 개발 배경
+
+LexiShelf는 몇 년 전 DevStory의
+[VoCat - 나만의 단어장](https://play.google.com/store/apps/details?id=kr.co.devstory.vocat)을
+사용하면서 접한 세심하고 편리한 개인 단어장 경험에서 영감을 받았습니다. VoCat은 이 프로젝트를
+시작하게 된 계기 중 하나이며, 오랫동안 앱을 개발하고 운영해 온 제작자의 작업을 존중합니다. 그
+경험을 바탕으로 제 학습 방식과 local-first·offline 설계 목표에 맞는 별도의 도구를 직접 만들어
+보고 싶어 LexiShelf를 시작했습니다.
+
+이 언급은 몇 년 전의 개인적인 사용 경험에 관한 것이며, 현재 VoCat의 기능을 비교하거나 평가하려는
+목적이 아닙니다. LexiShelf는 VoCat 또는 DevStory와 제휴하거나 공식적으로 연관된 프로젝트가
+아니며, 별도의 설계와 코드로 독립적으로 개발하고 있습니다.
 
 ## 라이선스와 데이터 출처
 

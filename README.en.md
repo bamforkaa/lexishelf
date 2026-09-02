@@ -19,7 +19,7 @@
 
 <p align="center">
   <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
-  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-4f46e5">
+  <a href="https://github.com/Bamfor/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Bamfor/lexishelf?display_name=tag&amp;color=4f46e5"></a>
   <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
 </p>
@@ -35,9 +35,11 @@ User vocabulary is stored locally with Room. LexiShelf has no account system, pr
 backend, cloud sync, advertising or app analytics. Saved vocabulary and installed local dictionary
 packs remain available offline.
 
-## Development
+This project began as a vocabulary app I wanted to build and use myself. The source code and
+installable APK are published to document its development and to let others with similar needs try
+the app or learn from its implementation.
 
-LexiShelf was developed with OpenAI Codex.
+As a personal project, it does not come with a guaranteed update schedule or long-term support.
 
 ## Features
 
@@ -160,6 +162,20 @@ macOS or Linux.
 The generated debug APK has a different signing identity from the official production APK
 published on GitHub Releases. See [development setup](docs/setup.md), the
 [dictionary pack guide](docs/dictionary-packs.md) and [APK verification](docs/apk-verification.md).
+
+## Background
+
+LexiShelf was partly inspired by my experience using DevStory's
+[VoCat - My Own Vocabulary](https://play.google.com/store/apps/details?id=kr.co.devstory.vocat)
+several years ago. VoCat introduced me to a thoughtfully designed and convenient personal
+vocabulary experience, and it was one of the things that motivated me to begin this project. I
+respect the work its developer has put into building and maintaining the app over the years. That
+experience encouraged me to create a separate tool around my own learning workflow and
+local-first, offline design goals.
+
+This acknowledgement refers only to my personal experience several years ago; it is not intended
+as a comparison or assessment of VoCat's current features. LexiShelf is independently designed and
+implemented and is not affiliated with or officially associated with VoCat or DevStory.
 
 ## Licenses and data sources
 
