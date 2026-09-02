@@ -1,7 +1,7 @@
 # 공식 APK 확인
 
 LexiShelf의 공식 sideload build는
-[GitHub Releases](https://github.com/Bamfor/lexishelf/releases)에 게시된
+[GitHub Releases](https://github.com/bamforkaa/lexishelf/releases)에 게시된
 `LexiShelf-v0.1.0.apk`입니다. 소스에서 직접 만든 APK나 제3자가 다시 서명한 APK는 공식 배포
 APK가 아닙니다.
 

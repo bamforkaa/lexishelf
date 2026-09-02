@@ -7,10 +7,10 @@ class GitHubDistributionUrlPolicyTest {
     @Test
     fun `only the stable catalog endpoint or repository raw catalog is accepted`() {
         GitHubDistributionUrlPolicy.requireCatalogEndpoint(
-            "https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json",
+            "https://github.com/bamforkaa/lexishelf/releases/latest/download/dictionary-catalog-v1.json",
         )
         GitHubDistributionUrlPolicy.requireCatalogEndpoint(
-            "https://raw.githubusercontent.com/Bamfor/lexishelf/main/distribution/dictionary-catalog-v1.json",
+            "https://raw.githubusercontent.com/bamforkaa/lexishelf/main/distribution/dictionary-catalog-v1.json",
         )
 
         assertRejected {
@@ -20,7 +20,7 @@ class GitHubDistributionUrlPolicyTest {
         }
         assertRejected {
             GitHubDistributionUrlPolicy.requireCatalogEndpoint(
-                "https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json?x=1",
+                "https://github.com/bamforkaa/lexishelf/releases/latest/download/dictionary-catalog-v1.json?x=1",
             )
         }
     }
@@ -28,14 +28,14 @@ class GitHubDistributionUrlPolicyTest {
     @Test
     fun `pack URL requires HTTPS immutable tag and one dictpack asset`() {
         GitHubDistributionUrlPolicy.requirePackDownload(
-            "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki-de.dictpack",
+            "https://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/kaikki-de.dictpack",
         )
 
         listOf(
-            "http://github.com/Bamfor/lexishelf/releases/download/v0.1.0/kaikki-de.dictpack",
-            "https://github.com/Bamfor/lexishelf/releases/download/latest/kaikki-de.dictpack",
-            "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/not-a-pack.zip",
-            "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/sub/kaikki-de.dictpack",
+            "http://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/kaikki-de.dictpack",
+            "https://github.com/bamforkaa/lexishelf/releases/download/latest/kaikki-de.dictpack",
+            "https://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/not-a-pack.zip",
+            "https://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/sub/kaikki-de.dictpack",
         ).forEach { value ->
             assertRejected { GitHubDistributionUrlPolicy.requirePackDownload(value) }
         }

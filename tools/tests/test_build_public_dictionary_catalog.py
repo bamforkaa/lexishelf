@@ -98,7 +98,7 @@ class PublicDictionaryCatalogTest(unittest.TestCase):
                 load_pack(path, definition)
 
     def test_public_repository_is_pinned(self) -> None:
-        self.assertEqual("Bamfor/lexishelf", PUBLIC_REPOSITORY)
+        self.assertEqual("bamforkaa/lexishelf", PUBLIC_REPOSITORY)
 
     def test_committed_catalog_matches_the_reviewed_public_set(self) -> None:
         catalog_path = Path(__file__).resolve().parents[2] / "distribution" / "dictionary-catalog-v1.json"

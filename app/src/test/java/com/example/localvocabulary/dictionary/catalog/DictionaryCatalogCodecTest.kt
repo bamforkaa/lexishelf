@@ -62,7 +62,7 @@ class DictionaryCatalogCodecTest {
     @Test
     fun `insecure or foreign download URL is rejected`() {
         assertRejected(
-            catalog(pack().copy(downloadUrl = "http://github.com/Bamfor/lexishelf/releases/download/v0.1.0/a.dictpack")),
+            catalog(pack().copy(downloadUrl = "http://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/a.dictpack")),
             "Only HTTPS URLs",
         )
         assertRejected(
@@ -135,7 +135,7 @@ internal fun pack(
     supportedLanguagePairs = listOf(
         DictionaryCatalogLanguagePair("zh-Hans", "en", "TRANSLATION"),
     ),
-    downloadUrl = "https://github.com/Bamfor/lexishelf/releases/download/v0.1.0/cc-cedict.dictpack",
+    downloadUrl = "https://github.com/bamforkaa/lexishelf/releases/download/v0.1.0/cc-cedict.dictpack",
     downloadSizeBytes = archiveBytes.size.toLong(),
     installedSizeBytes = 7,
     sha256 = sha256(archiveBytes),

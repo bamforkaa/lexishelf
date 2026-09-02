@@ -139,7 +139,7 @@ class DictionaryCatalogRepositoryTest {
 
     private fun newRepository() = DefaultDictionaryCatalogRepository(
         endpoint = DictionaryCatalogEndpoint(
-            "https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json",
+            "https://github.com/bamforkaa/lexishelf/releases/latest/download/dictionary-catalog-v1.json",
         ),
         transport = transport,
         codec = codec,

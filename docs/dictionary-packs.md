@@ -49,7 +49,7 @@ $env:LANG_DATABASE_DIR = 'D:\dictionary-data'
 Release app은 다음 stable endpoint에서 schema v1 catalog를 가져옵니다.
 
 ```text
-https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json
+https://github.com/bamforkaa/lexishelf/releases/latest/download/dictionary-catalog-v1.json
 ```
 
 Catalog parser는 허용된 GitHub HTTPS URL, provider/pack identity, BCP 47 language pair, dataset

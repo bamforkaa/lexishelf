@@ -27,7 +27,7 @@ from tools.dataset_paths import dataset_paths
 
 CATALOG_SCHEMA_VERSION = 1
 PUBLIC_RELEASE_TAG = "v0.1.0"
-PUBLIC_REPOSITORY = "Bamfor/lexishelf"
+PUBLIC_REPOSITORY = "bamforkaa/lexishelf"
 SHA256_PATTERN_LENGTH = 64
 
 

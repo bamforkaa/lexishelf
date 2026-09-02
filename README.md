@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Bamfor/lexishelf/releases">Releases</a> ·
+  <a href="https://github.com/bamforkaa/lexishelf/releases">Releases</a> ·
   <a href="#설치">설치</a> ·
   <a href="#기능">기능</a> ·
   <a href="#사전-pack">사전 데이터</a> ·
@@ -19,7 +19,7 @@
 
 <p align="center">
   <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
-  <a href="https://github.com/Bamfor/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Bamfor/lexishelf?display_name=tag&amp;color=4f46e5"></a>
+  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.1.0-4f46e5"></a>
   <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
 </p>
@@ -64,7 +64,7 @@ mockup이나 placeholder 이미지를 싣지 않습니다.
 
 공개 `v0.1.0`이 게시되면 다음 순서로 설치합니다.
 
-1. [GitHub Releases](https://github.com/Bamfor/lexishelf/releases)에서
+1. [GitHub Releases](https://github.com/bamforkaa/lexishelf/releases)에서
    `LexiShelf-v0.1.0.apk`를 받습니다.
 2. APK를 연 브라우저 또는 파일 앱에 설치 권한을 허용합니다.
 3. LexiShelf를 실행합니다.
@@ -142,7 +142,7 @@ sdk.dir=C\:\\Users\\<USER>\\AppData\\Local\\Android\\Sdk
   `app/build/outputs/apk/debug/app-debug.apk`에 서명합니다. 사용자가 key를 직접 만들 필요는 없습니다.
 
 ```powershell
-git clone https://github.com/Bamfor/lexishelf.git
+git clone https://github.com/bamforkaa/lexishelf.git
 cd lexishelf
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat testDebugUnitTest

@@ -3,7 +3,7 @@ package com.example.localvocabulary.dictionary.catalog
 import java.net.URI
 
 object GitHubDistributionUrlPolicy {
-    private const val REPOSITORY_PATH = "/Bamfor/lexishelf/"
+    private const val REPOSITORY_PATH = "/bamforkaa/lexishelf/"
     private val githubRedirectHosts = setOf(
         "objects.githubusercontent.com",
         "release-assets.githubusercontent.com",

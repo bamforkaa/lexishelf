@@ -71,7 +71,7 @@ val requireProductionSigning = providers.gradleProperty("requireProductionSignin
     ?.toBooleanStrictOrNull() == true
 val dictionaryCatalogUrl = providers.gradleProperty("dictionaryCatalogUrl").orNull
     ?: System.getenv("LEXISHELF_DICTIONARY_CATALOG_URL")?.trim()?.takeIf(String::isNotEmpty)
-    ?: "https://github.com/Bamfor/lexishelf/releases/latest/download/dictionary-catalog-v1.json"
+    ?: "https://github.com/bamforkaa/lexishelf/releases/latest/download/dictionary-catalog-v1.json"
 val bundleDictionaryPacksInDebug =
     localProperties.getProperty("bundleDictionaryPacksInDebug")?.toBooleanStrictOrNull() == true
 val dictionaryDatasetRoot = System.getenv("LANG_DATABASE_DIR")
