@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bamforkaa/lexishelf/releases">Releases</a> ·
+  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release"></a> ·
   <a href="#설치">설치</a> ·
   <a href="#기능">기능</a> ·
   <a href="#사전-pack">사전 데이터</a> ·
@@ -54,7 +54,7 @@ LexiShelf는 단어와 표현을 직접 정리하고 기기 안에서 계속 사
 - 뜻별 Today Review: 양방향 자동 출제, 첫 뜻 기본 등록, 회상 후 자기 평가, 일정·이력 저장, 선택적인 내 문장 만들기
 - 하루 신규 15개 / 전체 40개 기본 복습량과 설정
 - session-only Writing Practice
-- JSON v8 backup 내보내기, v1~v8 검증·미리보기·복원 (Room v9, 기존 migration 보존)
+- 복습 이력을 포함한 versioned JSON backup 내보내기·복원, validation, migration compatibility와 명시적인 충돌 정책
 - 사전 데이터가 하나도 없어도 동작하는 manual vocabulary workflow
 
 단어와 구는 같은 `VocabularyEntry` 모델을 사용합니다. idiom, phrasal verb, collocation과 일반
@@ -67,10 +67,10 @@ mockup이나 placeholder 이미지를 싣지 않습니다.
 
 ## 설치
 
-공개 `v0.1.0`이 게시되면 다음 순서로 설치합니다.
+최신 공개 버전은 다음 순서로 설치합니다.
 
-1. [GitHub Releases](https://github.com/bamforkaa/lexishelf/releases)에서
-   `LexiShelf-v0.1.0.apk`를 받습니다.
+1. [최신 GitHub Release](https://github.com/bamforkaa/lexishelf/releases/latest)에 첨부된
+   `LexiShelf-vX.Y.Z.apk`를 받습니다.
 2. APK를 연 브라우저 또는 파일 앱에 설치 권한을 허용합니다.
 3. LexiShelf를 실행합니다.
 4. **설정 → 사전 데이터**에서 자신의 언어와 목적에 맞는 pack만 내려받습니다.
@@ -78,7 +78,7 @@ mockup이나 placeholder 이미지를 싣지 않습니다.
 APK에는 사전 DB나 ML Kit 언어 모델이 포함되지 않습니다. 일반 사용자는 converter,
 `local.properties`, raw DB 또는 개발용 dictionary workspace를 준비할 필요가 없습니다.
 
-공식 sideload build는 GitHub `v0.1.0` Release에 첨부된 `LexiShelf-v0.1.0.apk`뿐입니다.
+공식 sideload build는 이 repository의 GitHub Release에 첨부된 APK입니다.
 소스에서 만든 unsigned archive나 제3자가 다시 서명한 APK는 공식 배포 APK가 아닙니다.
 
 ### 선택 사항: 다운로드 검증
@@ -106,8 +106,8 @@ Kaikki는 `de`, `hi`, `pl`, `nl`, `pt`, `tr`, `cs`, `sv`, `uk`, `vi`, `th`, `id`
 coverage는 제한적이고 PanLex는 완전한 dictionary가 아니라 폭넓은 lexical fallback입니다.
 
 JMdict provider와 converter는 local/development 사용을 위해 유지되지만, EDRDG가 요구하는 정기
-업데이트 절차를 공개 v1에서 맡지 않으므로 **JMdict pack은 public catalog와 GitHub Release에
-포함하지 않습니다.**
+업데이트 절차를 현재 프로젝트에서 운영하지 않으므로 **JMdict pack은 public catalog와 GitHub
+Release에 포함하지 않습니다.**
 
 정확한 pack version, archive/payload/source checksum, 설치 크기와 artifact별 배포 결정은
 [public artifact audit](docs/public-dictionary-artifacts.md)과

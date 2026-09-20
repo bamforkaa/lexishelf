@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bamforkaa/lexishelf/releases">Releases</a> ·
+  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release"></a> ·
   <a href="#installation">Installation</a> ·
   <a href="#features">Features</a> ·
   <a href="#dictionary-packs">Dictionary data</a> ·
@@ -55,7 +55,7 @@ As a personal project, it does not come with a guaranteed update schedule or lon
 - Sense-level Today Review with balanced prompt directions, first-sense enrollment, self-assessment and history
 - Optional user-written examples and configurable daily limits (15 new / 40 total by default)
 - Session-only Writing Practice
-- Export JSON v8 including review history; restore v1–v8 with validation and an explicit conflict policy
+- Export and restore versioned JSON backups with review history, validation, migration compatibility, and an explicit conflict policy
 - Use the complete manual vocabulary workflow without installing dictionary data
 
 Words and phrases use the same `VocabularyEntry` model. Idioms, phrasal verbs, collocations and
@@ -69,10 +69,10 @@ placeholder screenshots.
 
 ## Installation
 
-Once public `v0.1.0` is published:
+To install the latest public release:
 
-1. Download `LexiShelf-v0.1.0.apk` from
-   [GitHub Releases](https://github.com/bamforkaa/lexishelf/releases).
+1. Download the `LexiShelf-vX.Y.Z.apk` attached to the
+   [latest GitHub Release](https://github.com/bamforkaa/lexishelf/releases/latest).
 2. Allow installation from the browser or file app that opened the APK.
 3. Launch LexiShelf.
 4. Open **Settings → Dictionary Data** and download only the packs needed for your languages.
@@ -80,7 +80,7 @@ Once public `v0.1.0` is published:
 The APK does not bundle dictionary databases or ML Kit language models. Regular users do not need
 the converters, `local.properties`, raw databases or a development dictionary workspace.
 
-The only official sideload build is `LexiShelf-v0.1.0.apk` attached to the GitHub `v0.1.0` release.
+Official sideload builds are the APKs attached to this repository's GitHub Releases.
 Unsigned builds from source and APKs re-signed by third parties are not official distribution APKs.
 
 ### Optional download verification
@@ -108,7 +108,7 @@ Dataset coverage is limited, and PanLex is a broad lexical fallback rather than 
 dictionary.
 
 The JMdict provider and converter remain available for local development, but no JMdict pack is
-included in the public catalog or GitHub release because the project does not currently operate the
+included in the public catalog or GitHub Releases because the project does not currently operate the
 regular update process required by EDRDG.
 
 Exact pack versions, source and payload checksums, installed sizes and artifact-specific release
