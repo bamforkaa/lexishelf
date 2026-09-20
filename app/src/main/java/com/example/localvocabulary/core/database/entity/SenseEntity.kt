@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("entry_id")],
+    indices = [Index("entry_id"), Index(value = ["stable_id"], unique = true)],
 )
 data class SenseEntity(
     @PrimaryKey(autoGenerate = true)
@@ -32,4 +32,6 @@ data class SenseEntity(
     val grammaticalGender: String? = null,
     @ColumnInfo(name = "grammatical_gender_raw")
     val grammaticalGenderRaw: String? = null,
+    @ColumnInfo(name = "stable_id", defaultValue = "''")
+    val stableId: String = java.util.UUID.randomUUID().toString(),
 )

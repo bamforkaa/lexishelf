@@ -1,5 +1,9 @@
 package com.example.localvocabulary.vocabulary.data
 
+import com.example.localvocabulary.core.database.dao.ExampleWrite
+
+import com.example.localvocabulary.vocabulary.domain.VocabularyExampleDraft
+
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
@@ -64,7 +68,7 @@ class RoomVocabularyRepositoryTest {
     @Test
     fun `creating an entry writes timestamps and the complete aggregate`() = runTest {
         val dao = FakeVocabularyDao()
-        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, StableIdGenerator { "entry-new" })
+        val repository = RoomVocabularyRepository(dao, TimeProvider { 500 }, com.example.localvocabulary.core.common.UuidStableIdGenerator)
 
         val id = repository.save(
             ValidatedVocabularyDraft(
@@ -72,7 +76,7 @@ class RoomVocabularyRepositoryTest {
                 headword = "created",
                 languageTag = "en",
                 senses = listOf(
-                    VocabularySenseDraft("first", "noun", listOf("one", "two")),
+                    VocabularySenseDraft("first", "noun", listOf("one", "two").map { VocabularyExampleDraft(text = it) }),
                     VocabularySenseDraft("second", "verb", emptyList()),
                 ),
                 notes = "note",
@@ -84,7 +88,7 @@ class RoomVocabularyRepositoryTest {
         assertEquals(500L, dao.storedEntry?.createdAtEpochMillis)
         assertEquals(500L, dao.storedEntry?.modifiedAtEpochMillis)
         assertEquals(listOf("first", "second"), dao.savedSenses.map { it.meaning })
-        assertEquals(listOf("one", "two"), dao.savedSenses.first().examples)
+        assertEquals(listOf("one", "two"), dao.savedSenses.first().examples.map { it.text })
         assertEquals(setOf(2L, 3L), dao.savedTagIds)
     }
 
@@ -108,7 +112,7 @@ class RoomVocabularyRepositoryTest {
                 id = 8,
                 headword = "edited",
                 languageTag = "en",
-                senses = listOf(VocabularySenseDraft("new meaning", "noun", listOf("example"))),
+                senses = listOf(VocabularySenseDraft("new meaning", "noun", listOf("example").map { VocabularyExampleDraft(text = it) })),
                 notes = "user text",
                 tagIds = setOf(2, 3),
             ),
@@ -127,7 +131,7 @@ class RoomVocabularyRepositoryTest {
         val repository = RoomVocabularyRepository(
             dao,
             TimeProvider { 500 },
-            StableIdGenerator { "entry-imported" },
+            com.example.localvocabulary.core.common.UuidStableIdGenerator,
         )
         val provenance = DictionaryProvenance(
             providerId = "cc-cedict",
@@ -165,7 +169,7 @@ class RoomVocabularyRepositoryTest {
     @Test
     fun `repository maps pronunciation stable identity and grammatical gender`() = runTest {
         val dao = FakeVocabularyDao()
-        val stableIds = ArrayDeque(listOf("entry-id", "pronunciation-id"))
+        val stableIds = ArrayDeque(listOf("entry-id", "sense-id", "pronunciation-id"))
         val repository = RoomVocabularyRepository(
             dao,
             TimeProvider { 500 },
@@ -318,6 +322,15 @@ private class FakeVocabularyDao(
         storedEntry = null
     }
 
+    override suspend fun findSense(stableId: String): SenseEntity? = null
+    override suspend fun findExample(stableId: String): ExampleEntity? = null
+    override suspend fun updateSense(sense: SenseEntity): Int = error("Unexpected update")
+    override suspend fun updateExample(example: ExampleEntity): Int = error("Unexpected update")
+    override suspend fun deleteRemovedSenses(entryId: Long, retainedIds: List<String>) = Unit
+    override suspend fun deleteExamples(senseId: Long) = Unit
+    override suspend fun deleteRemovedExamples(senseId: Long, retainedIds: List<String>) = Unit
+    override suspend fun deleteSenseProvenance(senseId: Long) = Unit
+
     override suspend fun deleteSenses(entryId: Long) {
         savedSenses.clear()
     }
@@ -336,7 +349,7 @@ private class FakeVocabularyDao(
     override suspend fun insertExamples(examples: List<ExampleEntity>) {
         if (examples.isNotEmpty()) {
             val last = savedSenses.last()
-            savedSenses[savedSenses.lastIndex] = last.copy(examples = examples.map { it.text })
+            savedSenses[savedSenses.lastIndex] = last.copy(examples = last.examples + examples.map { ExampleWrite(text = it.text, stableId = it.stableId) })
         }
     }
 

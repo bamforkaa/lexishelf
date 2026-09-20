@@ -1,12 +1,12 @@
 package com.example.localvocabulary.backup.domain
 
 interface BackupSerializer {
-    fun encode(backup: VocabularyBackupV2): String
+    fun encode(backup: VocabularyBackupV8): String
     fun decode(json: String): BackupDecodeResult
 }
 
 interface VocabularyBackupRepository {
-    suspend fun createBackup(): VocabularyBackupV2
+    suspend fun createBackup(): VocabularyBackupV8
 
     suspend fun previewImport(
         backup: ValidatedBackup,

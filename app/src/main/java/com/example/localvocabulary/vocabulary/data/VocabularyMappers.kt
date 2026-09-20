@@ -1,5 +1,7 @@
 package com.example.localvocabulary.vocabulary.data
 
+import com.example.localvocabulary.vocabulary.domain.ExampleOrigin
+
 import com.example.localvocabulary.core.database.relation.VocabularyEntryWithDetails
 import com.example.localvocabulary.core.database.relation.VocabularyListEntryWithDetails
 import com.example.localvocabulary.vocabulary.domain.ExampleSentence
@@ -24,11 +26,20 @@ internal fun VocabularyEntryWithDetails.toDomain(): VocabularyEntry = Vocabulary
         .map { relation ->
             VocabularySense(
                 id = relation.sense.id,
+                stableId = relation.sense.stableId,
                 meaning = relation.sense.meaning,
                 partOfSpeech = relation.sense.partOfSpeech,
                 examples = relation.examples
                     .sortedBy { it.sortOrder }
-                    .map { ExampleSentence(id = it.id, text = it.text) },
+                    .map {
+                        ExampleSentence(
+                            id = it.id, text = it.text, stableId = it.stableId,
+                            meaning = it.meaning,
+                            origin = ExampleOrigin.valueOf(it.origin),
+                            sourceTitle = it.sourceTitle, sourceUrl = it.sourceUrl,
+                            sourceLocator = it.sourceLocator, capturedAt = it.capturedAt,
+                        )
+                    },
                 provenance = relation.provenance?.let { provenance ->
                     DictionaryProvenance(
                         providerId = provenance.providerId,

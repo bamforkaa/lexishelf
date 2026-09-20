@@ -38,6 +38,7 @@ class WordDetailScreenTest {
             }
         }
 
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("JLPT N2"))
         composeRule.onNodeWithText("JLPT N2").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assertEquals(7L, openedTagId) }
     }
@@ -92,6 +93,7 @@ class WordDetailScreenTest {
             }
         }
 
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("IPA · /taberu/"))
         composeRule.onNodeWithText("IPA · /taberu/").assertIsDisplayed()
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("동사 · common"))
         composeRule.onNodeWithText("동사 · common").assertIsDisplayed()

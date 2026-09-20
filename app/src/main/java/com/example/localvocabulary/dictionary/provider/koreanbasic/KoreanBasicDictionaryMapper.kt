@@ -1,5 +1,6 @@
 package com.example.localvocabulary.dictionary.provider.koreanbasic
 
+import com.example.localvocabulary.dictionary.domain.DictionaryLookupKind
 import com.example.localvocabulary.dictionary.domain.DictionaryLanguagePair
 import com.example.localvocabulary.dictionary.domain.DictionaryMeaning
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderDescriptor
@@ -68,6 +69,7 @@ private fun List<KoreanBasicDictionaryRecord>.toReverseEntries(
         sourceEntryId = first.stableSourceEntryId,
         datasetVersion = datasetVersion,
         headword = queryText,
+        lookupKind = DictionaryLookupKind.REVERSE_TRANSLATION,
         sourceLanguage = languagePair.sourceLanguage,
         senses = listOf(
             ExternalDictionarySense(
@@ -78,7 +80,8 @@ private fun List<KoreanBasicDictionaryRecord>.toReverseEntries(
                         kind = languagePair.resultKind,
                     ),
                 ),
-                partOfSpeech = first.partOfSpeech,
+                // The POS belongs to the Korean headword, not the reverse translation.
+                partOfSpeech = null,
                 sourceSenseId = first.officialSenseId,
             ),
         ),

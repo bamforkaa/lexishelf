@@ -1,157 +1,92 @@
-# JSON 백업 및 복원
+# 백업 형식과 호환성
 
-## 범위와 안전 원칙
+LexiShelf의 canonical backup은 UTF-8 JSON이며 `format`은 `local-vocabulary-backup`, 현재 `schemaVersion`은 **8**입니다. 백업 버전은 Room schema 버전과 독립적입니다.
 
-canonical backup은 앱의 vocabulary aggregate를 담는 UTF-8 JSON입니다. 단어, BCP 47 언어 태그, reading, 순서가 있는 발음과 뜻/품사/문법 성/예문, 메모, 서로 분리된 Wordbook/Tag와 각 다대다 관계, 생성·수정 시간을 포함합니다. schema v5는 v4에 stable pronunciation과 sense grammatical gender를 추가합니다. 직접 작성한 field에는 provenance가 없습니다. 현재 domain model에는 favorite와 review metadata가 없어 backup에도 존재하지 않습니다.
+## JSON 구조
 
-DataStore 설정, API key, credential, secret, Android 설정, Room 내부 PK는 포함하지 않습니다. 앱에는 인터넷 또는 공용 저장소 권한이 없으며 Android Storage Access Framework(SAF)의 시스템 파일 선택기로 사용자가 읽고 쓸 문서를 직접 선택합니다.
+최상위 필드는 `format`, `schemaVersion`, `exportedAtEpochMillis`, `entries`, `tags`, `wordbooks`, `reviewStates`, `reviewEvents`입니다. 빈 백업은 빈 목록으로 표현합니다.
 
-## Stable ID
+| 데이터 | 보존 대상 |
+| --- | --- |
+| Entry | stable ID, 단어·표현, BCP 47 언어 태그, reading, 발음, 뜻, 메모, 생성·수정 시각, Tag·Wordbook 관계 |
+| Sense | stable ID, 뜻, 품사, 문법 성, 예문, 사전 provenance |
+| Example | stable ID, 원문, 의미·설명, origin, 콘텐츠 출처, 기록 시각 |
+| Pronunciation | stable ID, 표기 종류와 값, 언어 태그, 사전 provenance |
+| Tag / Wordbook | 각각 독립된 stable ID와 이름 |
+| ReviewState / ReviewEvent | 뜻별 일정, 문제별 출제 방향, 활성 여부, scheduler 버전·generation, 평가·재시도·초기화 이력 |
 
-Room의 auto-generated `Long` PK는 한 DB 안의 관계 연결에 적합하지만 DB를 새로 만들면 달라질 수 있어 영구 백업 식별자로 사용하지 않습니다. 단어, pronunciation, Tag, Wordbook에는 별도의 opaque `stableId`가 있습니다.
+Sense·Example·Pronunciation 배열 순서는 보존합니다. `tagStableIds`와 `wordbookStableIds`는 해당 최상위 목록을 참조합니다. 정확한 필드·타입·기본값은 [BackupModels.kt](../app/src/main/java/com/example/localvocabulary/backup/domain/BackupModels.kt)와 [ReviewBackupModels.kt](../app/src/main/java/com/example/localvocabulary/backup/domain/ReviewBackupModels.kt)에 정의합니다.
 
-- 신규 데이터: UUID 문자열
-- Room v1에서 v2로 migration되는 기존 데이터: row마다 생성한 고유 32자리 lowercase hex 문자열
-- JSON: 이 opaque 값을 그대로 보존하되 형식은 `[A-Za-z0-9._:-]`, 길이 1~128자로 제한
-- headword와 언어가 같아도 stable ID가 다르면 서로 독립된 사용자 항목으로 취급
+Room 내부 PK, 앱 설정, 인증 정보, 사전 dataset 파일은 백업 대상이 아닙니다.
 
-이 방식은 동일 백업을 반복 import할 때만 같은 항목을 확실히 찾으며, 내용이 비슷하다는 이유로 사용자의 다른 항목을 자동 덮어쓰지 않습니다.
+## 지원 버전
 
-## Backup schema version 5
+현재 내보내기는 v8, 가져오기는 **v1~v8**를 지원합니다. 구형 파일은 현재 모델로 변환합니다. 지원하지 않는 버전은 거부하며, 구버전 앱이 새 백업을 읽는 호환성은 보장하지 않습니다.
 
-Room schema version과 backup schema version은 독립적입니다. 현재 Room은 version 6이고 canonical JSON은 `schemaVersion: 5`입니다. v5는 entry `pronunciations`와 sense `grammaticalGender`를 추가합니다. schema v1/v2/v3/v4 import도 계속 지원하며 새 필드는 빈 상태로 해석합니다. v4의 Wordbook과 v1/v2의 reading/provenance 호환 규칙도 유지합니다.
+| 버전 | 추가된 형식 |
+| --- | --- |
+| v1 | Entry·Tag stable ID, 복수 뜻과 문자열 예문, 메모·시각 |
+| v2 | 사전 provenance |
+| v3 | Reading과 그 provenance |
+| v4 | Wordbook과 Entry 관계 |
+| v5 | Stable ID를 가진 발음, 문법 성 |
+| v6 | Sense·Example stable ID, 객체형 예문과 문맥 metadata |
+| v7 | 방향별 ReviewState·ReviewEvent |
+| v8 | 뜻별 단일 ReviewState, event의 promptDirection·legacyReviewStateId |
 
-```json
-{
-  "format": "local-vocabulary-backup",
-  "schemaVersion": 5,
-  "exportedAtEpochMillis": 1787331600000,
-  "tags": [
-    {
-      "stableId": "5ca63c70-6a7c-4de1-a873-650ab9bd5f48",
-      "name": "Study"
-    }
-  ],
-  "wordbooks": [
-    {
-      "stableId": "wordbook-jlpt-n2",
-      "name": "JLPT N2"
-    }
-  ],
-  "entries": [
-    {
-      "stableId": "b84e5373-6504-4ca6-913b-1572685fd067",
-      "headword": "dictionary",
-      "languageTag": "en",
-      "senses": [
-        {
-          "meaning": "사전",
-          "partOfSpeech": "noun",
-          "examples": [
-            "I checked the dictionary."
-          ],
-          "provenance": null,
-          "grammaticalGender": null
-        }
-      ],
-      "notes": "사용자가 작성한 메모",
-      "tagStableIds": [
-        "5ca63c70-6a7c-4de1-a873-650ab9bd5f48"
-      ],
-      "wordbookStableIds": [
-        "wordbook-jlpt-n2"
-      ],
-      "reading": "",
-      "readingProvenance": null,
-      "pronunciations": [
-        {
-          "stableId": "pronunciation-entry-1",
-          "notation": "IPA",
-          "value": "/ˈdɪk.ʃən.er.i/",
-          "languageTag": "en",
-          "provenance": null
-        }
-      ],
-      "createdAtEpochMillis": 1787331000000,
-      "modifiedAtEpochMillis": 1787331300000
-    }
-  ]
-}
-```
+v1~v5의 Sense·Example에는 ID가 없으므로 가져올 때 새 ID를 생성합니다. 한 번의 가져오기에서는 미리보기와 확정에 같은 ID를 사용하지만, 같은 구형 파일을 다시 가져오면 새 ID가 생성됩니다. 문자열이나 배열 위치로 기존 항목의 ID를 추측하지 않습니다.
 
-배열 순서 중 의미가 있는 것은 `entries[].senses`와 각 sense의 `examples`입니다. 분류 관계는 `tagStableIds`와 `wordbookStableIds`로 나타내며 각각 최상위 목록의 ID를 가리켜야 합니다. canonical export는 Wordbook/Tag/entry/relation ID를 stable ID 순서로 정렬합니다.
+## Stable ID와 데이터 보존
 
-Provider-derived sense와 pronunciation의 `provenance`는 다음 구조입니다. `importedFields`는 실제 복사된 `MEANING`, `PART_OF_SPEECH`, `EXAMPLES`, `GRAMMATICAL_GENDER`, `READING`, `PRONUNCIATION`을 해당 저장 위치에 맞게 허용합니다.
+- ID는 의미를 해석하지 않는 문자열입니다. 새 항목에는 UUID를 생성하며, 백업은 기존 값을 그대로 보존합니다. 허용 형식은 `[A-Za-z0-9._:-]{1,128}`입니다.
+- ID는 엔티티 종류별로 고유해야 합니다. Sense·Example ID는 부모 안에서만이 아니라 전체 백업에서 각각 고유해야 하며, v6 이후에는 누락도 거부합니다.
+- 단어와 언어가 같아도 Entry ID가 다르면 별개 항목입니다.
+- Room migration은 기존 내용·관계·ID를 보존해야 합니다. 새 식별자가 필요한 기존 행에만 ID를 부여하며, destructive migration으로 호환성 문제를 해결하지 않습니다.
+- 과거 백업에 없는 필드는 명시된 빈 값·null·기본값으로 변환합니다. 출처나 과거 시각을 만들어 채우지 않습니다.
 
-```json
-{
-  "providerId": "cc-cedict",
-  "sourceEntryId": "stable-provider-entry-key",
-  "sourceSenseId": "0",
-  "sourceName": "CC-CEDICT",
-  "sourceUrl": "https://cc-cedict.org/editor/editor.php?handler=Download",
-  "licenseName": "Creative Commons Attribution-ShareAlike 4.0 International",
-  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
-  "datasetVersion": "2026-08-22T08:27:42Z",
-  "importedFields": ["MEANING"],
-  "importedAtEpochMillis": 1787331200000,
-  "modifiedAfterImport": false
-}
-```
+## 복원 정책
 
-이 metadata는 provider 원문을 user-authored text로 위장하지 않고 attribution과 수정 사실을 복원하기 위한 최소 정보입니다. API key, credential, dataset binary, transient forms는 포함하지 않습니다.
+| 정책 | 의미 |
+| --- | --- |
+| `MERGE_BY_STABLE_ID` (기본) | 같은 Entry ID의 전체 내용·관계·시각을 백업 값으로 갱신하고 새 ID는 추가합니다. 백업에 없는 기존 Entry는 유지합니다. 필드별 병합이나 최신 수정 시각 비교는 하지 않습니다. |
+| `REPLACE_ALL` | 현재 Entry·Tag·Wordbook을 제거하고 백업 snapshot을 복원합니다. 제거될 항목 수를 미리 보여주고 명시적 선택·확인 후 실행합니다. |
 
-`provenance`는 optional이며 없거나 null이면 user-authored sense입니다. 존재할 때는 provenance 구조의 필수 값과 imported field를 모두 검증합니다. 빈 DB는 빈 `tags`, `wordbooks`, `entries` 배열로 표현합니다. JSON의 unknown field도 현재는 거부합니다.
+v6 이후 병합은 같은 부모 아래 같은 ID의 Sense·Example을 갱신하면서 Room PK와 stable ID를 유지하고, 백업에서 빠진 자식 항목은 삭제합니다. 다른 부모에 속한 자식 ID의 재사용은 거부합니다. 전체 교체에서는 Room PK가 바뀔 수 있습니다.
 
-## Validation과 적용 순서
+Tag와 Wordbook은 각각 이름의 공백·대소문자를 정규화해 중복을 판별합니다. 병합 시 ID가 달라도 같은 종류에서 정규화된 이름이 같으면 기존 항목을 재사용하고 관계를 연결합니다.
 
-가져오기는 다음 단계를 순서대로 실행합니다.
+구형 백업으로 충돌 Entry를 복원하면 기존 Sense·Example과 새 문맥 정보가 교체될 수 있습니다. 미리보기에 교체될 기존 Sense 수와 문맥 손실 가능성을 표시하고 확인받습니다.
 
-1. 선택한 URI를 최대 25 MiB까지 읽고 malformed UTF-8을 거부합니다.
-2. JSON root object를 parsing합니다.
-3. `schemaVersion`을 먼저 확인합니다. 1, 2, 3, 4, 5를 지원합니다.
-4. 해당 version DTO 전체를 strict decoding하고 필수/unknown field를 확인합니다. v1은 별도 순수 변환으로 provenance 없는 v2 import model이 됩니다.
-5. format, stable ID, 중복 ID/분류 이름, BCP 47 태그, 필수 text, timestamps, sense/example, provenance, Wordbook/Tag reference를 검증하고 canonicalize합니다.
-6. 현재 DB와 비교해 entry/sense/example/tag, 충돌, 신규, 갱신, 건너뜀, 전체 교체 시 제거 수를 계산합니다.
-7. 사용자가 정책과 preview를 확인합니다. 이 시점까지 DB write는 없습니다.
-8. 확인 후 하나의 Room transaction에서 반영합니다. 어떤 DAO 작업이라도 실패하면 전체 rollback합니다.
+## 복습 데이터 호환성
 
-parse 또는 validation 실패 파일은 `ValidatedBackup`이 될 수 없으므로 repository import를 호출할 수 없습니다.
+- v1~v6에는 복습 정보가 없으며 가져오기로 자동 등록하지 않습니다. v6 병합은 동일 Sense ID가 남아 있으면 기존 복습 상태·이력도 유지합니다. v1~v5의 자식 교체 또는 Sense 삭제는 연결된 복습 데이터도 제거하므로 미리보기에서 제거 수를 알립니다.
+- 현재 버전 병합은 동일 ReviewState ID의 일정을 백업 값으로 복원하고, ReviewEvent는 ID로 중복을 제거해 합칩니다. 백업에 없는 기존 상태·이력은 Sense가 유지되는 한 보존합니다. 이전 일정으로 되돌아가는 상태 수를 미리 알립니다.
+- 같은 event ID의 내용이 다르거나, 상태 ID가 다른 Sense를 가리키거나, 같은 Sense에 다른 상태 ID가 있으면 병합을 거부합니다. immutable event를 조용히 덮어쓰지 않습니다.
+- v7은 원래 방향별 참조·재시도 관계를 검증한 뒤 뜻별로 변환합니다. 두 상태 중 사전식 순서로 앞선 ID를 대표 ID로 사용하고 stage·due는 최솟값, enabled는 하나라도 활성일 때 true로 정합니다. lastReviewedAt은 하나라도 null이면 null, 아니면 더 이른 값입니다. 단일 방향만 있는 경우도 같은 변환을 적용합니다.
+- 변환된 event는 ID·평가·시각·generation·RESET·재시도 연결을 보존하고, 원래 mode를 `promptDirection`, 원래 상태 ID를 `legacyReviewStateId`로 기록합니다. 현재 generation은 기존 상태·이력의 최댓값 다음으로 시작합니다(정수 최댓값에서는 유지). 두 과거 generation은 원래 상태 ID와 함께 해석해야 합니다.
+- 일부 방향만 담긴 v7 백업을 병합하면 같은 Sense의 기존 상태 ID에 연결하고 현재 generation을 낮추지 않습니다. 일정은 백업 snapshot으로 복원합니다. 이 예외는 v7 변환에만 적용되며 v8 ID 충돌을 자동 해소하지 않습니다. 알 수 없는 scheduler가 섞여 있으면 그 버전을 유지해 출제를 보류합니다.
+- `REPLACE_ALL`은 복습 상태·이력도 백업 snapshot으로 교체합니다. 구형 백업에는 이 정보가 없어 제거됩니다. 모든 변경은 vocabulary 복원과 같은 transaction입니다.
+- Import는 새 평가를 생성하거나 `nextReviewAt`을 재계산하지 않습니다. 알 수 없는 scheduler 버전은 그대로 보존하되 복습 queue에서 제외합니다. [복습 정책](review.md)을 참고하세요.
 
-## 충돌 정책
+## Provenance와 문맥 호환성
 
-검토한 전략은 다음과 같습니다.
+- 사전 provenance는 provider·원문 식별자, 출처·라이선스, dataset 버전, 복사한 필드, 가져온 시각, 수정 여부를 보존합니다. 없거나 null이라는 이유로 사용자 창작이라고 단정하지 않습니다. 라이선스·attribution은 [dictionary-sources.md](dictionary-sources.md)를 따릅니다.
+- 예문의 `meaning`은 사용자가 입력한 해석·설명입니다. `origin`은 `UNKNOWN`(출처 미상), `DICTIONARY`(사전), `CAPTURED`(접한 콘텐츠), `USER`(직접 작성) 중 하나입니다.
+- `sourceTitle`, `sourceUrl`, `sourceLocator`는 예문을 만난 콘텐츠의 출처이며 사전 provenance와 별개입니다. `capturedAt`은 nullable Unix epoch milliseconds입니다.
+- v1~v5 문자열 예문은 객체로 변환하되 `meaning`은 빈 문자열, `origin`은 `UNKNOWN`, 출처와 `capturedAt`은 null로 둡니다. 부모 Sense에 provenance가 있어도 예문의 출처를 추정하지 않습니다.
 
-| 전략 | 장점 | 위험/제한 | 초기 지원 |
-| --- | --- | --- | --- |
-| 기존 데이터 전체 교체 | 백업 시점과 정확히 같은 snapshot 복원 | 현재 데이터 삭제 위험이 가장 큼 | 명시적 선택으로 지원 |
-| 기존 유지 + 새 데이터만 병합 | 현재 데이터 보호 | 같은 stable ID의 백업 변경을 복원하지 못함 | 별도 정책으로 미지원 |
-| 동일 항목만 update | 기존 항목 복구에 명확 | 백업의 신규 항목을 복원하지 못함 | 별도 정책으로 미지원 |
-| 사용자 선택 | 목적에 맞춰 merge/replace 가능 | UI와 테스트 정책이 필요 | 두 정책 중 선택 지원 |
+## 검증과 rollback
 
-기본값은 `MERGE_BY_STABLE_ID`입니다. 같은 entry stable ID는 sense/example/Wordbook/Tag 관계와 timestamps를 포함한 aggregate 전체를 백업 값으로 갱신하고 새 stable ID는 추가하며 백업에 없는 기존 entry는 유지합니다. 서로 다른 두 버전의 필드를 섞는 field-level merge는 하지 않습니다.
+1. 파일 크기는 최대 25 MiB이며, 잘못된 UTF-8·JSON, 필수 필드 누락, 알 수 없는 필드·enum 값, 미지원 버전은 거부합니다.
+2. 전체 문서의 format, ID 형식·중복, 분류 이름 중복, 참조 관계, 필수 텍스트, 언어 태그, 시각, provenance를 검증합니다. 복습은 뜻별 상태의 유일성, event 종류·방향, 재시도의 부모·방향·generation 관계도 검증합니다.
+3. 검증된 데이터로 충돌·추가·갱신·제거와 구형 복원의 영향을 미리 보여줍니다. 사용자 확인 전에는 DB를 변경하지 않습니다.
+4. 복원은 하나의 Room transaction으로 실행합니다. 관계·소유권 충돌이나 쓰기 실패가 발생하면 삭제를 포함한 모든 변경을 rollback합니다.
 
-`REPLACE_ALL`은 현재 entry/Wordbook/Tag를 transaction 안에서 제거하고 백업 snapshot만 복원합니다. UI가 제거될 기존 entry 수를 표시하며 사용자가 선택하고 확인해야 실행합니다.
+내보내기는 일관된 DB snapshot을 읽으며 DB를 변경하지 않습니다. 복원 transaction의 rollback 보장은 내보내기 대상 파일의 원자적 교체를 보장한다는 의미는 아닙니다.
 
-Wordbook과 Tag는 각자 whitespace를 정규화하고 `Locale.ROOT` lowercase identity를 사용합니다. 서로 entity/repository를 공유하지 않지만, 같은 종류 안에서는 import stable ID가 달라도 normalized identity가 같으면 기존 row를 재사용합니다.
+## 향후 형식 변경 규칙
 
-## Versioning 정책
-
-새 필드나 의미 변경은 root version으로 명시하고 과거 파일의 의미를 바꾸지 않습니다.
-
-1. 과거에 없던 optional/default field는 명시적 version branch에서 현재 model로 올립니다.
-2. root의 `schemaVersion`으로 decoder를 명시적으로 분기합니다.
-3. v1/v2/v3을 현재 canonical import model로 올리는 순수 migration/defaulting을 유지합니다.
-4. 과거 fixture가 계속 import되는 migration/round-trip 테스트를 유지합니다.
-5. 정보 손실이나 정책 변경이 있는 migration은 자동 추측하지 않고 import를 중단해 사용자에게 알립니다.
-
-현재 v1/v2/v3/v4 decoder는 기존 단어/뜻/예문/태그/관계/timestamp/provenance/Wordbook을 보존하고 없던 pronunciation/gender만 empty로 둡니다. 향후 Room schema가 바뀌더라도 JSON 의미가 그대로라면 backup schema는 올릴 필요가 없습니다.
-
-## 수동 확인
-
-1. 목록 화면에서 `백업`을 누릅니다.
-2. `내보내기`를 누르고 시스템 파일 선택기에서 이름과 위치를 선택합니다.
-3. 성공 메시지를 확인합니다. export 실패는 Room 데이터에 영향을 주지 않습니다.
-4. `가져오기`에서 JSON을 선택하고 preview 수치를 확인합니다.
-5. 기본 병합 또는 전체 교체를 선택합니다. 전체 교체의 제거 수를 특히 확인합니다.
-6. `확인 후 복원`을 누르고 완료/실패 메시지를 확인합니다.
+1. JSON 필드·타입·enum 또는 의미가 바뀌면 backup schema version을 올립니다. JSON 계약에 영향이 없는 Room 변경만으로는 올리지 않습니다.
+2. 버전별 decoding과 현재 모델로의 변환을 유지하고, 새 필드의 기본값·누락 처리·기존 ID 보존 방식을 명시합니다. 과거 파일의 의미를 바꾸거나 알 수 없는 데이터를 조용히 버리지 않습니다.
+3. 모든 지원 버전의 fixture, 현재 버전 round-trip, ID·순서·관계·provenance·문맥 보존, 두 복원 정책, 잘못된 입력 거부와 transaction rollback 테스트를 유지합니다. Fixture에는 합성 데이터만 사용합니다.
+4. 구형 복원이 현재 정보를 잃게 한다면 미리보기·확인 절차를 함께 갱신합니다. 지원 버전과 이 문서를 같은 변경에서 갱신합니다.

@@ -56,6 +56,7 @@ private object Routes {
     const val WORD_DETAIL = "word/{entryId}"
     const val EDIT_WORD = "word/{entryId}/edit"
     const val WRITING_PRACTICE = "practice"
+    const val TODAY_REVIEW = "review/today"
     const val WORDBOOK_WRITING_PRACTICE = "practice/wordbook/{practiceWordbookId}"
 
     fun detail(entryId: Long) = "word/$entryId"
@@ -79,6 +80,7 @@ fun AppNavigation() {
                 onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenWritingPractice = { navController.navigate(Routes.WRITING_PRACTICE) },
+                onOpenTodayReview = { navController.navigate(Routes.TODAY_REVIEW) },
             )
         }
 
@@ -94,6 +96,7 @@ fun AppNavigation() {
                 onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenWritingPractice = { navController.navigate(Routes.WRITING_PRACTICE) },
+                onOpenTodayReview = { navController.navigate(Routes.TODAY_REVIEW) },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -114,6 +117,14 @@ fun AppNavigation() {
                     }
                 },
                 onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.TODAY_REVIEW) {
+            val viewModel = hiltViewModel<com.example.localvocabulary.feature.review.TodayReviewViewModel>()
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            com.example.localvocabulary.feature.review.TodayReviewScreen(
+                state, viewModel::onAction, onBack = { navController.popBackStack() },
             )
         }
 
@@ -234,11 +245,18 @@ private fun WordListDestination(
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenWritingPractice: () -> Unit,
+    onOpenTodayReview: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val viewModel = hiltViewModel<WordListViewModel>()
     val handwritingViewModel = hiltViewModel<HandwritingInputViewModel>()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val reviewViewModel = hiltViewModel<com.example.localvocabulary.feature.review.ReviewOverviewViewModel>()
+    val reviewQueue by reviewViewModel.queue.collectAsStateWithLifecycle()
+    val reviewError by reviewViewModel.error.collectAsStateWithLifecycle()
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        reviewViewModel.refresh()
+    }
     val handwritingState by handwritingViewModel.uiState.collectAsStateWithLifecycle()
     WordListScreen(
         state = state,
@@ -250,6 +268,9 @@ private fun WordListDestination(
         onOpenBackup = onOpenBackup,
         onOpenSettings = onOpenSettings,
         onOpenWritingPractice = onOpenWritingPractice,
+        onOpenTodayReview = onOpenTodayReview,
+        reviewQueue = reviewQueue,
+        reviewError = reviewError,
         onBack = onBack,
         handwritingState = handwritingState,
         onHandwritingAction = handwritingViewModel::onAction,

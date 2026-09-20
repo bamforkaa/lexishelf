@@ -1,6 +1,6 @@
 # LexiShelf Privacy Notice
 
-Last reviewed: 2026-08-31
+Last reviewed: 2026-09-21
 
 LexiShelf is a local-first Android vocabulary app. It has no user account, project-operated backend,
 cloud synchronization, advertising or app-owned analytics service. This notice describes the app
@@ -10,13 +10,17 @@ code in this repository and the third-party/network behavior it actually invokes
 
 LexiShelf stores vocabulary, meanings, selected original definitions, examples, reading,
 pronunciation, grammatical gender, notes, timestamps, tags, wordbooks, dictionary provenance and
-language settings in app-private storage. Installed dictionary packs, activation metadata and a
-cached public catalog are also local. The v0.1.0 domain model has no favorite or persistent review
-metadata.
+language settings in app-private storage. Examples can include a meaning or explanation, origin,
+source title, URL, location in the source and capture time. Today Review stores per-meaning review
+registration, schedules and assessment history, including prompt directions, retries and resets.
+Sentences saved during review become vocabulary examples. Installed dictionary packs, activation
+metadata and a cached public catalog are also local.
 
 Writing Practice is session-only and does not persist attempt history. Dictionary packs and ML Kit
 models are not part of the vocabulary JSON backup. Android platform backup/device transfer is
-disabled; users must create a JSON backup before uninstalling if they want to preserve vocabulary.
+disabled; users must create a JSON backup before uninstalling if they want to preserve vocabulary,
+context metadata and review state/history. Exported JSON is not encrypted by LexiShelf; the user
+chooses its destination through Android's file picker and controls access to that file.
 
 ## Handwriting
 
@@ -61,8 +65,15 @@ prefetch, cache or import the NAVER page.
 
 ### No vocabulary upload
 
-The app does not transmit the local vocabulary database, backups, meanings, examples, notes, tags or
-wordbooks to GitHub, Google, NAVER or a LexiShelf-operated service.
+The app does not automatically upload the local vocabulary database, backups, meanings, examples,
+notes, tags, wordbooks or review history to GitHub, Google, NAVER or a LexiShelf-operated service.
+The explicit external NAVER search described above sends the selected expression to the browser.
+
+### Saved source links
+
+When the user taps a context source link or dictionary attribution link, the app opens the URL
+with an external handler. That destination can receive the URL and ordinary browser/network
+metadata under its own privacy policy. Source URLs are not fetched to preview or enrich examples.
 
 ## Permissions and files
 
@@ -76,7 +87,9 @@ file the user explicitly selects.
 
 Deleting a dictionary pack removes only that app-private dictionary dataset and does not delete
 user vocabulary or backups. Clearing app data or uninstalling can delete the Room database,
-settings, installed packs and catalog cache. Use the in-app JSON export before doing so.
+including context and review records, settings, installed packs and catalog cache. Use the in-app
+JSON export before doing so. Removing a meaning also removes its associated review state/history;
+turning review off preserves them. Exported files remain in the destination chosen by the user.
 
 ## Distribution scope
 

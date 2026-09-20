@@ -1,6 +1,7 @@
 package com.example.localvocabulary.vocabulary.domain
 
 import java.util.Locale
+import kotlinx.serialization.Serializable
 
 data class VocabularyEntry(
     val id: Long,
@@ -25,8 +26,10 @@ data class VocabularySense(
     val examples: List<ExampleSentence>,
     val provenance: DictionaryProvenance? = null,
     val grammaticalGender: VocabularyGrammaticalGender? = null,
+    val stableId: String = "",
 )
 
+@Serializable
 enum class PronunciationNotation {
     IPA,
     PHONETIC,
@@ -43,6 +46,7 @@ data class VocabularyPronunciation(
     val provenance: DictionaryProvenance? = null,
 )
 
+@Serializable
 data class VocabularyPronunciationDraft(
     val stableId: String? = null,
     val notation: PronunciationNotation,
@@ -51,6 +55,7 @@ data class VocabularyPronunciationDraft(
     val provenance: DictionaryProvenance? = null,
 )
 
+@Serializable
 enum class GrammaticalGenderCategory {
     MASCULINE,
     FEMININE,
@@ -59,6 +64,7 @@ enum class GrammaticalGenderCategory {
     OTHER,
 }
 
+@Serializable
 data class VocabularyGrammaticalGender(
     val category: GrammaticalGenderCategory,
     val rawValue: String? = null,
@@ -102,6 +108,28 @@ data class VocabularyGrammaticalGender(
 data class ExampleSentence(
     val id: Long,
     val text: String,
+    val stableId: String = "",
+    val meaning: String = "",
+    val origin: ExampleOrigin = ExampleOrigin.UNKNOWN,
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null,
+    val sourceLocator: String? = null,
+    val capturedAt: Long? = null,
+)
+
+@Serializable
+enum class ExampleOrigin { UNKNOWN, DICTIONARY, CAPTURED, USER }
+
+@Serializable
+data class VocabularyExampleDraft(
+    val text: String,
+    val stableId: String? = null,
+    val meaning: String = "",
+    val origin: ExampleOrigin = ExampleOrigin.UNKNOWN,
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null,
+    val sourceLocator: String? = null,
+    val capturedAt: Long? = null,
 )
 
 data class VocabularyTag(
@@ -126,6 +154,7 @@ data class VocabularyWordbookSummary(
     val entryCount: Int,
 )
 
+@Serializable
 data class VocabularyEntryDraft(
     val id: Long? = null,
     val headword: String,
@@ -139,14 +168,17 @@ data class VocabularyEntryDraft(
     val wordbookIds: Set<Long> = emptySet(),
 )
 
+@Serializable
 data class VocabularySenseDraft(
     val meaning: String,
     val partOfSpeech: String,
-    val examples: List<String>,
+    val examples: List<VocabularyExampleDraft>,
     val provenance: DictionaryProvenance? = null,
     val grammaticalGender: VocabularyGrammaticalGender? = null,
+    val stableId: String? = null,
 )
 
+@Serializable
 enum class ImportedDictionaryField {
     MEANING,
     PART_OF_SPEECH,
@@ -156,6 +188,7 @@ enum class ImportedDictionaryField {
     GRAMMATICAL_GENDER,
 }
 
+@Serializable
 data class DictionaryProvenance(
     val providerId: String,
     val sourceEntryId: String?,

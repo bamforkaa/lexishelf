@@ -90,7 +90,7 @@ class KaikkiProviderTest {
         assertTrue(mapping.seed.draft.notes.isEmpty())
         assertEquals(
             listOf("Das Wasser ist kalt.", "Das Wasser kocht."),
-            sense.examples,
+            sense.examples.map { it.text },
         )
         assertEquals("kaikki", sense.provenance?.providerId)
         assertEquals("en-Wasser-de-adj-1", sense.provenance?.sourceSenseId)

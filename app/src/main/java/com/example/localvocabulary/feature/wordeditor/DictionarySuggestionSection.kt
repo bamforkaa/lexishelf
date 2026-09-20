@@ -1,5 +1,7 @@
 package com.example.localvocabulary.feature.wordeditor
 
+import com.example.localvocabulary.dictionary.domain.DictionaryLookupKind
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,17 +12,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
@@ -31,13 +37,17 @@ import com.example.localvocabulary.core.model.LanguageDisplayNameResolver
 import com.example.localvocabulary.dictionary.domain.ExternalDictionaryEntry
 import com.example.localvocabulary.dictionary.domain.DictionaryPronunciationNotation
 import com.example.localvocabulary.core.ui.component.MetadataLabel
-import com.example.localvocabulary.core.ui.component.SectionHeader
 
 @Composable
 internal fun DictionarySuggestionSection(
     state: WordEditorUiState,
     onAction: (WordEditorAction) -> Unit,
 ) {
+    if (state.synthesizedSuggestionGroups.isEmpty() && !state.isDictionarySearchInProgress &&
+        state.dictionarySuggestionMessage == null && state.dictionaryReference == null
+    ) return
+    val rows = state.synthesizedSuggestionGroups.toRows()
+    val selectableRowCount = rows.count { it is DictionarySuggestionRow.Candidate }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -45,10 +55,29 @@ internal fun DictionarySuggestionSection(
             .testTag("dictionary_suggestions"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SectionHeader(
-            title = "사전 제안",
-            supportingText = "뜻을 누를 때만 내 단어에 가져옵니다.",
-        )
+        TextButton(
+            onClick = { onAction(WordEditorAction.ToggleDictionarySuggestions) },
+            modifier = Modifier.fillMaxWidth().testTag("dictionary_suggestions_toggle")
+                .semantics {
+                    stateDescription = if (state.areDictionarySuggestionsExpanded) "펼쳐짐" else "접힘"
+                },
+        ) {
+            Text(
+                buildString {
+                    append("사전 제안")
+                    if (selectableRowCount > 0) append(" ${selectableRowCount}개")
+                    if (state.isDictionarySearchInProgress) append(" · 검색 중")
+                    append(if (state.areDictionarySuggestionsExpanded) " 접기" else " 보기")
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                if (state.areDictionarySuggestionsExpanded) Icons.Default.KeyboardArrowUp
+                else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+            )
+        }
+        if (!state.areDictionarySuggestionsExpanded) return@Column
         state.dictionarySuggestionMessage?.let { message ->
             Text(
                 message,
@@ -59,9 +88,7 @@ internal fun DictionarySuggestionSection(
         if (state.isDictionarySearchInProgress) {
             CircularProgressIndicator(modifier = Modifier.testTag("dictionary_suggestions_loading"))
         }
-        val rows = state.synthesizedSuggestionGroups.toRows()
         if (rows.isNotEmpty()) {
-            val selectableRowCount = rows.count { it is DictionarySuggestionRow.Candidate }
             if (selectableRowCount <= MAX_VISIBLE_SELECTABLE_ROWS) {
                 Column(
                     modifier = Modifier
@@ -104,6 +131,7 @@ private fun DictionarySuggestionRowContent(
     state: WordEditorUiState,
     onAction: (WordEditorAction) -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
     when (row) {
         is DictionarySuggestionRow.LanguageHeader -> {
             Text(
@@ -127,6 +155,7 @@ private fun DictionarySuggestionRowContent(
                 isSelected = row.candidate.key in state.selectedSuggestionKeys,
                 onClick = {
                     onAction(WordEditorAction.DictionarySuggestionSelected(row.candidate.primaryEntry))
+                    focusManager.clearFocus()
                 },
             )
         }
@@ -191,6 +220,11 @@ private fun DictionarySuggestionEntryRow(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(primaryMeaning, style = MaterialTheme.typography.bodyLarge)
+                candidate.sources.filter {
+                    it.entry.lookupKind == DictionaryLookupKind.REVERSE_TRANSLATION
+                }.forEach { source ->
+                    MetadataLabel("${source.providerName} · 번역어 역방향 조회 (영영사전 정의 아님)")
+                }
                 if (secondaryText.isNotBlank()) {
                     Text(
                         secondaryText,
@@ -343,12 +377,7 @@ private fun SelectedDictionaryReference(entry: ExternalDictionaryEntry) {
                     MetadataLabel(labels.accessibilityText)
                 }
             }
-            MetadataLabel(
-                listOfNotNull(
-                    entry.attribution.sourceName,
-                    entry.attribution.licenseShortName,
-                ).joinToString(" · "),
-            )
+            MetadataLabel(entry.attribution.sourceName.substringBefore(" · "))
             Text(
                 "참고 자료 자체는 사용자 입력란과 분리됩니다.",
                 style = MaterialTheme.typography.bodySmall,

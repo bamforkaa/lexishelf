@@ -2,6 +2,8 @@ package com.example.localvocabulary.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import com.example.localvocabulary.review.domain.ReviewLimits
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,7 +20,9 @@ class DataStoreSettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) : SettingsRepository {
     override val settings: Flow<AppSettings> = context.settingsDataStore.data.map { preferences ->
+        val totalLimit = (preferences[REVIEW_TOTAL_LIMIT] ?: 40).coerceIn(1, 500)
         AppSettings(
+            reviewLimits = ReviewLimits((preferences[REVIEW_NEW_LIMIT] ?: 15).coerceIn(0, minOf(100, totalLimit)), totalLimit),
             defaultLanguageTag = preferences[DEFAULT_LANGUAGE_TAG] ?: DEFAULT_LANGUAGE,
             userLanguageTags = preferences[USER_LANGUAGE_TAGS]
                 .orEmpty()
@@ -35,6 +39,13 @@ class DataStoreSettingsRepository @Inject constructor(
         context.settingsDataStore.edit { preferences ->
             preferences[DEFAULT_LANGUAGE_TAG] = normalized
             addUserLanguageTag(preferences, normalized)
+        }
+    }
+
+    override suspend fun setReviewLimits(limits: ReviewLimits) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[REVIEW_NEW_LIMIT] = limits.newPerDay
+            preferences[REVIEW_TOTAL_LIMIT] = limits.totalPerDay
         }
     }
 
@@ -59,6 +70,8 @@ class DataStoreSettingsRepository @Inject constructor(
     }
 
     private companion object {
+        val REVIEW_NEW_LIMIT = intPreferencesKey("review_new_limit")
+        val REVIEW_TOTAL_LIMIT = intPreferencesKey("review_total_limit")
         const val DEFAULT_LANGUAGE = "en"
         val DEFAULT_LANGUAGE_TAG = stringPreferencesKey("default_language_tag")
         val USER_LANGUAGE_TAGS = stringSetPreferencesKey("user_language_tags")

@@ -11,6 +11,8 @@ import com.example.localvocabulary.dictionary.registry.DictionaryProviderRegistr
 import com.example.localvocabulary.dictionary.pack.DictionaryPackInstallResult
 import com.example.localvocabulary.dictionary.pack.DictionaryPackRepository
 import com.example.localvocabulary.settings.SettingsRepository
+import com.example.localvocabulary.vocabulary.domain.VocabularyRepository
+import kotlinx.coroutines.flow.catch
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -23,11 +25,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
+    val reviewNewLimit: String = "15",
+    val reviewTotalLimit: String = "40",
     val isLoading: Boolean = true,
     val defaultLanguageTag: String = "en",
     val userLanguageTags: Set<String> = emptySet(),
     val message: String? = null,
     val dictionarySources: List<DictionarySourceUiState> = emptyList(),
+    val savedDictionarySources: List<DictionarySourceUiState> = emptyList(),
     val installedPacks: List<DictionaryPackUiState> = emptyList(),
     val catalogStatus: DictionaryCatalogStatusUiState = DictionaryCatalogStatusUiState.NotLoaded,
     val catalogPacks: List<DictionaryCatalogPackUiState> = emptyList(),
@@ -79,6 +84,7 @@ data class DictionarySourceUiState(
     val entryCount: Long?,
     val format: String?,
     val installedDatasetVersion: String? = null,
+    val savedDatasetVersion: String? = null,
 )
 
 data class DictionaryPackUiState(
@@ -92,6 +98,9 @@ data class DictionaryPackUiState(
 )
 
 sealed interface SettingsAction {
+    data class ReviewNewLimitChanged(val value: String) : SettingsAction
+    data class ReviewTotalLimitChanged(val value: String) : SettingsAction
+    data object SaveReviewLimits : SettingsAction
     data class DefaultLanguageChanged(val value: String) : SettingsAction
     data class UserLanguageAdded(val languageTag: String) : SettingsAction
     data object Save : SettingsAction
@@ -109,6 +118,7 @@ class SettingsViewModel @Inject constructor(
     providerRegistry: DictionaryProviderRegistry,
     private val dictionaryPackRepository: DictionaryPackRepository,
     private val dictionaryCatalogRepository: DictionaryCatalogRepository,
+    vocabularyRepository: VocabularyRepository,
 ) : ViewModel() {
     private val baseDictionarySources = providerRegistry.descriptors().map { descriptor ->
         DictionarySourceUiState(
@@ -132,6 +142,25 @@ class SettingsViewModel @Inject constructor(
     private val downloadJobs = mutableMapOf<String, Job>()
 
     init {
+        viewModelScope.launch {
+            vocabularyRepository.observeEntries().catch { error ->
+                mutableUiState.update { it.copy(message = error.message ?: "저장된 사전 출처를 불러오지 못했습니다.") }
+            }.collect { entries ->
+                val savedSources = entries.flatMap { entry ->
+                    listOfNotNull(entry.readingProvenance) + entry.pronunciations.mapNotNull { it.provenance } +
+                        entry.senses.mapNotNull { it.provenance }
+                }.map { provenance ->
+                    DictionarySourceUiState(
+                        providerId = provenance.providerId, providerName = provenance.sourceName.substringBefore(" · "),
+                        sourceUrl = provenance.sourceUrl, licenseName = provenance.licenseName,
+                        licenseUrl = provenance.licenseUrl, attributionNotice = provenance.sourceName,
+                        artifactName = null, releaseId = null, releasePageUrl = null, entryCount = null, format = null,
+                        savedDatasetVersion = provenance.datasetVersion,
+                    )
+                }.distinct().sortedWith(compareBy<DictionarySourceUiState> { it.providerName }.thenBy { it.sourceUrl })
+                mutableUiState.update { it.copy(savedDictionarySources = savedSources) }
+            }
+        }
         viewModelScope.launch {
             dictionaryPackRepository.installedPacks.collect { packs ->
                 mutableUiState.update { state ->
@@ -188,6 +217,8 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     defaultLanguageTag = settings.defaultLanguageTag,
+                    reviewNewLimit = settings.reviewLimits.newPerDay.toString(),
+                    reviewTotalLimit = settings.reviewLimits.totalPerDay.toString(),
                     userLanguageTags = settings.userLanguageTags,
                     dictionarySources = mutableUiState.value.dictionarySources,
                 )
@@ -198,6 +229,9 @@ class SettingsViewModel @Inject constructor(
 
     fun onAction(action: SettingsAction) {
         when (action) {
+            is SettingsAction.ReviewNewLimitChanged -> mutableUiState.update { it.copy(reviewNewLimit = action.value, message = null) }
+            is SettingsAction.ReviewTotalLimitChanged -> mutableUiState.update { it.copy(reviewTotalLimit = action.value, message = null) }
+            SettingsAction.SaveReviewLimits -> saveReviewLimits()
             is SettingsAction.DefaultLanguageChanged -> mutableUiState.update {
                 it.copy(defaultLanguageTag = action.value, message = null)
             }
@@ -209,6 +243,23 @@ class SettingsViewModel @Inject constructor(
             SettingsAction.RefreshDictionaryCatalog -> refreshDictionaryCatalog()
             is SettingsAction.DownloadDictionaryPack -> downloadPack(action.packId)
             is SettingsAction.CancelDictionaryPackDownload -> cancelDownload(action.packId)
+        }
+    }
+
+    private fun saveReviewLimits() {
+        val state = mutableUiState.value
+        val fresh = state.reviewNewLimit.toIntOrNull()
+        val total = state.reviewTotalLimit.toIntOrNull()
+        if (fresh == null || total == null || fresh !in 0..100 || total !in 1..500 || fresh > total) {
+            mutableUiState.update { it.copy(message = "신규는 0~100, 전체는 1~500이며 신규는 전체 이하로 입력하세요.") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                settingsRepository.setReviewLimits(com.example.localvocabulary.review.domain.ReviewLimits(fresh, total))
+                mutableUiState.update { it.copy(message = "복습량을 저장했습니다.") }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { mutableUiState.update { it.copy(message = error.message ?: "저장하지 못했습니다.") } }
         }
     }
 

@@ -35,9 +35,11 @@ User vocabulary is stored locally with Room. LexiShelf has no account system, pr
 backend, cloud sync, advertising or app analytics. Saved vocabulary and installed local dictionary
 packs remain available offline.
 
-This project began as a vocabulary app I wanted to build and use myself. The source code and
+This project began as a vocabulary app I wanted to design and use myself. The source code and
 installable APK are published to document its development and to let others with similar needs try
 the app or learn from its implementation.
+
+**Development note**: Implementation code was generated with OpenAI Codex based on requirements and architecture I defined, with iterative review, testing, and feedback throughout development.
 
 As a personal project, it does not come with a guaranteed update schedule or long-term support.
 
@@ -50,8 +52,10 @@ As a personal project, it does not come with a guaranteed update schedule or lon
 - Review and edit selected local dictionary results before saving
 - Find English lemmas from forms such as `is → be` and `went → go`
 - On-device handwriting recognition with optional ML Kit language models
+- Sense-level Today Review with balanced prompt directions, first-sense enrollment, self-assessment and history
+- Optional user-written examples and configurable daily limits (15 new / 40 total by default)
 - Session-only Writing Practice
-- Export versioned JSON backups and restore them with validation and an explicit conflict policy
+- Export JSON v8 including review history; restore v1–v8 with validation and an explicit conflict policy
 - Use the complete manual vocabulary workflow without installing dictionary data
 
 Words and phrases use the same `VocabularyEntry` model. Idioms, phrasal verbs, collocations and
@@ -175,7 +179,7 @@ local-first, offline design goals.
 
 This acknowledgement refers only to my personal experience several years ago; it is not intended
 as a comparison or assessment of VoCat's current features. LexiShelf is independently designed and
-implemented and is not affiliated with or officially associated with VoCat or DevStory.
+implemented and is not affiliated with VoCat or DevStory.
 
 ## Licenses and data sources
 
@@ -197,6 +201,7 @@ Detailed developer documentation is currently maintained primarily in Korean.
 - [Dictionary pack format and lifecycle](docs/dictionary-packs.md)
 - [Dictionary sources and licenses](docs/dictionary-sources.md)
 - [Backup format](docs/backup.md)
+- [Review system](docs/review.md)
 - [Public dictionary artifact audit](docs/public-dictionary-artifacts.md)
 - [APK verification](docs/apk-verification.md)
 - [Third-party software](docs/third-party-software.md)

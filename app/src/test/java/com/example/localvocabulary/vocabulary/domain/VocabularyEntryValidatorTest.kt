@@ -28,7 +28,7 @@ class VocabularyEntryValidatorTest {
                     VocabularySenseDraft(
                         meaning = "  색깔  ",
                         partOfSpeech = "  noun ",
-                        examples = listOf("  a bright colour  ", "  "),
+                        examples = listOf("  a bright colour  ", "  ").map { VocabularyExampleDraft(text = it) },
                     ),
                 ),
                 notes = "  British spelling  ",
@@ -42,7 +42,7 @@ class VocabularyEntryValidatorTest {
         assertEquals("en-GB", draft.languageTag)
         assertEquals("색깔", draft.senses.single().meaning)
         assertEquals("noun", draft.senses.single().partOfSpeech)
-        assertEquals(listOf("a bright colour"), draft.senses.single().examples)
+        assertEquals(listOf("a bright colour"), draft.senses.single().examples.map { it.text })
         assertEquals("British spelling", draft.notes)
     }
 

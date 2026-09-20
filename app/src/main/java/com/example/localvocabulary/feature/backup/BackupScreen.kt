@@ -104,6 +104,21 @@ fun BackupScreen(
                                 "충돌 ${preview.conflictCount}",
                         )
                         Text("새로 생성 ${preview.newEntryCount}, 갱신 ${preview.updatedEntryCount}, 건너뜀 ${preview.skippedEntryCount}")
+                        if (preview.legacyChildReplacementCount > 0) {
+                            Text(
+                                "구형 백업에는 문맥 정보와 뜻/예문 ID가 없습니다. 기존 뜻 ${preview.legacyChildReplacementCount}개와 그 문맥이 백업 내용으로 교체됩니다. 필요하면 취소하고 현재 데이터를 먼저 내보내세요.",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        if (preview.reviewStateRemovalCount > 0 || preview.reviewEventRemovalCount > 0) {
+                            Text(
+                                "복습 상태 ${preview.reviewStateRemovalCount}개와 기록 ${preview.reviewEventRemovalCount}개가 제거됩니다. 취소하고 현재 데이터를 먼저 내보낼 수 있습니다.",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        if (preview.reviewStateOverwriteCount > 0) {
+                            Text("복습 일정 ${preview.reviewStateOverwriteCount}개를 백업 시점으로 되돌립니다. 기존 평가 이력은 병합합니다.")
+                        }
                         if (preview.existingEntryRemovalCount > 0) {
                             Text(
                                 "기존 단어 ${preview.existingEntryRemovalCount}개가 제거됩니다.",

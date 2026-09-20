@@ -211,6 +211,8 @@ data class DictionaryQuery(
     }
 }
 
+enum class DictionaryLookupKind { DIRECT, REVERSE_TRANSLATION }
+
 data class ExternalDictionaryEntry(
     val providerId: DictionaryProviderId,
     val sourceEntryId: String?,
@@ -222,6 +224,7 @@ data class ExternalDictionaryEntry(
     val linguisticFeatures: DictionaryLinguisticFeatures = DictionaryLinguisticFeatures(),
     val senses: List<ExternalDictionarySense>,
     val attribution: DictionaryAttribution,
+    val lookupKind: DictionaryLookupKind = DictionaryLookupKind.DIRECT,
 )
 
 data class DictionaryWrittenForm(

@@ -3,20 +3,22 @@ package com.example.localvocabulary.backup.data
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupDecodeResult
 import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
-import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupEntryV6
 import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderCategoryV5
 import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderV5
 import com.example.localvocabulary.backup.domain.BackupPronunciationNotationV5
 import com.example.localvocabulary.backup.domain.BackupPronunciationV5
 import com.example.localvocabulary.backup.domain.BackupReadError
-import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupSenseV6
 import com.example.localvocabulary.backup.domain.BackupSerializer
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.BackupWordbookV4
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupV1
-import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.VocabularyBackupV6
+import com.example.localvocabulary.backup.domain.VocabularyBackupV7
+import com.example.localvocabulary.backup.domain.VocabularyBackupV8
 import com.example.localvocabulary.vocabulary.domain.VocabularyEntryDraft
 import com.example.localvocabulary.vocabulary.domain.GrammaticalGenderCategory
 import com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField
@@ -28,6 +30,10 @@ import com.example.localvocabulary.vocabulary.domain.VocabularySenseDraft
 import com.example.localvocabulary.vocabulary.domain.VocabularyValidationResult
 import com.example.localvocabulary.vocabulary.domain.normalizeTagName
 import com.example.localvocabulary.vocabulary.domain.normalizeWordbookName
+import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupExampleV6
 import javax.inject.Inject
 import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.SerializationException
@@ -47,7 +53,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         prettyPrintIndent = "  "
     }
 
-    override fun encode(backup: VocabularyBackupV2): String = json.encodeToString(backup)
+    override fun encode(backup: VocabularyBackupV8): String = json.encodeToString(backup)
 
     override fun decode(json: String): BackupDecodeResult {
         val root = try {
@@ -63,23 +69,17 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
             ?: return invalid("schemaVersion", "정수여야 합니다.")
 
         val document = when (version) {
-            1 -> decodeDocument<VocabularyBackupV1>(root)?.toCurrent()
-            2 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
-                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
-            )
-            3 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
-                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
-            )
-            4 -> decodeDocument<VocabularyBackupV2>(root)?.copy(
-                schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
-            )
-            CURRENT_BACKUP_SCHEMA_VERSION -> decodeDocument<VocabularyBackupV2>(root)
-            else -> return BackupDecodeResult.Failure(
-                BackupReadError.UnsupportedSchemaVersion(version),
-            )
+            1 -> decodeDocument<VocabularyBackupV1>(root)?.toLegacyV2()?.toCurrent()
+            in 2..5 -> decodeDocument<VocabularyBackupV2>(root)?.toCurrent()
+            6 -> decodeDocument<VocabularyBackupV6>(root)?.toCurrent()
+            7 -> decodeDocument<VocabularyBackupV7>(root)?.let { legacy ->
+                legacy.reviewValidationError()?.let { return invalid("review", it) }
+                legacy.toCurrent()
+            }
+            CURRENT_BACKUP_SCHEMA_VERSION -> decodeDocument<VocabularyBackupV8>(root)
+            else -> return BackupDecodeResult.Failure(BackupReadError.UnsupportedSchemaVersion(version))
         } ?: return decodeFailure(root, version)
-
-        return validate(document)
+        return validate(document, version)
     }
 
     private inline fun <reified T> decodeDocument(root: JsonObject): T? = try {
@@ -93,7 +93,10 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
     private fun decodeFailure(root: JsonObject, version: Int): BackupDecodeResult = try {
         when (version) {
             1 -> json.decodeFromJsonElement<VocabularyBackupV1>(root)
-            else -> json.decodeFromJsonElement<VocabularyBackupV2>(root)
+            in 2..5 -> json.decodeFromJsonElement<VocabularyBackupV2>(root)
+            6 -> json.decodeFromJsonElement<VocabularyBackupV6>(root)
+            7 -> json.decodeFromJsonElement<VocabularyBackupV7>(root)
+            else -> json.decodeFromJsonElement<VocabularyBackupV8>(root)
         }
         BackupDecodeResult.Failure(BackupReadError.MalformedJson)
     } catch (_: MissingFieldException) {
@@ -102,7 +105,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         BackupDecodeResult.Failure(BackupReadError.MalformedJson)
     }
 
-    private fun validate(document: VocabularyBackupV2): BackupDecodeResult {
+    private fun validate(document: VocabularyBackupV8, sourceVersion: Int): BackupDecodeResult {
         if (document.format != BACKUP_FORMAT_ID) {
             return invalid("format", "지원하는 vocabulary backup 파일이 아닙니다.")
         }
@@ -149,6 +152,8 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
 
         val entryIds = mutableSetOf<String>()
         val pronunciationIds = mutableSetOf<String>()
+        val senseIds = mutableSetOf<String>()
+        val exampleIds = mutableSetOf<String>()
         val normalizedEntries = document.entries.mapIndexed { entryIndex, entry ->
             if (!isValidStableId(entry.stableId)) {
                 return invalid("entries[$entryIndex].stableId", "유효한 stable ID가 아닙니다.")
@@ -182,6 +187,18 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
             }
 
             val senseDrafts = entry.senses.mapIndexed { senseIndex, sense ->
+                if (!isValidStableId(sense.stableId) || !senseIds.add(sense.stableId)) {
+                    return invalid("entries[$entryIndex].senses[$senseIndex].stableId", "Invalid or duplicate sense ID")
+                }
+                sense.examples.forEachIndexed { exampleIndex, example ->
+                    val path = "entries[$entryIndex].senses[$senseIndex].examples[$exampleIndex]"
+                    if (!isValidStableId(example.stableId) || !exampleIds.add(example.stableId)) {
+                        return invalid("$path.stableId", "Invalid or duplicate example ID")
+                    }
+                    if (example.text.isBlank() || (example.capturedAt ?: 0) < 0) {
+                        return invalid(path, "Example requires text and a nonnegative capture timestamp")
+                    }
+                }
                 val provenance = sense.provenance?.let {
                     validateProvenance(it)
                         ?: return invalid(
@@ -192,7 +209,8 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                 VocabularySenseDraft(
                     meaning = sense.meaning,
                     partOfSpeech = sense.partOfSpeech,
-                    examples = sense.examples,
+                    examples = sense.examples.map { it.toDraft() },
+                    stableId = sense.stableId,
                     provenance = provenance,
                     grammaticalGender = sense.grammaticalGender?.let { gender ->
                         gender.toDomainOrNull()
@@ -283,15 +301,16 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     return invalid("entries[$entryIndex]", validation.error.toString())
                 }
             }
-            BackupEntryV2(
+            BackupEntryV6(
                 stableId = entry.stableId,
                 headword = draft.headword,
                 languageTag = draft.languageTag,
                 senses = draft.senses.map { sense ->
-                    BackupSenseV2(
+                    BackupSenseV6(
                         meaning = sense.meaning,
                         partOfSpeech = sense.partOfSpeech,
-                        examples = sense.examples,
+                        examples = sense.examples.map { it.toBackupV6() },
+                        stableId = requireNotNull(sense.stableId),
                         provenance = sense.provenance?.toBackupV2(),
                         grammaticalGender = sense.grammaticalGender?.toBackupV5(),
                     )
@@ -317,6 +336,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
             )
         }
 
+        document.reviewValidationError()?.let { return invalid("review", it) }
         return BackupDecodeResult.Success(
             ValidatedBackup(
                 document.copy(
@@ -324,6 +344,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
                     entries = normalizedEntries,
                     wordbooks = normalizedWordbooks,
                 ),
+                sourceSchemaVersion = sourceVersion,
             ),
         )
     }
@@ -335,7 +356,7 @@ class KotlinxBackupSerializer @Inject constructor() : BackupSerializer {
         provenance.toDomain()
     }.getOrNull()
 
-    private fun VocabularyBackupV1.toCurrent(): VocabularyBackupV2 = VocabularyBackupV2(
+    private fun VocabularyBackupV1.toLegacyV2(): VocabularyBackupV2 = VocabularyBackupV2(
         format = format,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = exportedAtEpochMillis,

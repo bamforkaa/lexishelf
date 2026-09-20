@@ -1,5 +1,7 @@
 package com.example.localvocabulary.release
 
+import com.example.localvocabulary.core.database.dao.ExampleWrite
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
@@ -8,6 +10,9 @@ import com.example.localvocabulary.core.database.MIGRATION_2_3
 import com.example.localvocabulary.core.database.MIGRATION_3_4
 import com.example.localvocabulary.core.database.MIGRATION_4_5
 import com.example.localvocabulary.core.database.MIGRATION_5_6
+import com.example.localvocabulary.core.database.MIGRATION_6_7
+import com.example.localvocabulary.core.database.MIGRATION_8_9
+import com.example.localvocabulary.core.database.MIGRATION_7_8
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.PronunciationWrite
 import com.example.localvocabulary.core.database.dao.SenseWrite
@@ -51,6 +56,8 @@ class ReleaseUpdatePersistenceProbeTest {
                 MIGRATION_3_4,
                 MIGRATION_4_5,
                 MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8, MIGRATION_8_9,
             )
             .build()
 
@@ -82,7 +89,7 @@ class ReleaseUpdatePersistenceProbeTest {
                 modifiedAtEpochMillis = 1,
                 reading = "look forward to",
             ),
-            senses = listOf(SenseWrite("기대하다", "phrasal verb", listOf("I look forward to it."))),
+            senses = listOf(SenseWrite("기대하다", "phrasal verb", listOf("I look forward to it.").map { ExampleWrite(text = it) })),
             tagIds = setOf(tagId),
             wordbookIds = setOf(wordbookId),
             pronunciations = listOf(

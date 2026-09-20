@@ -1,17 +1,19 @@
 package com.example.localvocabulary.feature.backup
 
+import com.example.localvocabulary.backup.domain.BackupExampleV6
+
 import com.example.localvocabulary.backup.data.KotlinxBackupSerializer
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
-import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupEntryV6
 import com.example.localvocabulary.backup.domain.BackupFileStore
 import com.example.localvocabulary.backup.domain.BackupImportPreview
 import com.example.localvocabulary.backup.domain.BackupImportResult
-import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupSenseV6
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
 import com.example.localvocabulary.backup.domain.VocabularyBackupRepository
-import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.VocabularyBackupV8
 import com.example.localvocabulary.feature.wordlist.MainDispatcherRule
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -99,17 +101,22 @@ class BackupViewModelTest {
         assertFalse(viewModel.uiState.value.isBusy)
     }
 
-    private fun sampleBackup() = VocabularyBackupV2(
+    private fun sampleBackup() = VocabularyBackupV8(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 1_000,
         tags = emptyList(),
         entries = listOf(
-            BackupEntryV2(
+            BackupEntryV6(
                 stableId = "entry-one",
                 headword = "word",
                 languageTag = "en",
-                senses = listOf(BackupSenseV2("meaning", "noun", listOf("example"))),
+                senses = listOf(BackupSenseV6(
+                    meaning = "meaning",
+                    partOfSpeech = "noun",
+                    examples = listOf("example").map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it) },
+                    stableId = java.util.UUID.randomUUID().toString(),
+                )),
                 notes = "note",
                 tagStableIds = emptyList(),
                 createdAtEpochMillis = 100,
@@ -124,7 +131,7 @@ private class FakeBackupRepository : VocabularyBackupRepository {
     var importCalls = 0
     var lastPreviewPolicy: BackupConflictPolicy? = null
 
-    override suspend fun createBackup(): VocabularyBackupV2 = VocabularyBackupV2(
+    override suspend fun createBackup(): VocabularyBackupV8 = VocabularyBackupV8(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 1_000,

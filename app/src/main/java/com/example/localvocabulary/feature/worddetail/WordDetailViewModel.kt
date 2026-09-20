@@ -12,19 +12,27 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
+import com.example.localvocabulary.review.domain.ReviewRepository
+import com.example.localvocabulary.review.domain.ReviewState
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface WordDetailUiState {
     data object Loading : WordDetailUiState
-    data class Content(val entry: VocabularyEntry, val isDeleting: Boolean = false) : WordDetailUiState
+    data class Content(
+        val entry: VocabularyEntry, val isDeleting: Boolean = false,
+        val reviewStates: List<ReviewState> = emptyList(), val reviewError: String? = null,
+    ) : WordDetailUiState
     data object NotFound : WordDetailUiState
     data class Error(val message: String) : WordDetailUiState
 }
 
 sealed interface WordDetailAction {
     data object DeleteConfirmed : WordDetailAction
+    data class SetReviewEnabled(val senseId: String, val enabled: Boolean) : WordDetailAction
 }
 
 sealed interface WordDetailEffect {
@@ -35,14 +43,19 @@ sealed interface WordDetailEffect {
 class WordDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val vocabularyRepository: VocabularyRepository,
+    private val reviewRepository: ReviewRepository,
 ) : ViewModel() {
     private val entryId: Long = checkNotNull(savedStateHandle["entryId"])
     private val mutableEffects = MutableSharedFlow<WordDetailEffect>()
     val effects = mutableEffects.asSharedFlow()
 
-    val uiState: StateFlow<WordDetailUiState> = vocabularyRepository.observeEntry(entryId)
-        .map<VocabularyEntry?, WordDetailUiState> { entry ->
-            entry?.let(WordDetailUiState::Content) ?: WordDetailUiState.NotFound
+    private val reviewError = MutableStateFlow<String?>(null)
+    val uiState: StateFlow<WordDetailUiState> = combine(
+        vocabularyRepository.observeEntry(entryId), reviewRepository.observeStates(), reviewError,
+    ) { entry, reviews, error ->
+            if (entry == null) WordDetailUiState.NotFound else WordDetailUiState.Content(
+                entry, reviewStates = reviews.filter { state -> entry.senses.any { it.stableId == state.senseStableId } }, reviewError = error,
+            )
         }
         .catch { error ->
             emit(WordDetailUiState.Error(error.message ?: "단어를 불러오지 못했습니다."))
@@ -55,6 +68,13 @@ class WordDetailViewModel @Inject constructor(
 
     fun onAction(action: WordDetailAction) {
         when (action) {
+            is WordDetailAction.SetReviewEnabled -> viewModelScope.launch {
+                try {
+                    reviewRepository.setEnabled(action.senseId, action.enabled)
+                    reviewError.value = null
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { reviewError.value = error.message ?: "복습 설정을 저장하지 못했습니다." }
+            }
             WordDetailAction.DeleteConfirmed -> viewModelScope.launch {
                 vocabularyRepository.delete(entryId)
                 mutableEffects.emit(WordDetailEffect.Deleted)

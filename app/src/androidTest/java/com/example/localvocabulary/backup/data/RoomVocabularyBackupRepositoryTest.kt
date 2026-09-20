@@ -1,5 +1,9 @@
 package com.example.localvocabulary.backup.data
 
+import com.example.localvocabulary.backup.domain.BackupExampleV6
+
+import com.example.localvocabulary.core.database.dao.ExampleWrite
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -8,13 +12,13 @@ import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupConflictPolicy
 import com.example.localvocabulary.backup.domain.BackupDecodeResult
 import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
-import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupEntryV6
 import com.example.localvocabulary.backup.domain.BackupImportedFieldV2
-import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupSenseV6
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
 import com.example.localvocabulary.backup.domain.ValidatedBackup
-import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.VocabularyBackupV8
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.database.VocabularyDatabase
 import com.example.localvocabulary.core.database.dao.SenseWrite
@@ -66,14 +70,13 @@ class RoomVocabularyBackupRepositoryTest {
             senses = listOf(
                 SenseWrite(
                     "사전 / 詞典",
-                    "名詞",
-                    listOf("彼は辞書を引いた。", "他查了词典。"),
+                    "名詞", listOf("彼は辞書を引いた。", "他查了词典。").map { ExampleWrite(text = it) },
                     provenanceWrite(modified = true).copy(
                         importedFields = setOf("MEANING", "GRAMMATICAL_GENDER"),
                     ),
                     grammaticalGender = "NEUTER",
                 ),
-                SenseWrite("lexicon", "noun", listOf("café naïve façade")),
+                SenseWrite("lexicon", "noun", listOf("café naïve façade").map { ExampleWrite(text = it) }),
             ),
             notes = "ملاحظة عربية",
             tagIds = setOf(sharedTagId, japaneseTagId),
@@ -109,7 +112,7 @@ class RoomVocabularyBackupRepositoryTest {
             stableId = "entry-arabic",
             headword = "مُعْجَم",
             languageTag = "ar",
-            senses = listOf(SenseWrite("dictionary", "اسم", listOf("فَتَحَ الْمُعْجَمَ."))),
+            senses = listOf(SenseWrite("dictionary", "اسم", listOf("فَتَحَ الْمُعْجَمَ.").map { ExampleWrite(text = it) })),
             notes = "中文备注",
             tagIds = setOf(sharedTagId),
             createdAt = 300,
@@ -398,9 +401,9 @@ class RoomVocabularyBackupRepositoryTest {
         (serializer.decode(json) as BackupDecodeResult.Success).backup
 
     private fun backup(
-        entries: List<BackupEntryV2>,
+        entries: List<BackupEntryV6>,
         tags: List<BackupTagV1> = emptyList(),
-    ) = VocabularyBackupV2(
+    ) = VocabularyBackupV8(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 1_000,
@@ -414,11 +417,16 @@ class RoomVocabularyBackupRepositoryTest {
         languageTag: String = "en",
         meaning: String = "meaning",
         tagIds: List<String> = emptyList(),
-    ) = BackupEntryV2(
+    ) = BackupEntryV6(
         stableId = stableId,
         headword = headword,
         languageTag = languageTag,
-        senses = listOf(BackupSenseV2(meaning, "noun", listOf("example"))),
+        senses = listOf(BackupSenseV6(
+            meaning = meaning,
+            partOfSpeech = "noun",
+            examples = listOf("example").map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it) },
+            stableId = java.util.UUID.randomUUID().toString(),
+        )),
         notes = "note",
         tagStableIds = tagIds,
         createdAtEpochMillis = 100,

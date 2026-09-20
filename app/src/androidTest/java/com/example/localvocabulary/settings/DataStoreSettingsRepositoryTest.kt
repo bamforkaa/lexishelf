@@ -16,6 +16,17 @@ class DataStoreSettingsRepositoryTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
     @Test
+    fun reviewLimitsSurviveRecreationAndUpdateTogether() = runBlocking {
+        val repository = DataStoreSettingsRepository(context)
+        val previous = repository.settings.first().reviewLimits
+        try {
+            val limits = com.example.localvocabulary.review.domain.ReviewLimits(7, 20)
+            repository.setReviewLimits(limits)
+            assertEquals(limits, DataStoreSettingsRepository(context).settings.first().reviewLimits)
+        } finally { repository.setReviewLimits(previous) }
+    }
+
+    @Test
     fun canonicalCustomLanguageSurvivesRepositoryRecreationWithoutBuiltInDuplicates() = runBlocking {
         val repository = DataStoreSettingsRepository(context)
 

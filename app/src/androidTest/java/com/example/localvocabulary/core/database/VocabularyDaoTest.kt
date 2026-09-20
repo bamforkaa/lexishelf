@@ -1,5 +1,7 @@
 package com.example.localvocabulary.core.database
 
+import com.example.localvocabulary.core.database.dao.ExampleWrite
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -48,9 +50,9 @@ class VocabularyDaoTest {
                 SenseWrite(
                     meaning = "fortunate discovery",
                     partOfSpeech = "noun",
-                    examples = listOf("First example.", "Second example."),
+                    examples = listOf("First example.", "Second example.").map { ExampleWrite(text = it) },
                 ),
-                SenseWrite("unexpected event", "noun", listOf("Another example.")),
+                SenseWrite("unexpected event", "noun", listOf("Another example.").map { ExampleWrite(text = it) }),
             ),
             tagIds = setOf(firstTagId, secondTagId),
         )
@@ -78,7 +80,7 @@ class VocabularyDaoTest {
         val entryId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "old"),
             senses = listOf(
-                SenseWrite("old first", "noun", listOf("old example")),
+                SenseWrite("old first", "noun", listOf("old example").map { ExampleWrite(text = it) }),
                 SenseWrite("old second", "verb", emptyList()),
             ),
             tagIds = setOf(removedTagId, retainedTagId),
@@ -87,7 +89,7 @@ class VocabularyDaoTest {
         database.vocabularyDao().saveEntry(
             entry = entry(id = entryId, headword = "edited", notes = "edited note", modifiedAt = 2),
             senses = listOf(
-                SenseWrite("new first", "adjective", listOf("new one", "new two")),
+                SenseWrite("new first", "adjective", listOf("new one", "new two").map { ExampleWrite(text = it) }),
                 SenseWrite("new second", "noun", emptyList()),
             ),
             tagIds = setOf(retainedTagId, addedTagId),
@@ -129,7 +131,7 @@ class VocabularyDaoTest {
                 SenseWrite(
                     meaning = "water",
                     partOfSpeech = "noun",
-                    examples = listOf("Das Wasser ist kalt."),
+                    examples = listOf("Das Wasser ist kalt.").map { ExampleWrite(text = it) },
                     grammaticalGender = "NEUTER",
                 ),
             ),
@@ -177,8 +179,8 @@ class VocabularyDaoTest {
         val entryId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "word"),
             senses = listOf(
-                SenseWrite("first", "noun", listOf("one")),
-                SenseWrite("second", "verb", listOf("two")),
+                SenseWrite("first", "noun", listOf("one").map { ExampleWrite(text = it) }),
+                SenseWrite("second", "verb", listOf("two").map { ExampleWrite(text = it) }),
             ),
             tagIds = setOf(firstTagId, secondTagId),
         )
@@ -199,7 +201,7 @@ class VocabularyDaoTest {
         val retainedTagId = insertTag("Keep")
         database.vocabularyDao().saveEntry(
             entry = entry(headword = "word"),
-            senses = listOf(SenseWrite("meaning", "noun", listOf("example"))),
+            senses = listOf(SenseWrite("meaning", "noun", listOf("example").map { ExampleWrite(text = it) })),
             tagIds = setOf(deletedTagId, retainedTagId),
         )
 
@@ -221,7 +223,7 @@ class VocabularyDaoTest {
         val tagId = insertTag("음식")
         val entryId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "食べる"),
-            senses = listOf(SenseWrite("먹다", "동사", listOf("寿司を食べる。"))),
+            senses = listOf(SenseWrite("먹다", "동사", listOf("寿司を食べる。").map { ExampleWrite(text = it) })),
             tagIds = setOf(tagId),
             wordbookIds = setOf(firstWordbookId, secondWordbookId),
         )
@@ -244,7 +246,7 @@ class VocabularyDaoTest {
         val secondTagId = insertTag("Second")
         val firstEntryId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "Alpha", notes = "private memo"),
-            senses = listOf(SenseWrite("hidden needle", "noun", listOf("example phrase"))),
+            senses = listOf(SenseWrite("hidden needle", "noun", listOf("example phrase").map { ExampleWrite(text = it) })),
             tagIds = setOf(firstTagId, secondTagId),
         )
         database.vocabularyDao().saveEntry(
@@ -300,7 +302,7 @@ class VocabularyDaoTest {
         val japaneseId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "食べる", languageTag = "ja").copy(reading = "たべる"),
             senses = listOf(
-                SenseWrite("먹다", "verb", listOf("寿司を食べる。"), grammaticalGender = null),
+                SenseWrite("먹다", "verb", listOf("寿司を食べる。").map { ExampleWrite(text = it) }, grammaticalGender = null),
             ),
             tagIds = setOf(practiceTagId),
             wordbookIds = setOf(wordbookId),
@@ -354,7 +356,7 @@ class VocabularyDaoTest {
         val failure = runCatching {
             database.vocabularyDao().saveEntry(
                 entry = entry(id = 999, headword = "missing"),
-                senses = listOf(SenseWrite("meaning", "noun", listOf("example"))),
+                senses = listOf(SenseWrite("meaning", "noun", listOf("example").map { ExampleWrite(text = it) })),
                 tagIds = emptySet(),
             )
         }.exceptionOrNull()
@@ -370,7 +372,7 @@ class VocabularyDaoTest {
         val tagId = insertTag("Stable")
         val entryId = database.vocabularyDao().saveEntry(
             entry = entry(headword = "original"),
-            senses = listOf(SenseWrite("original meaning", "noun", listOf("original example"))),
+            senses = listOf(SenseWrite("original meaning", "noun", listOf("original example").map { ExampleWrite(text = it) })),
             tagIds = setOf(tagId),
         )
 

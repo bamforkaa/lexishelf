@@ -1,5 +1,9 @@
 package com.example.localvocabulary.feature.settings
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -13,6 +17,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -25,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogSection
@@ -42,6 +50,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onChooseDictionaryPack: () -> Unit,
 ) {
+    var showSavedSources by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -93,6 +102,21 @@ fun SettingsScreen(
                     }
                 }
 
+                item {
+                    SettingsSection {
+                        SectionHeader("하루 복습량", supportingText = "등록한 뜻 중 처음 학습할 수와 전체 정규 복습 수입니다. 재시도는 포함하지 않습니다.")
+                        OutlinedTextField(value = state.reviewNewLimit,
+                            onValueChange = { onAction(SettingsAction.ReviewNewLimitChanged(it)) },
+                            label = { Text("신규 학습 (0~100)") }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = state.reviewTotalLimit,
+                            onValueChange = { onAction(SettingsAction.ReviewTotalLimitChanged(it)) },
+                            label = { Text("전체 복습 (1~500, 신규 이상)") }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        Button(onClick = { onAction(SettingsAction.SaveReviewLimits) }) { Text("복습량 저장") }
+                        state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
                 item {
                     SettingsSection {
                         SectionHeader(
@@ -188,6 +212,19 @@ fun SettingsScreen(
                     DictionarySourceRow(source)
                     if (index < state.dictionarySources.lastIndex) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+                if (state.savedDictionarySources.isNotEmpty()) {
+                    item {
+                        TextButton(onClick = { showSavedSources = !showSavedSources },
+                            modifier = Modifier.testTag("saved_dictionary_sources")) {
+                            Text(if (showSavedSources) "저장된 항목의 출처 접기" else "저장된 항목의 출처 확인")
+                        }
+                    }
+                    if (showSavedSources) {
+                        itemsIndexed(state.savedDictionarySources, key = { index, _ -> "saved-source-$index" }) { _, source ->
+                            DictionarySourceRow(source)
+                        }
                     }
                 }
             }
@@ -325,13 +362,14 @@ private fun DictionarySourceRow(source: DictionarySourceUiState) {
     ) {
         Text(source.providerName, style = MaterialTheme.typography.titleMedium)
         source.attributionNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-        source.licenseName?.let { MetadataLabel("라이선스 · $it", maxLines = 3) }
+        source.licenseName?.let { Text("라이선스 · $it", style = MaterialTheme.typography.bodySmall) }
         (source.installedDatasetVersion ?: source.releaseId)?.let {
             MetadataLabel(
                 if (source.installedDatasetVersion != null) "설치 데이터 버전 · $it" else "데이터 버전 · $it",
                 maxLines = 2,
             )
         }
+        source.savedDatasetVersion?.let { MetadataLabel("저장된 출처 버전 · $it") }
         source.entryCount?.let { MetadataLabel("수록 항목 · $it") }
         source.format?.let { MetadataLabel("형식 · $it") }
         source.artifactName?.let { MetadataLabel("파일 · $it", maxLines = 2) }

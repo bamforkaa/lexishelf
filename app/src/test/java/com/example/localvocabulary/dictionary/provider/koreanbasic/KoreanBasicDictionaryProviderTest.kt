@@ -1,5 +1,7 @@
 package com.example.localvocabulary.dictionary.provider.koreanbasic
 
+import com.example.localvocabulary.dictionary.domain.DictionaryLookupKind
+
 import com.example.localvocabulary.dictionary.domain.Bcp47LanguageTag
 import com.example.localvocabulary.dictionary.domain.DictionaryAccess
 import com.example.localvocabulary.dictionary.domain.DictionaryCapability
@@ -186,7 +188,11 @@ class KoreanBasicDictionaryProviderTest {
 
         assertEquals("eat", mapping.seed.draft.headword)
         assertEquals("먹다", mapping.seed.draft.senses.single().meaning)
-        assertEquals("동사", mapping.seed.draft.senses.single().partOfSpeech)
+        assertEquals("", mapping.seed.draft.senses.single().partOfSpeech)
+        assertEquals(
+            DictionaryLookupKind.REVERSE_TRANSLATION,
+            entry.lookupKind,
+        )
         assertNotNull(provenance)
         assertEquals("korean-basic-dictionary", provenance?.providerId)
         assertEquals("100:먹다", provenance?.sourceEntryId)

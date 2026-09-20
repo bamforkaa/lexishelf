@@ -25,6 +25,12 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
     @Binds
     @Singleton
+    abstract fun bindReviewRepository(
+        implementation: com.example.localvocabulary.review.data.RoomReviewRepository,
+    ): com.example.localvocabulary.review.domain.ReviewRepository
+
+    @Binds
+    @Singleton
     abstract fun bindVocabularyBackupRepository(
         implementation: RoomVocabularyBackupRepository,
     ): VocabularyBackupRepository

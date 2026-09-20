@@ -165,8 +165,8 @@ android {
         applicationId = "io.github.bamfor.lexishelf"
         minSdk = 23
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -231,6 +231,9 @@ android {
 }
 
 androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variant ->
+        variant.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+    }
     onVariants(selector().withBuildType("debug")) { variant ->
         if (bundleDictionaryPacksInDebug) {
             variant.sources.assets?.addGeneratedSourceDirectory(

@@ -1,12 +1,16 @@
 package com.example.localvocabulary.dictionary.domain
 
+import com.example.localvocabulary.backup.domain.BackupExampleV6
+
+import com.example.localvocabulary.vocabulary.domain.VocabularyExampleDraft
+
 import com.example.localvocabulary.backup.data.KotlinxBackupSerializer
 import com.example.localvocabulary.backup.data.toBackupV2
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
-import com.example.localvocabulary.backup.domain.BackupEntryV2
-import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupEntryV6
+import com.example.localvocabulary.backup.domain.BackupSenseV6
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
-import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.VocabularyBackupV8
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMapper
 import com.example.localvocabulary.dictionary.importer.DictionaryEntryDraftMappingResult
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
@@ -231,7 +235,7 @@ class DictionaryProviderContractTest {
                 VocabularySenseDraft(
                     meaning = "my own meaning",
                     partOfSpeech = "my label",
-                    examples = listOf("my own example"),
+                    examples = listOf("my own example").map { VocabularyExampleDraft(text = it) },
                 ),
             ),
             notes = "my own note",
@@ -347,22 +351,23 @@ class DictionaryProviderContractTest {
 
     private fun language(tag: String) = Bcp47LanguageTag.requireValid(tag)
 
-    private fun ValidatedVocabularyDraft.toBackup() = VocabularyBackupV2(
+    private fun ValidatedVocabularyDraft.toBackup() = VocabularyBackupV8(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 1,
         tags = emptyList(),
         entries = listOf(
-            BackupEntryV2(
+            BackupEntryV6(
                 stableId = "manual-entry",
                 headword = headword,
                 languageTag = languageTag,
                 senses = senses.map { sense ->
-                    BackupSenseV2(
-                        sense.meaning,
-                        sense.partOfSpeech,
-                        sense.examples,
-                        sense.provenance?.toBackupV2(),
+                    BackupSenseV6(
+                        meaning = sense.meaning,
+                        partOfSpeech = sense.partOfSpeech,
+                        examples = sense.examples.map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it.text) },
+                        provenance = sense.provenance?.toBackupV2(),
+                        stableId = java.util.UUID.randomUUID().toString(),
                     )
                 },
                 notes = notes,

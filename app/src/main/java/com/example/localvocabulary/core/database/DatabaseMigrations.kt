@@ -185,3 +185,57 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
     }
 }
+
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // No existing sense is enrolled automatically.
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS review_states (
+                stable_id TEXT NOT NULL PRIMARY KEY, sense_stable_id TEXT NOT NULL,
+                mode TEXT NOT NULL, enabled INTEGER NOT NULL, stage INTEGER NOT NULL,
+                last_reviewed_at INTEGER, next_review_at INTEGER NOT NULL,
+                scheduler_version TEXT NOT NULL, generation INTEGER NOT NULL,
+                FOREIGN KEY(sense_stable_id) REFERENCES senses(stable_id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE UNIQUE INDEX index_review_states_sense_stable_id_mode ON review_states(sense_stable_id, mode)")
+        database.execSQL("CREATE INDEX index_review_states_next_review_at ON review_states(next_review_at)")
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS review_events (
+                stable_id TEXT NOT NULL PRIMARY KEY, review_state_id TEXT NOT NULL,
+                reviewed_at INTEGER NOT NULL, rating TEXT, kind TEXT NOT NULL,
+                scheduler_version TEXT NOT NULL, generation INTEGER NOT NULL,
+                was_new INTEGER NOT NULL, session_id TEXT, retry_of_event_id TEXT,
+                FOREIGN KEY(review_state_id) REFERENCES review_states(stable_id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX index_review_events_review_state_id ON review_events(review_state_id)")
+        database.execSQL("CREATE INDEX index_review_events_reviewed_at ON review_events(reviewed_at)")
+        database.execSQL("CREATE UNIQUE INDEX index_review_events_retry_of_event_id ON review_events(retry_of_event_id)")
+    }
+}
+
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // ALTER preserves Long primary keys and every existing foreign-key reference.
+        for (table in listOf("senses", "examples")) {
+            database.execSQL("ALTER TABLE $table ADD COLUMN stable_id TEXT NOT NULL DEFAULT ''")
+            database.query("SELECT id FROM $table").use { rows ->
+                while (rows.moveToNext()) {
+                    database.execSQL(
+                        "UPDATE $table SET stable_id = ? WHERE id = ?",
+                        arrayOf<Any>(java.util.UUID.randomUUID().toString(), rows.getLong(0)),
+                    )
+                }
+            }
+            database.execSQL("CREATE UNIQUE INDEX index_${table}_stable_id ON $table(stable_id)")
+        }
+        database.execSQL("ALTER TABLE examples ADD COLUMN meaning TEXT NOT NULL DEFAULT ''")
+        database.execSQL("ALTER TABLE examples ADD COLUMN origin TEXT NOT NULL DEFAULT 'UNKNOWN'")
+        database.execSQL("ALTER TABLE examples ADD COLUMN source_title TEXT")
+        database.execSQL("ALTER TABLE examples ADD COLUMN source_url TEXT")
+        database.execSQL("ALTER TABLE examples ADD COLUMN source_locator TEXT")
+        database.execSQL("ALTER TABLE examples ADD COLUMN captured_at INTEGER")
+    }
+}

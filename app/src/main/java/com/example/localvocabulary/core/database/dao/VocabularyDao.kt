@@ -23,10 +23,22 @@ import kotlinx.coroutines.flow.Flow
 data class SenseWrite(
     val meaning: String,
     val partOfSpeech: String,
-    val examples: List<String>,
+    val examples: List<ExampleWrite>,
     val provenance: SenseDictionaryProvenanceWrite? = null,
     val grammaticalGender: String? = null,
     val grammaticalGenderRaw: String? = null,
+    val stableId: String = java.util.UUID.randomUUID().toString(),
+)
+
+data class ExampleWrite(
+    val text: String,
+    val stableId: String = java.util.UUID.randomUUID().toString(),
+    val meaning: String = "",
+    val origin: String = "UNKNOWN",
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null,
+    val sourceLocator: String? = null,
+    val capturedAt: Long? = null,
 )
 
 data class PronunciationWrite(
@@ -252,6 +264,30 @@ interface VocabularyDao {
     @Query("DELETE FROM senses WHERE entry_id = :entryId")
     suspend fun deleteSenses(entryId: Long)
 
+    @Query("SELECT * FROM senses WHERE stable_id = :stableId")
+    suspend fun findSense(stableId: String): SenseEntity?
+
+    @Query("SELECT * FROM examples WHERE stable_id = :stableId")
+    suspend fun findExample(stableId: String): ExampleEntity?
+
+    @Update
+    suspend fun updateSense(sense: SenseEntity): Int
+
+    @Update
+    suspend fun updateExample(example: ExampleEntity): Int
+
+    @Query("DELETE FROM senses WHERE entry_id = :entryId AND stable_id NOT IN (:retainedIds)")
+    suspend fun deleteRemovedSenses(entryId: Long, retainedIds: List<String>)
+
+    @Query("DELETE FROM examples WHERE sense_id = :senseId")
+    suspend fun deleteExamples(senseId: Long)
+
+    @Query("DELETE FROM examples WHERE sense_id = :senseId AND stable_id NOT IN (:retainedIds)")
+    suspend fun deleteRemovedExamples(senseId: Long, retainedIds: List<String>)
+
+    @Query("DELETE FROM sense_dictionary_provenance WHERE sense_id = :senseId")
+    suspend fun deleteSenseProvenance(senseId: Long)
+
     @Insert
     suspend fun insertSense(sense: SenseEntity): Long
 
@@ -309,7 +345,24 @@ interface VocabularyDao {
             entry.id
         }
 
-        deleteSenses(entryId)
+        require(senses.map { it.stableId }.distinct().size == senses.size) {
+            "Duplicate sense identities"
+        }
+        val exampleIds = senses.flatMap { it.examples }.map { it.stableId }
+        require(exampleIds.distinct().size == exampleIds.size) { "Duplicate example identities" }
+        // Check ownership before deletions so a backup cannot move a child between parents.
+        senses.forEach { sense ->
+            val existing = findSense(sense.stableId)
+            require(existing == null || existing.entryId == entryId) { "Sense belongs to another entry" }
+            sense.examples.forEach { example ->
+                val existingExample = findExample(example.stableId)
+                require(existingExample == null || existingExample.senseId == existing?.id) {
+                    "Example belongs to another sense"
+                }
+            }
+        }
+        if (senses.isEmpty()) deleteSenses(entryId)
+        else deleteRemovedSenses(entryId, senses.map { it.stableId })
         deleteEntryProvenance(entryId)
         readingProvenance?.let { provenance ->
             insertEntryProvenance(
@@ -360,25 +413,42 @@ interface VocabularyDao {
             }
         }
         senses.forEachIndexed { senseIndex, sense ->
-            val senseId = insertSense(
-                SenseEntity(
-                    entryId = entryId,
-                    meaning = sense.meaning,
-                    partOfSpeech = sense.partOfSpeech,
-                    sortOrder = senseIndex,
-                    grammaticalGender = sense.grammaticalGender,
-                    grammaticalGenderRaw = sense.grammaticalGenderRaw,
-                ),
+            val existingSense = findSense(sense.stableId)
+            val senseEntity = SenseEntity(
+                id = existingSense?.id ?: 0,
+                stableId = sense.stableId,
+                entryId = entryId,
+                meaning = sense.meaning,
+                partOfSpeech = sense.partOfSpeech,
+                sortOrder = senseIndex,
+                grammaticalGender = sense.grammaticalGender,
+                grammaticalGenderRaw = sense.grammaticalGenderRaw,
             )
-            insertExamples(
-                sense.examples.mapIndexed { exampleIndex, text ->
-                    ExampleEntity(
-                        senseId = senseId,
-                        text = text,
-                        sortOrder = exampleIndex,
-                    )
-                },
-            )
+            val senseId = if (existingSense == null) insertSense(senseEntity) else {
+                check(updateSense(senseEntity) == 1)
+                existingSense.id
+            }
+            if (sense.examples.isEmpty()) deleteExamples(senseId)
+            else deleteRemovedExamples(senseId, sense.examples.map { it.stableId })
+            sense.examples.forEachIndexed { exampleIndex, example ->
+                val existingExample = findExample(example.stableId)
+                val exampleEntity = ExampleEntity(
+                    id = existingExample?.id ?: 0,
+                    stableId = example.stableId,
+                    senseId = senseId,
+                    text = example.text,
+                    sortOrder = exampleIndex,
+                    meaning = example.meaning,
+                    origin = example.origin,
+                    sourceTitle = example.sourceTitle,
+                    sourceUrl = example.sourceUrl,
+                    sourceLocator = example.sourceLocator,
+                    capturedAt = example.capturedAt,
+                )
+                if (existingExample == null) insertExamples(listOf(exampleEntity))
+                else check(updateExample(exampleEntity) == 1)
+            }
+            deleteSenseProvenance(senseId)
             sense.provenance?.let { provenance ->
                 insertSenseProvenance(
                     SenseDictionaryProvenanceEntity(

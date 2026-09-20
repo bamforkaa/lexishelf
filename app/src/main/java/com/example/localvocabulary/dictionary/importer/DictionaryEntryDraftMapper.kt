@@ -1,5 +1,9 @@
 package com.example.localvocabulary.dictionary.importer
 
+import com.example.localvocabulary.vocabulary.domain.ExampleOrigin
+
+import com.example.localvocabulary.vocabulary.domain.VocabularyExampleDraft
+
 import com.example.localvocabulary.dictionary.domain.DictionaryAttribution
 import com.example.localvocabulary.dictionary.domain.DictionaryContentField
 import com.example.localvocabulary.dictionary.domain.DictionaryProviderId
@@ -147,7 +151,12 @@ object DictionaryEntryDraftMapper {
                 VocabularySenseDraft(
                     meaning = meanings.joinToString("; "),
                     partOfSpeech = partOfSpeech,
-                    examples = examples,
+                    examples = examples.map {
+                        VocabularyExampleDraft(
+                            text = it,
+                            origin = ExampleOrigin.DICTIONARY,
+                        )
+                    },
                     provenance = DictionaryProvenance(
                         providerId = entry.providerId.value,
                         sourceEntryId = entry.sourceEntryId,

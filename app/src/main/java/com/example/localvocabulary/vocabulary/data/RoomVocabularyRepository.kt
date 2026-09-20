@@ -1,5 +1,7 @@
 package com.example.localvocabulary.vocabulary.data
 
+import com.example.localvocabulary.core.database.dao.ExampleWrite
+
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.core.common.StableIdGenerator
 import com.example.localvocabulary.core.database.dao.SenseWrite
@@ -99,7 +101,19 @@ class RoomVocabularyRepository @Inject constructor(
                 SenseWrite(
                     meaning = sense.meaning,
                     partOfSpeech = sense.partOfSpeech,
-                    examples = sense.examples,
+                    stableId = sense.stableId ?: stableIdGenerator.newId(),
+                    examples = sense.examples.map { example ->
+                        ExampleWrite(
+                            stableId = example.stableId ?: stableIdGenerator.newId(),
+                            text = example.text,
+                            meaning = example.meaning,
+                            origin = example.origin.name,
+                            sourceTitle = example.sourceTitle,
+                            sourceUrl = example.sourceUrl,
+                            sourceLocator = example.sourceLocator,
+                            capturedAt = example.capturedAt,
+                        )
+                    },
                     provenance = sense.provenance?.let { provenance ->
                         SenseDictionaryProvenanceWrite(
                             providerId = provenance.providerId,

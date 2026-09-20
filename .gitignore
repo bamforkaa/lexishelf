@@ -1,5 +1,10 @@
 *.iml
 .gradle/
+.tmp/
+.env
+.env.*
+!.env.example
+!.env.*.example
 .idea/
 .kotlin/
 build/
@@ -12,6 +17,11 @@ keystore.properties
 *.keystore
 *.p12
 *.pfx
+# Private key/credential files; intentional public fixtures need a scoped exception.
+*.pem
+*.key
+credentials.json
+service-account.json
 *.apk
 *.aab
 captures/
@@ -26,6 +36,8 @@ __pycache__/
 *.dictpack
 *.dictpack.part
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 *.log

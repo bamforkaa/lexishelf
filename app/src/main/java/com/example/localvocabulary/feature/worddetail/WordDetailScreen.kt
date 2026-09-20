@@ -14,7 +14,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +27,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.localvocabulary.core.ui.component.MetadataLabel
 import com.example.localvocabulary.core.ui.component.ScreenStatePane
@@ -95,114 +93,20 @@ fun WordDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(state.entry.headword, style = MaterialTheme.typography.headlineMedium)
-                        if (state.entry.reading.isNotBlank()) {
-                            Text(
-                                state.entry.reading,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            state.entry.readingProvenance?.let { provenance ->
-                                MetadataLabel(
-                                    buildString {
-                                        append(provenance.sourceName)
-                                        append("에서 가져온 읽기")
-                                        if (provenance.modifiedAfterImport) append(" · 수정됨")
-                                    },
-                                )
-                            }
-                        }
-                        if (state.entry.pronunciations.isNotEmpty()) {
-                            SectionHeader("발음")
-                            state.entry.pronunciations.forEach { pronunciation ->
-                                Text(
-                                    "${pronunciation.notation.detailLabel()} · ${pronunciation.value}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                pronunciation.provenance?.let { provenance ->
-                                    MetadataLabel(
-                                        buildString {
-                                            append(provenance.sourceName)
-                                            append("에서 가져온 발음")
-                                            if (provenance.modifiedAfterImport) {
-                                                append(" · 수정됨")
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        val language = LanguageDisplayNameResolver.resolve(state.entry.languageTag)
-                        MetadataLabel("언어 · ${language.name} · ${language.languageTag}")
-                        if (state.entry.wordbooks.isNotEmpty()) {
-                            SectionHeader("단어장")
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                state.entry.wordbooks.forEach { wordbook ->
-                                    AssistChip(
-                                        onClick = { onOpenWordbook(wordbook.id) },
-                                        label = { Text(wordbook.name) },
-                                    )
-                                }
-                            }
-                        }
-                        if (state.entry.tags.isNotEmpty()) {
-                            SectionHeader("태그")
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                state.entry.tags.forEach { tag ->
-                                    AssistChip(
-                                        onClick = { onOpenTag(tag.id) },
-                                        label = { Text(tag.name) },
-                                    )
-                                }
-                            }
-                        }
+
                     }
                 }
 
-                item {
-                    SectionHeader(
-                        title = "뜻",
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
                 itemsIndexed(state.entry.senses, key = { _, sense -> sense.id }) { index, sense ->
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        MetadataLabel("뜻 ${index + 1}")
-                        Text(sense.meaning, style = MaterialTheme.typography.bodyLarge)
-                        sense.provenance?.let { provenance ->
-                            MetadataLabel(
-                                text = buildString {
-                                    append(provenance.sourceName)
-                                    append(" 기반")
-                                    if (provenance.modifiedAfterImport) append(" · 수정됨")
-                                },
-                                modifier = Modifier.testTag("sense_provenance"),
-                            )
-                        }
-                        if (
-                            sense.partOfSpeech.isNotBlank() ||
-                            sense.grammaticalGender != null
-                        ) {
-                            MetadataLabel(
-                                listOfNotNull(
-                                    sense.partOfSpeech.takeIf(String::isNotBlank),
-                                    sense.grammaticalGender?.displayValue(),
-                                ).joinToString(" · "),
-                            )
-                        }
-                        sense.examples.forEach { example ->
-                            Text("예문 · ${example.text}", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
+                    val review = state.reviewStates.firstOrNull { it.senseStableId == sense.stableId }
+                    val enabled = review?.enabled == true
+                    SenseDetailSection(
+                        sense = sense,
+                        index = index,
+                        reviewEnabled = enabled,
+                        reviewError = state.reviewError,
+                        onToggleReview = { onAction(WordDetailAction.SetReviewEnabled(sense.stableId, !enabled)) },
+                    )
                 }
                 if (state.entry.notes.isNotBlank()) {
                     item {
@@ -212,6 +116,70 @@ fun WordDetailScreen(
                         ) {
                             SectionHeader("메모")
                             Text(state.entry.notes, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        SectionHeader("언어 정보")
+                        if (state.entry.reading.isNotBlank()) {
+                            Text(
+                                state.entry.reading,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (state.entry.pronunciations.isNotEmpty()) {
+                            SectionHeader("발음")
+                            state.entry.pronunciations.forEach { pronunciation ->
+                                Text(
+                                    "${pronunciation.notation.detailLabel()} · ${pronunciation.value}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
+                        }
+                        val language = LanguageDisplayNameResolver.resolve(state.entry.languageTag)
+                        MetadataLabel("언어 · ${language.name} · ${language.languageTag}")
+                    }
+                }
+                if (state.entry.wordbooks.isNotEmpty() || state.entry.tags.isNotEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SectionHeader("정리")
+                            if (state.entry.wordbooks.isNotEmpty()) {
+                                SectionHeader("단어장")
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    state.entry.wordbooks.forEach { wordbook ->
+                                        AssistChip(
+                                            onClick = { onOpenWordbook(wordbook.id) },
+                                            label = { Text(wordbook.name) },
+                                        )
+                                    }
+                                }
+                            }
+                            if (state.entry.tags.isNotEmpty()) {
+                                SectionHeader("태그")
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    state.entry.tags.forEach { tag ->
+                                        AssistChip(
+                                            onClick = { onOpenTag(tag.id) },
+                                            label = { Text(tag.name) },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

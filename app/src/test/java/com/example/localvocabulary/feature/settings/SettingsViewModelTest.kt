@@ -18,7 +18,10 @@ import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProvider
 import com.example.localvocabulary.feature.wordlist.MainDispatcherRule
 import com.example.localvocabulary.settings.AppSettings
 import com.example.localvocabulary.settings.SettingsRepository
+import com.example.localvocabulary.vocabulary.domain.*
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -73,6 +76,45 @@ class SettingsViewModelTest {
         assertEquals("en", viewModel.uiState.value.defaultLanguageTag)
     }
 
+    @Test
+    fun `review settings validate ranges and save consistent limits`() = runTest {
+        val settings = FakeSettingsRepository()
+        val vm = SettingsViewModel(settings, DefaultDictionaryProviderRegistry(emptyList()), FakePackRepository(), FakeCatalogRepository(), SourceVocabularyRepository())
+        advanceUntilIdle()
+        vm.onAction(SettingsAction.ReviewNewLimitChanged("50"))
+        vm.onAction(SettingsAction.ReviewTotalLimitChanged("40"))
+        vm.onAction(SettingsAction.SaveReviewLimits)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.message!!.contains("신규는"))
+        assertEquals(15, settings.settings.first().reviewLimits.newPerDay)
+        vm.onAction(SettingsAction.ReviewNewLimitChanged("0"))
+        vm.onAction(SettingsAction.ReviewTotalLimitChanged("20"))
+        vm.onAction(SettingsAction.SaveReviewLimits)
+        advanceUntilIdle()
+        assertEquals(com.example.localvocabulary.review.domain.ReviewLimits(0, 20), settings.settings.first().reviewLimits)
+    }
+
+    @Test fun `saved attribution survives missing provider and deduplicates legal metadata`() = runTest {
+        val source = DictionaryProvenance(providerId = "retired", sourceEntryId = null, sourceSenseId = null, modifiedAfterImport = false, sourceName = "Fixture Dictionary · Full attribution",
+            sourceUrl = "https://example.com/source", licenseName = "Fixture license", licenseUrl = "https://example.com/license",
+            datasetVersion = "fixture-v1", importedFields = setOf(ImportedDictionaryField.MEANING), importedAtEpochMillis = 10)
+        val repository = SourceVocabularyRepository()
+        val vm = SettingsViewModel(FakeSettingsRepository(), DefaultDictionaryProviderRegistry(emptyList()),
+            FakePackRepository(), FakeCatalogRepository(), repository)
+        repository.entries.value = listOf(VocabularyEntry(1, "entry", "expression", "en",
+            listOf(VocabularySense(1, "meaning", "", emptyList(), provenance = source),
+                VocabularySense(2, "other", "", emptyList(), provenance = source.copy(sourceEntryId = "other", modifiedAfterImport = true))),
+            "", emptyList(), 0, 0))
+        advanceUntilIdle()
+        val displayed = vm.uiState.value.savedDictionarySources.single()
+        assertEquals(source.sourceName, displayed.attributionNotice)
+        assertEquals(source.sourceUrl, displayed.sourceUrl)
+        assertEquals(source.licenseName, displayed.licenseName)
+        assertEquals(source.licenseUrl, displayed.licenseUrl)
+        assertEquals(source.datasetVersion, displayed.savedDatasetVersion)
+        assertTrue(vm.uiState.value.dictionarySources.isEmpty())
+    }
+
     private fun viewModel(
         packRepository: FakePackRepository,
         catalogRepository: FakeCatalogRepository,
@@ -81,6 +123,7 @@ class SettingsViewModelTest {
         providerRegistry = DefaultDictionaryProviderRegistry(emptyList()),
         dictionaryPackRepository = packRepository,
         dictionaryCatalogRepository = catalogRepository,
+        vocabularyRepository = SourceVocabularyRepository(),
     )
 
     private fun installedPack(version: String): InstalledDictionaryPack {
@@ -110,6 +153,9 @@ class SettingsViewModelTest {
 }
 
 private class FakeSettingsRepository : SettingsRepository {
+    override suspend fun setReviewLimits(limits: com.example.localvocabulary.review.domain.ReviewLimits) {
+        mutableSettings.value = mutableSettings.value.copy(reviewLimits = limits)
+    }
     private val mutableSettings = MutableStateFlow(AppSettings())
     override val settings: Flow<AppSettings> = mutableSettings
 
@@ -160,4 +206,13 @@ private class FakeCatalogRepository(
     override suspend fun downloadAndInstall(packId: String) {
         downloadStates.value = downloadStates.value + (packId to DictionaryPackDownloadState.Installed)
     }
+}
+
+private class SourceVocabularyRepository : VocabularyRepository {
+    val entries = MutableStateFlow<List<VocabularyEntry>>(emptyList())
+    override fun observeEntries(query: String, tagId: Long?) = entries
+    override fun observeEntry(id: Long) = entries.map { rows -> rows.firstOrNull { it.id == id } }
+    override suspend fun findDuplicateCandidates(headword: String, languageTag: String, excludingEntryId: Long?) = emptyList<VocabularyEntry>()
+    override suspend fun save(draft: ValidatedVocabularyDraft): Long = error("unused")
+    override suspend fun delete(id: Long) = Unit
 }

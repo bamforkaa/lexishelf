@@ -34,22 +34,27 @@ LexiShelf는 단어와 표현을 직접 정리하고 기기 안에서 계속 사
 앱 자체 analytics가 없습니다. 사전 pack을 설치한 뒤 단어장과 로컬 사전 검색은 offline에서도
 동작합니다.
 
-이 프로젝트는 제가 원하는 단어장 앱을 직접 만들어 사용해 보기 위해 시작했습니다. 개발 과정을
+이 프로젝트는 제가 원하는 단어장 앱을 직접 기획하고 사용해 보기 위해 시작했습니다. 개발 과정을
 기록하고, 비슷한 필요를 가진 사람이 앱을 실행해 보거나 구현을 참고할 수 있도록 소스 코드와
 설치용 APK를 함께 공개합니다.
+
+**개발 참고**: 구현 코드는 제가 정의한 요구사항과 설계를 바탕으로 OpenAI Codex를 사용해 생성했으며, 개발 과정에서 결과를 검토·테스트하고 피드백을 주는 방식으로 반복 수정했습니다.
 
 개인 프로젝트이므로 업데이트 주기와 장기적인 지원은 보장하지 않습니다.
 
 ## 기능
 
 - 언어 태그가 있는 단어와 multi-word expression 저장
-- 여러 뜻, 품사, 예문, reading, 발음, 문법 성, 메모와 즐겨찾기 편집
+- 여러 뜻, 품사, 문맥/예문과 직접 입력한 해석, reading, 발음, 문법 성, 메모 편집
 - 서로 독립적인 태그와 단어장, 로컬 검색과 필터
 - 선택한 local dictionary 결과를 검토하고 수정한 뒤 저장
 - 영어 활용형을 lemma로 찾는 morphology 보조 검색
 - ML Kit의 기기 내 손글씨 인식과 언어 모델 선택 설치
+- 문맥 종류와 콘텐츠 제목·URL·위치 기록, 작성 중 초안의 process recreation 복구
+- 뜻별 Today Review: 양방향 자동 출제, 첫 뜻 기본 등록, 회상 후 자기 평가, 일정·이력 저장, 선택적인 내 문장 만들기
+- 하루 신규 15개 / 전체 40개 기본 복습량과 설정
 - session-only Writing Practice
-- versioned JSON backup 내보내기, 검증과 conflict policy가 있는 복원
+- JSON v8 backup 내보내기, v1~v8 검증·미리보기·복원 (Room v9, 기존 migration 보존)
 - 사전 데이터가 하나도 없어도 동작하는 manual vocabulary workflow
 
 단어와 구는 같은 `VocabularyEntry` 모델을 사용합니다. idiom, phrasal verb, collocation과 일반
@@ -169,8 +174,7 @@ LexiShelf는 몇 년 전 DevStory의
 보고 싶어 LexiShelf를 시작했습니다.
 
 이 언급은 몇 년 전의 개인적인 사용 경험에 관한 것이며, 현재 VoCat의 기능을 비교하거나 평가하려는
-목적이 아닙니다. LexiShelf는 VoCat 또는 DevStory와 제휴하거나 공식적으로 연관된 프로젝트가
-아니며, 별도의 설계와 코드로 독립적으로 개발하고 있습니다.
+목적이 아닙니다. LexiShelf는 VoCat 또는 DevStory와는 별도의 설계와 코드로 독립적으로 개발하고 있습니다.
 
 ## 라이선스와 데이터 출처
 
@@ -190,6 +194,7 @@ MIT로 재라이선스되지 않습니다.
 - [Dictionary pack format and lifecycle](docs/dictionary-packs.md)
 - [Dictionary sources and licenses](docs/dictionary-sources.md)
 - [Backup format](docs/backup.md)
+- [Review system](docs/review.md)
 - [Public dictionary artifact audit](docs/public-dictionary-artifacts.md)
 - [APK verification](docs/apk-verification.md)
 - [Third-party software](docs/third-party-software.md)

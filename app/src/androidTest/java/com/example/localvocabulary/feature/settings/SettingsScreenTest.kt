@@ -1,5 +1,8 @@
 package com.example.localvocabulary.feature.settings
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -7,6 +10,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import com.example.localvocabulary.core.ui.theme.LocalVocabularyTheme
 import com.example.localvocabulary.dictionary.catalog.DictionaryCatalogSection
 import org.junit.Assert.assertEquals
@@ -45,9 +51,13 @@ class SettingsScreenTest {
             }
         }
 
+        scrollTo("JMdict")
         composeRule.onNodeWithText("JMdict").assertIsDisplayed()
+        scrollTo("설치됨 · 108 MiB")
         composeRule.onNodeWithText("설치됨 · 108 MiB").assertIsDisplayed()
+        scrollTo("로컬 pack 가져오기")
         composeRule.onNodeWithText("로컬 pack 가져오기").performClick()
+        scrollTo("삭제")
         composeRule.onNodeWithText("삭제").performClick()
 
         composeRule.runOnIdle {
@@ -139,9 +149,13 @@ class SettingsScreenTest {
             }
         }
 
+        scrollTo("한국어 뜻")
         composeRule.onNodeWithText("한국어 뜻").assertIsDisplayed()
+        scrollTo("한국어기초사전")
         composeRule.onNodeWithText("한국어기초사전").assertIsDisplayed()
+        scrollTo("권장 · 현재 사용 언어에 적합")
         composeRule.onNodeWithText("권장 · 현재 사용 언어에 적합").assertIsDisplayed()
+        scrollTo("다운로드")
         composeRule.onNodeWithText("다운로드").performClick()
         composeRule.onNodeWithText("JMdict").assertDoesNotExist()
 
@@ -150,5 +164,37 @@ class SettingsScreenTest {
                 actions.contains(SettingsAction.DownloadDictionaryPack("korean-basic.multilingual")),
             )
         }
+    }
+
+    @Test fun savedSourceLegalInformationRemainsAccessibleWithoutInstalledProvider() {
+        val source = DictionarySourceUiState("retired-provider", "Fixture Dictionary",
+            "https://example.com/source", "Fixture license", "https://example.com/license",
+            "Full attribution from the saved entry", null, null, null, null, null,
+            savedDatasetVersion = "fixture-version")
+        val opened = mutableListOf<String>()
+        composeRule.setContent {
+            CompositionLocalProvider(LocalUriHandler provides object : UriHandler {
+                override fun openUri(uri: String) { opened += uri }
+            }) {
+                LocalVocabularyTheme {
+                    SettingsScreen(SettingsUiState(isLoading = false, savedDictionarySources = listOf(source)), {}, {}, {})
+                }
+            }
+        }
+        scrollTo("저장된 항목의 출처 확인")
+        composeRule.onNodeWithTag("saved_dictionary_sources").performClick()
+        for (text in listOf(source.providerName, source.attributionNotice!!, "라이선스 · ${source.licenseName}")) {
+            scrollTo(text)
+            composeRule.onNodeWithText(text).assertIsDisplayed()
+        }
+        for (label in listOf("원본 사이트", "라이선스")) {
+            scrollTo(label)
+            composeRule.onNodeWithText(label).performClick()
+        }
+        composeRule.runOnIdle { assertEquals(listOf(source.sourceUrl, source.licenseUrl), opened) }
+    }
+
+    private fun scrollTo(text: String) {
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(text))
     }
 }

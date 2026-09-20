@@ -1,9 +1,11 @@
 package com.example.localvocabulary.backup.domain
 
+import com.example.localvocabulary.vocabulary.domain.ExampleOrigin
+
 import kotlinx.serialization.Serializable
 
 const val BACKUP_FORMAT_ID = "local-vocabulary-backup"
-const val CURRENT_BACKUP_SCHEMA_VERSION = 5
+const val CURRENT_BACKUP_SCHEMA_VERSION = 8
 
 @Serializable
 data class VocabularyBackupV1(
@@ -138,7 +140,8 @@ enum class BackupImportedFieldV2 {
 }
 
 class ValidatedBackup internal constructor(
-    internal val document: VocabularyBackupV2,
+    internal val document: VocabularyBackupV8,
+    internal val sourceSchemaVersion: Int = CURRENT_BACKUP_SCHEMA_VERSION,
 )
 
 enum class BackupConflictPolicy {
@@ -157,6 +160,10 @@ data class BackupImportPreview(
     val skippedEntryCount: Int,
     val existingEntryRemovalCount: Int,
     val wordbookCount: Int = 0,
+    val legacyChildReplacementCount: Int = 0,
+    val reviewStateRemovalCount: Int = 0,
+    val reviewEventRemovalCount: Int = 0,
+    val reviewStateOverwriteCount: Int = 0,
 )
 
 data class BackupImportResult(
@@ -176,3 +183,52 @@ sealed interface BackupReadError {
     data class UnsupportedSchemaVersion(val version: Int) : BackupReadError
     data class InvalidData(val path: String, val reason: String) : BackupReadError
 }
+
+@Serializable
+data class VocabularyBackupV6(
+    val format: String,
+    val schemaVersion: Int,
+    val exportedAtEpochMillis: Long,
+    val tags: List<BackupTagV1>,
+    val entries: List<BackupEntryV6>,
+    val wordbooks: List<BackupWordbookV4> = emptyList(),
+)
+
+@Serializable
+data class BackupEntryV6(
+    val stableId: String,
+    val headword: String,
+    val languageTag: String,
+    val senses: List<BackupSenseV6>,
+    val notes: String,
+    val tagStableIds: List<String>,
+    val createdAtEpochMillis: Long,
+    val modifiedAtEpochMillis: Long,
+    val reading: String = "",
+    val readingProvenance: BackupDictionaryProvenanceV2? = null,
+    val wordbookStableIds: List<String> = emptyList(),
+    val pronunciations: List<BackupPronunciationV5> = emptyList(),
+)
+
+@Serializable
+data class BackupSenseV6(
+    val stableId: String,
+    val meaning: String,
+    val partOfSpeech: String,
+    val examples: List<BackupExampleV6>,
+    val provenance: BackupDictionaryProvenanceV2? = null,
+    val grammaticalGender: BackupGrammaticalGenderV5? = null,
+)
+
+@Serializable
+data class BackupExampleV6(
+    val stableId: String,
+    val text: String,
+    val meaning: String = "",
+    val origin: ExampleOrigin =
+        ExampleOrigin.UNKNOWN,
+    val sourceTitle: String? = null,
+    val sourceUrl: String? = null,
+    val sourceLocator: String? = null,
+    val capturedAt: Long? = null,
+)

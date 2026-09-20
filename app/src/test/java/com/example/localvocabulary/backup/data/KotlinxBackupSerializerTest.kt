@@ -1,20 +1,22 @@
 package com.example.localvocabulary.backup.data
 
+import com.example.localvocabulary.backup.domain.BackupExampleV6
+
 import com.example.localvocabulary.backup.domain.BACKUP_FORMAT_ID
 import com.example.localvocabulary.backup.domain.BackupDecodeResult
 import com.example.localvocabulary.backup.domain.BackupDictionaryProvenanceV2
-import com.example.localvocabulary.backup.domain.BackupEntryV2
+import com.example.localvocabulary.backup.domain.BackupEntryV6
 import com.example.localvocabulary.backup.domain.BackupImportedFieldV2
 import com.example.localvocabulary.backup.domain.BackupReadError
 import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderCategoryV5
 import com.example.localvocabulary.backup.domain.BackupGrammaticalGenderV5
 import com.example.localvocabulary.backup.domain.BackupPronunciationNotationV5
 import com.example.localvocabulary.backup.domain.BackupPronunciationV5
-import com.example.localvocabulary.backup.domain.BackupSenseV2
+import com.example.localvocabulary.backup.domain.BackupSenseV6
 import com.example.localvocabulary.backup.domain.BackupTagV1
 import com.example.localvocabulary.backup.domain.BackupWordbookV4
 import com.example.localvocabulary.backup.domain.CURRENT_BACKUP_SCHEMA_VERSION
-import com.example.localvocabulary.backup.domain.VocabularyBackupV2
+import com.example.localvocabulary.backup.domain.VocabularyBackupV8
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -58,13 +60,19 @@ class KotlinxBackupSerializerTest {
             entries = listOf(
                 entry(
                     senses = listOf(
-                        BackupSenseV2(
-                            "water",
-                            "noun",
-                            listOf("Das Wasser ist kalt."),
-                            provenance,
+                        BackupSenseV6(
+                            meaning = "water",
+                            partOfSpeech = "noun",
+                            examples = listOf("Das Wasser ist kalt.").map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it) },
+                            provenance = provenance,
+                            stableId = java.util.UUID.randomUUID().toString(),
                         ),
-                        BackupSenseV2("사용자 뜻", "", emptyList()),
+                        BackupSenseV6(
+                            meaning = "사용자 뜻",
+                            partOfSpeech = "",
+                            examples = emptyList(),
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
                     ),
                 ),
             ),
@@ -75,7 +83,7 @@ class KotlinxBackupSerializerTest {
         assertEquals(provenance, decoded.backup.document.entries.single().senses.first().provenance)
         assertEquals(
             listOf("Das Wasser ist kalt."),
-            decoded.backup.document.entries.single().senses.first().examples,
+            decoded.backup.document.entries.single().senses.first().examples.map { it.text },
         )
         assertNull(decoded.backup.document.entries.single().senses.last().provenance)
     }
@@ -98,7 +106,12 @@ class KotlinxBackupSerializerTest {
                     reading = "たべる",
                     readingProvenance = readingProvenance,
                     senses = listOf(
-                        BackupSenseV2("to eat", "Ichidan verb", emptyList()),
+                        BackupSenseV6(
+                            meaning = "to eat",
+                            partOfSpeech = "Ichidan verb",
+                            examples = emptyList(),
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
                     ),
                 ),
             ),
@@ -133,14 +146,15 @@ class KotlinxBackupSerializerTest {
                     headword = "Wasser",
                     languageTag = "de",
                     senses = listOf(
-                        BackupSenseV2(
+                        BackupSenseV6(
                             meaning = "water",
                             partOfSpeech = "noun",
-                            examples = listOf("Das Wasser ist kalt."),
+                            examples = listOf("Das Wasser ist kalt.").map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it) },
                             provenance = senseProvenance,
                             grammaticalGender = BackupGrammaticalGenderV5(
                                 BackupGrammaticalGenderCategoryV5.NEUTER,
                             ),
+                            stableId = java.util.UUID.randomUUID().toString(),
                         ),
                     ),
                 ).copy(
@@ -172,9 +186,14 @@ class KotlinxBackupSerializerTest {
 
     @Test
     fun `schema v4 imports with empty linguistic metadata`() {
-        val oldJson = serializer.encode(backup(entries = listOf(entry(headword = "old"))))
-            .replace("\"schemaVersion\": 5", "\"schemaVersion\": 4")
-            .replace(",\n      \"pronunciations\": []", "")
+        val oldJson = """{
+            "format":"$BACKUP_FORMAT_ID","schemaVersion":4,"exportedAtEpochMillis":20,
+            "tags":[],"entries":[{
+                "stableId":"old","headword":"old","languageTag":"en",
+                "senses":[{"meaning":"meaning","partOfSpeech":"","examples":["context"]}],
+                "notes":"","tagStableIds":[],"createdAtEpochMillis":10,"modifiedAtEpochMillis":20
+            }]
+        }"""
 
         val decoded = serializer.decode(oldJson) as BackupDecodeResult.Success
 
@@ -230,10 +249,33 @@ class KotlinxBackupSerializerTest {
             entries = listOf(
                 entry(
                     senses = listOf(
-                        BackupSenseV2("hello", "", emptyList(), ccCedict),
-                        BackupSenseV2("먹다", "동사", emptyList(), koreanBasic),
-                        BackupSenseV2("물", "", emptyList(), panLex),
-                        BackupSenseV2("내가 쓴 뜻", "", emptyList()),
+                        BackupSenseV6(
+                            meaning = "hello",
+                            partOfSpeech = "",
+                            examples = emptyList(),
+                            provenance = ccCedict,
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
+                        BackupSenseV6(
+                            meaning = "먹다",
+                            partOfSpeech = "동사",
+                            examples = emptyList(),
+                            provenance = koreanBasic,
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
+                        BackupSenseV6(
+                            meaning = "물",
+                            partOfSpeech = "",
+                            examples = emptyList(),
+                            provenance = panLex,
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
+                        BackupSenseV6(
+                            meaning = "내가 쓴 뜻",
+                            partOfSpeech = "",
+                            examples = emptyList(),
+                            stableId = java.util.UUID.randomUUID().toString(),
+                        ),
                     ),
                 ),
             ),
@@ -287,7 +329,7 @@ class KotlinxBackupSerializerTest {
 
     @Test
     fun `wordbooks and tags remain distinct in current schema round trip`() {
-        val document = VocabularyBackupV2(
+        val document = VocabularyBackupV8(
             format = BACKUP_FORMAT_ID,
             schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
             exportedAtEpochMillis = 10,
@@ -313,10 +355,14 @@ class KotlinxBackupSerializerTest {
 
     @Test
     fun `schema v3 imports with empty wordbooks`() {
-        val oldJson = serializer.encode(backup(entries = listOf(entry(headword = "old"))))
-            .replace("\"schemaVersion\": 5", "\"schemaVersion\": 3")
-            .replace(",\n  \"wordbooks\": []", "")
-            .replace(",\n      \"wordbookStableIds\": []", "")
+        val oldJson = """{
+            "format":"$BACKUP_FORMAT_ID","schemaVersion":3,"exportedAtEpochMillis":20,
+            "tags":[],"entries":[{
+                "stableId":"old","headword":"old","languageTag":"en",
+                "senses":[{"meaning":"meaning","partOfSpeech":"","examples":["context"]}],
+                "notes":"","tagStableIds":[],"createdAtEpochMillis":10,"modifiedAtEpochMillis":20
+            }]
+        }"""
 
         val decoded = serializer.decode(oldJson) as BackupDecodeResult.Success
 
@@ -382,11 +428,12 @@ class KotlinxBackupSerializerTest {
                 entries = listOf(
                     entry(
                         senses = listOf(
-                            BackupSenseV2(
-                                "meaning",
-                                "",
-                                emptyList(),
-                                provenance().copy(importedFields = emptyList()),
+                            BackupSenseV6(
+                                meaning = "meaning",
+                                partOfSpeech = "",
+                                examples = emptyList(),
+                                provenance = provenance().copy(importedFields = emptyList()),
+                                stableId = java.util.UUID.randomUUID().toString(),
                             ),
                         ),
                     ),
@@ -408,9 +455,9 @@ class KotlinxBackupSerializerTest {
     }
 
     private fun backup(
-        entries: List<BackupEntryV2>,
+        entries: List<BackupEntryV6>,
         tags: List<BackupTagV1> = listOf(BackupTagV1("tag-shared", "Shared")),
-    ) = VocabularyBackupV2(
+    ) = VocabularyBackupV8(
         format = BACKUP_FORMAT_ID,
         schemaVersion = CURRENT_BACKUP_SCHEMA_VERSION,
         exportedAtEpochMillis = 500,
@@ -423,10 +470,15 @@ class KotlinxBackupSerializerTest {
         languageTag: String = "en",
         meaning: String = "meaning",
         examples: List<String> = listOf("example"),
-        senses: List<BackupSenseV2> = listOf(BackupSenseV2(meaning, "noun", examples)),
+        senses: List<BackupSenseV6> = listOf(BackupSenseV6(
+            meaning = meaning,
+            partOfSpeech = "noun",
+            examples = examples.map { BackupExampleV6(stableId = java.util.UUID.randomUUID().toString(), text = it) },
+            stableId = java.util.UUID.randomUUID().toString(),
+        )),
         reading: String = "",
         readingProvenance: BackupDictionaryProvenanceV2? = null,
-    ) = BackupEntryV2(
+    ) = BackupEntryV6(
         stableId = "entry-1",
         headword = headword,
         languageTag = languageTag,

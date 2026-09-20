@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("sense_id")],
+    indices = [Index("sense_id"), Index(value = ["stable_id"], unique = true)],
 )
 data class ExampleEntity(
     @PrimaryKey(autoGenerate = true)
@@ -26,4 +26,18 @@ data class ExampleEntity(
     val text: String,
     @ColumnInfo(name = "sort_order")
     val sortOrder: Int,
+    @ColumnInfo(defaultValue = "''")
+    val meaning: String = "",
+    @ColumnInfo(defaultValue = "'UNKNOWN'")
+    val origin: String = "UNKNOWN",
+    @ColumnInfo(name = "source_title")
+    val sourceTitle: String? = null,
+    @ColumnInfo(name = "source_url")
+    val sourceUrl: String? = null,
+    @ColumnInfo(name = "source_locator")
+    val sourceLocator: String? = null,
+    @ColumnInfo(name = "captured_at")
+    val capturedAt: Long? = null,
+    @ColumnInfo(name = "stable_id", defaultValue = "''")
+    val stableId: String = java.util.UUID.randomUUID().toString(),
 )

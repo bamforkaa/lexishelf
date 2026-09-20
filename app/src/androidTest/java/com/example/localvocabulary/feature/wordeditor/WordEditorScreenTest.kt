@@ -49,6 +49,35 @@ class WordEditorScreenTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun collapsedSuggestionsKeepCountAndCanBeReopenedWithoutDroppingResults() {
+        val actions = mutableListOf<WordEditorAction>()
+        val state = suggestionState(listOf(suggestionGroupWithRows("fixture", "Fixture", 3)))
+            .copy(areDictionarySuggestionsExpanded = false)
+        composeRule.setContent {
+            LocalVocabularyTheme { DictionarySuggestionSection(state, actions::add) }
+        }
+        composeRule.onAllNodesWithTag("dictionary_suggestion_row").assertCountEquals(0)
+        composeRule.onNodeWithText("사전 제안 3개 보기").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals(listOf(WordEditorAction.ToggleDictionarySuggestions), actions) }
+    }
+
+    @Test
+    fun addingASenseReturnsToSuggestionsEvenFromTheBottomOfALongEditor() {
+        val actions = mutableListOf<WordEditorAction>()
+        val state = suggestionState(listOf(suggestionGroupWithRows("fixture", "Fixture", 3)))
+            .copy(areDictionarySuggestionsExpanded = false, senses = (1L..8L).map {
+                EditableSense(it, meaning = "meaning $it", examples = emptyList())
+            })
+        composeRule.setContent {
+            LocalVocabularyTheme { WordEditorScreen(state, actions::add, {}) }
+        }
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("add_sense"))
+        composeRule.onNodeWithTag("add_sense").performClick()
+        composeRule.onNodeWithTag("dictionary_suggestions_toggle").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(listOf(WordEditorAction.AddSense), actions) }
+    }
+
+    @Test
     fun handwritingActionUsesCurrentLanguageAndHeadwordContext() {
         var action: HandwritingInputAction? = null
         composeRule.setContent {
@@ -575,7 +604,7 @@ class WordEditorScreenTest {
 
         composeRule.onNode(hasScrollAction())
             .performScrollToNode(hasTestTag("sense_provenance"))
-        composeRule.onNodeWithText("CC-CEDICT 기반 · 수정됨").assertIsDisplayed()
+        composeRule.onNodeWithText("CC-CEDICT · 수정됨").assertIsDisplayed()
     }
 
     @Test
@@ -610,6 +639,7 @@ class WordEditorScreenTest {
             }
         }
 
+        expandSection("editor_linguistics")
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("pronunciation"))
         composeRule.onNodeWithTag("pronunciation").assertIsDisplayed()
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("grammatical_gender"))
@@ -629,6 +659,7 @@ class WordEditorScreenTest {
             }
         }
 
+        expandSection("editor_organization")
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("create_tag"))
         composeRule.onNodeWithTag("create_tag").performClick()
 
@@ -690,9 +721,12 @@ class WordEditorScreenTest {
             }
         }
 
+        expandSection("editor_organization")
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("create_wordbook"))
         composeRule.onNodeWithText("단어장").assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("태그"))
         composeRule.onNodeWithText("태그").assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("create_wordbook"))
         composeRule.onNodeWithTag("create_wordbook").performClick()
 
         composeRule.runOnIdle {
@@ -759,6 +793,8 @@ class WordEditorScreenTest {
             }
         }
 
+        expandSection("editor_linguistics")
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("external_dictionary_reference"))
         val readingBounds = composeRule.onNodeWithTag("reading").fetchSemanticsNode().boundsInRoot
         val link = composeRule.onNodeWithTag("external_dictionary_reference").assertIsDisplayed()
         val linkBounds = link.fetchSemanticsNode().boundsInRoot
@@ -792,6 +828,11 @@ class WordEditorScreenTest {
         composeRule.runOnIdle {
             assertTrue(actions.contains(WordEditorAction.LanguageTagChanged("ja")))
         }
+    }
+
+    private fun expandSection(tag: String) {
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        composeRule.onNodeWithTag(tag).performClick()
     }
 
     private fun suggestionGroup(

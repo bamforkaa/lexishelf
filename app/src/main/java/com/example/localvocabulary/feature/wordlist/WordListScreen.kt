@@ -71,6 +71,9 @@ fun WordListScreen(
     onOpenBackup: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenWritingPractice: () -> Unit = {},
+    onOpenTodayReview: () -> Unit = {},
+    reviewQueue: com.example.localvocabulary.review.domain.ReviewQueue? = null,
+    reviewError: String? = null,
     onBack: (() -> Unit)? = null,
     handwritingState: HandwritingInputUiState = HandwritingInputUiState(),
     onHandwritingAction: (HandwritingInputAction) -> Unit = {},
@@ -145,6 +148,20 @@ fun WordListScreen(
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
+            if (!state.isCollectionView) {
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = onOpenTodayReview,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    Column {
+                        Text("오늘 복습", style = MaterialTheme.typography.titleMedium)
+                        reviewQueue?.let {
+                            Text("남은 ${it.cards.size}개 · 신규 ${it.newAvailable}개 포함", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (reviewError != null) Text("복습 수를 불러오지 못했습니다. 열어서 다시 시도하세요.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
             VocabularySearchField(
                 query = state.query,
                 onQueryChanged = { onAction(WordListAction.QueryChanged(it)) },

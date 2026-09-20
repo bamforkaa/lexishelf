@@ -1,6 +1,6 @@
 # 사전 소스 라이선스 조사
 
-최종 확인일: 2026-08-31
+문서 갱신일: 2026-09-21. 아래 artifact별 조사 시점과 dataset 버전은 각각의 기록을 따릅니다.
 
 현재 실제 provider는 CC-CEDICT, 한국어기초사전, PanLex, JMdict, Kaikki 다섯 개입니다. full dataset binary는 Git이나 base APK에 없고, 공개 허용 목록의 release asset만 앱의 검증된 catalog 경로로 내려받습니다. 개발 converter는 원본 dataset을 자동으로 받지 않으며 테스트는 작고 결정적인 fixture만 사용합니다. 아래 내용은 구현 결정을 위한 조사 기록이며 법률 자문이 아닙니다. 서로 모순되거나 구체적 계약이 보이지 않는 항목은 허용으로 추측하지 않습니다.
 
@@ -130,7 +130,7 @@ index는 Git에 포함하지 않으며 로컬 개발 pack으로만 사용합니�
 저장/재배포 결정:
 
 - descriptor의 local persistence와 redistribution은 CC BY-SA 4.0 조건 아래 `PERMITTED`, cache는 `PERMITTED`로 기록한다.
-- 현재 Room schema 6과 backup schema 5는 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태, entry-level reading provenance, ordered pronunciation provenance와 grammatical gender를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 명시적인 suggestion row 선택이 English gloss와 pinyin reading을 generic field로 추가할 수 있다.
+- 현재 Room schema 9와 backup schema 8은 imported sense별 provider/source/source entry/license/dataset/imported field/import time/modified 상태, entry-level reading provenance, ordered pronunciation provenance와 grammatical gender를 보존한다. 따라서 app import mode는 `COPY_EXPORTABLE_FIELDS`이며 명시적인 suggestion row 선택이 English gloss와 pinyin reading을 generic field로 추가할 수 있다. 사용자 데이터 schema 변경은 CC-CEDICT dataset schema 1이나 pack manifest schema 1의 변경을 의미하지 않는다.
 - 검색 결과의 pinyin은 generic reading field로 명시적인 suggestion row 선택 때만 저장하며 entry-level provenance를 함께 보존한다. notes에 넣지 않는다. CC-CEDICT에 없는 structured POS/example도 추론하거나 생성하지 않는다.
 - user-authored sense에는 provenance가 없고 imported sense에는 provenance가 있다. 사용자가 imported text를 자유롭게 수정할 수 있지만 출처는 유지되고 수정 여부가 표시된다. JSON backup도 이 구분을 보존한다.
 - 검색 결과 도착이나 provider refresh는 editor/Room을 변경하지 않는다. 같은 source entry/sense를 반복 선택하면 accidental duplicate를 추가하지 않는다.
@@ -146,7 +146,7 @@ index는 Git에 포함하지 않으며 로컬 개발 pack으로만 사용합니�
 - [Open API 사용 안내](https://krdict.korean.go.kr/kor/openApi/openApiInfo)
 - [Open API 인증키 신청](https://krdict.korean.go.kr/kor/openApi/openApiRegister)
 - [사전 전체 내려받기](https://krdict.korean.go.kr/download/downloadPopup)
-- [저작권 정책](https://krdict.korean.go.kr/eng/kboardPolicy/copyRightTermsInfo)
+- [저작권 정책](https://krdict.korean.go.kr/kor/kboardPolicy/copyRightTermsInfo)
 - [CC BY-SA 2.0 KR](https://creativecommons.org/licenses/by-sa/2.0/kr/)
 
 확인된 사실:
@@ -250,5 +250,10 @@ API 대신 local dataset을 선택한 이유:
 - 2026-08-23에 현재 공식 service destination을 확인한 언어만 중앙 mapping에 넣었습니다: `en`, `ja`, `zh`, `fr`, `de`, `es`, `ru`, `ar`, `hi`, `pl`, `mn`, `la`.
 - `zh-Hans`/`zh-Hant`는 external navigation에만 base `zh` destination을 사용합니다. 이는 provider dataset의 script identity를 합치는 규칙이 아닙니다.
 - URI는 해당 공식 base와 `#/search?query=<encoded-headword>` 조합으로 provider 구현 한 곳에서 만듭니다. destination이 바뀌면 이 mapping과 고정 테스트를 함께 재검증합니다.
-- 앱은 NAVER page/API/audio를 fetch, scrape, parse, prefetch, cache, import 또는 재배포하지 않습니다. 사용자가 화면 링크를 누를 때만 Android `ACTION_VIEW`를 보냅니다. 현재 Manifest의 `INTERNET` permission은 사용자 요청에 따른 ML Kit 손글씨 모델 다운로드용이며 NAVER나 dictionary provider가 앱 내부 network 요청을 한다는 뜻이 아닙니다.
+- 앱은 NAVER page/API/audio를 fetch, scrape, parse, prefetch, cache, import 또는 재배포하지 않습니다. 사용자가 화면 링크를 누를 때만 Android `ACTION_VIEW`를 보냅니다. 현재 Manifest의 `INTERNET` permission은 GitHub catalog/pack 다운로드와 ML Kit SDK/model 동작에 사용됩니다. 설치된 local dictionary provider의 검색에는 network가 필요하지 않으며 NAVER 페이지를 앱 내부에서 요청하지 않습니다.
 - NAVER는 자동 provenance source가 아닙니다. 외부 페이지를 보고 사용자가 직접 쓴 뜻/reading/note는 user-authored content입니다.
+
+
+### Capture에서 한국어기초사전 역방향 조회 표시
+
+영어 등 비한국어 검색어로 한국어 표제어를 찾는 결과는 `REVERSE_TRANSLATION`으로 표시합니다. 이는 한국어 사전의 번역어를 통한 역방향 조회이며 영어 단어의 독립적인 영영사전 정의가 아닙니다. 한국어 표제어의 품사는 역방향 결과로 복사하지 않습니다. 원 provider/source entry/sense identity와 license는 그대로 유지하며, 편집 후 suggestion 해제 시에도 남아 있는 파생 내용의 provenance를 보존합니다. 새로운 dataset/API 또는 사용 허가 범위 변경은 없습니다.

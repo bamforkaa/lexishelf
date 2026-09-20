@@ -1,5 +1,7 @@
 package com.example.localvocabulary.feature.wordeditor
 
+import com.example.localvocabulary.vocabulary.domain.ExampleOrigin
+
 import androidx.lifecycle.SavedStateHandle
 import com.example.localvocabulary.core.common.TimeProvider
 import com.example.localvocabulary.dictionary.registry.DefaultDictionaryProviderRegistry
@@ -44,6 +46,20 @@ class WordEditorViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `expression and meaning alone save without context or metadata`() = runTest {
+        val repository = RecordingVocabularyRepository(savedId = 42)
+        val viewModel = createViewModel(repository = repository)
+        advanceUntilIdle()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("I don't think that necessarily follows."))
+        viewModel.onAction(WordEditorAction.MeaningChanged(-1, "그렇게 단정할 수는 없을 것 같아요."))
+        viewModel.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        assertEquals("I don't think that necessarily follows.", repository.savedDrafts.single().headword)
+        assertTrue(repository.savedDrafts.single().senses.single().examples.isEmpty())
+        assertEquals(42L, viewModel.uiState.value.entryId)
+    }
+
+    @Test
     fun `saving blank headword exposes validation without calling repository`() = runTest {
         val repository = RecordingVocabularyRepository()
         val viewModel = createViewModel(repository = repository)
@@ -81,8 +97,8 @@ class WordEditorViewModelTest {
         val draft = repository.savedDrafts.single()
         assertEquals("word", draft.headword)
         assertEquals(listOf("first meaning", "second meaning"), draft.senses.map { it.meaning })
-        assertEquals(listOf("first example"), draft.senses.first().examples)
-        assertEquals(listOf("second example"), draft.senses.last().examples)
+        assertEquals(listOf("first example"), draft.senses.first().examples.map { it.text })
+        assertEquals(listOf("second example"), draft.senses.last().examples.map { it.text })
         assertEquals("user note", draft.notes)
         assertEquals(setOf(2L), draft.tagIds)
         assertEquals(WordEditorEffect.Saved(42), savedEffect.await())
@@ -309,6 +325,164 @@ class WordEditorViewModelTest {
         assertEquals(1, repository.savedDrafts.size)
     }
 
+    @Test
+    fun `user context draft survives recreation without saving search results`() = runTest {
+        val handle = SavedStateHandle()
+        val repository = RecordingVocabularyRepository(savedId = 42)
+        val original = createViewModel(repository, savedStateHandle = handle)
+        advanceUntilIdle()
+        original.onAction(WordEditorAction.HeadwordChanged("I look forward to working with you on this project."))
+        original.onAction(WordEditorAction.MeaningChanged(-1, "함께 일하기를 기대하다"))
+        original.onAction(WordEditorAction.ExampleChanged(-1, -2, "I look forward to it."))
+        original.onAction(WordEditorAction.ExampleMetadataChanged(-1, -2, ExampleMetadataField.MEANING, "기대됩니다."))
+        original.onAction(WordEditorAction.ExampleMetadataChanged(-1, -2, ExampleMetadataField.SOURCE_TITLE, "Podcast"))
+        original.onAction(WordEditorAction.ExampleMetadataChanged(-1, -2, ExampleMetadataField.SOURCE_URL, "https://example.com/episode"))
+        original.onAction(WordEditorAction.ExampleMetadataChanged(-1, -2, ExampleMetadataField.SOURCE_LOCATOR, "12:35"))
+        original.onAction(WordEditorAction.NotesChanged("user notes"))
+        val encoded = requireNotNull(handle.get<String>(EditorDraftSnapshot.KEY))
+        assertFalse(encoded.contains("dictionarySuggestion"))
+        val restoredHandle = SavedStateHandle(mapOf(EditorDraftSnapshot.KEY to encoded))
+        val restored = createViewModel(repository, savedStateHandle = restoredHandle)
+        advanceUntilIdle()
+        assertEquals(original.uiState.value.headword, restored.uiState.value.headword)
+        assertEquals(original.uiState.value.senses, restored.uiState.value.senses)
+        assertEquals("user notes", restored.uiState.value.notes)
+        restored.onAction(WordEditorAction.AddExample(-1))
+        val added = restored.uiState.value.senses.single().examples.last()
+        assertTrue(added.key != -2L)
+        restored.onAction(WordEditorAction.ExampleChanged(-1, added.key, "My new sentence."))
+        restored.onAction(WordEditorAction.ExampleOriginChanged(-1, added.key,
+            ExampleOrigin.USER))
+        restored.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        assertEquals(2, repository.savedDrafts.single().senses.single().examples.size)
+        assertEquals("12:35", repository.savedDrafts.single().senses.single().examples.first().sourceLocator)
+        assertEquals(null, restoredHandle.get<String>(EditorDraftSnapshot.KEY))
+    }
+
+    @Test
+    fun `review opt out survives recreation and is saved without marking dictionary content modified`() = runTest {
+        val repository = RecordingVocabularyRepository()
+        val handle = SavedStateHandle()
+        val provenance = com.example.localvocabulary.vocabulary.domain.DictionaryProvenance(
+            providerId = "fixture", sourceName = "Fixture Dictionary", licenseName = "Fixture license",
+            sourceEntryId = null, sourceSenseId = null, sourceUrl = null, licenseUrl = null,
+            datasetVersion = null, modifiedAfterImport = false,
+            importedFields = setOf(com.example.localvocabulary.vocabulary.domain.ImportedDictionaryField.MEANING),
+            importedAtEpochMillis = 10,
+        )
+        val snapshot = EditorDraftSnapshot.from(WordEditorUiState(isLoading = false, headword = "expression",
+            senses = listOf(EditableSense(-1, meaning = "meaning", provenance = provenance))))
+        handle[EditorDraftSnapshot.KEY] = snapshot.encodeOrNull()
+        val review = com.example.localvocabulary.review.FakeReviewRepository(repository)
+        val vm = createViewModel(repository, savedStateHandle = handle, reviewRepository = review)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.SetSenseReviewEnabled(-1, false))
+        assertEquals(provenance, vm.uiState.value.senses.single().provenance)
+        assertTrue(repository.savedDrafts.isEmpty())
+        val restored = createViewModel(repository, reviewRepository = review,
+            savedStateHandle = SavedStateHandle(mapOf(EditorDraftSnapshot.KEY to handle.get<String>(EditorDraftSnapshot.KEY))))
+        advanceUntilIdle()
+        assertEquals(false, restored.uiState.value.senses.single().reviewEnabled)
+        restored.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        assertEquals(mapOf(0 to false), review.reviewOverrides)
+        assertEquals(provenance, repository.savedDrafts.single().senses.single().provenance)
+    }
+
+    @Test
+    fun `oversized draft warns and does not put a large object in saved state`() = runTest {
+        val handle = SavedStateHandle()
+        val viewModel = createViewModel(RecordingVocabularyRepository(), savedStateHandle = handle)
+        advanceUntilIdle()
+        viewModel.onAction(WordEditorAction.NotesChanged("x".repeat(70_000)))
+        assertTrue(viewModel.uiState.value.draftRecoveryLimited)
+        assertEquals(null, handle.get<String>(EditorDraftSnapshot.KEY))
+        viewModel.onAction(WordEditorAction.NotesChanged("short note"))
+        assertFalse(viewModel.uiState.value.draftRecoveryLimited)
+        assertTrue(handle.get<String>(EditorDraftSnapshot.KEY) != null)
+        viewModel.onAction(WordEditorAction.NotesChanged(""))
+        assertFalse(viewModel.uiState.value.draftRecoveryLimited)
+        assertEquals(null, handle.get<String>(EditorDraftSnapshot.KEY))
+    }
+
+    @Test
+    fun `oversized expression does not bypass the saved state limit through lookup presentation state`() = runTest {
+        val handle = SavedStateHandle()
+        val viewModel = createViewModel(RecordingVocabularyRepository(), savedStateHandle = handle)
+        advanceUntilIdle()
+        viewModel.onAction(WordEditorAction.HeadwordChanged("x".repeat(70_000)))
+        assertTrue(viewModel.uiState.value.draftRecoveryLimited)
+        assertEquals(null, handle.get<String>(EditorDraftSnapshot.KEY))
+        val savedSize = handle.keys().sumOf {
+            when (val value = handle.get<Any>(it)) {
+                is String -> value.length
+                is ByteArray -> value.size
+                else -> 0
+            }
+        }
+        assertTrue(savedSize < 1_024)
+    }
+
+    @Test
+    fun `substantive reviewed meaning asks before saving and defaults to keep`() = runTest {
+        val repository = RecordingVocabularyRepository(initialEntry = entry(7, "expression"))
+        val review = com.example.localvocabulary.review.FakeReviewRepository(repository).apply {
+            changes = listOf(com.example.localvocabulary.review.domain.MeaningReviewChange(
+                "review", "sense", "new meaning",
+            ))
+        }
+        val vm = createViewModel(repository, savedStateHandle = SavedStateHandle(mapOf("entryId" to 7L)), reviewRepository = review)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.MeaningChanged(vm.uiState.value.senses.single().key, "new meaning"))
+        vm.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.reviewChanges.size)
+        assertTrue(vm.uiState.value.reviewResetIds.isEmpty())
+        assertTrue(repository.savedDrafts.isEmpty())
+        vm.onAction(WordEditorAction.ConfirmReviewChanges)
+        advanceUntilIdle()
+        assertEquals(1, repository.savedDrafts.size)
+        assertTrue(review.resetIds.isEmpty())
+    }
+
+    @Test
+    fun `reset is an explicit selection for only the selected sense`() = runTest {
+        val repository = RecordingVocabularyRepository(initialEntry = entry(7, "expression"))
+        val review = com.example.localvocabulary.review.FakeReviewRepository(repository).apply {
+            changes = listOf("first", "second").map {
+                com.example.localvocabulary.review.domain.MeaningReviewChange(it, "sense-$it", "new meaning")
+            }
+        }
+        val vm = createViewModel(repository, savedStateHandle = SavedStateHandle(mapOf("entryId" to 7L)), reviewRepository = review)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.ReviewResetToggled(review.changes.first().stateId))
+        vm.onAction(WordEditorAction.ConfirmReviewChanges)
+        advanceUntilIdle()
+        assertEquals(setOf(review.changes.first().stateId), review.resetIds)
+        assertEquals(1, repository.savedDrafts.size)
+    }
+
+    @Test
+    fun `cancelling meaning decision keeps draft and writes nothing`() = runTest {
+        val repository = RecordingVocabularyRepository(initialEntry = entry(7, "expression"))
+        val review = com.example.localvocabulary.review.FakeReviewRepository(repository).apply {
+            changes = listOf(com.example.localvocabulary.review.domain.MeaningReviewChange(
+                "review", "sense", "new meaning",
+            ))
+        }
+        val vm = createViewModel(repository, savedStateHandle = SavedStateHandle(mapOf("entryId" to 7L)), reviewRepository = review)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.Save)
+        advanceUntilIdle()
+        vm.onAction(WordEditorAction.DismissReviewChanges)
+        assertTrue(repository.savedDrafts.isEmpty())
+        assertTrue(vm.uiState.value.reviewChanges.isEmpty())
+        assertEquals("expression", vm.uiState.value.headword)
+    }
+
     private fun createViewModel(
         repository: RecordingVocabularyRepository,
         tags: List<VocabularyTag> = emptyList(),
@@ -317,9 +491,12 @@ class WordEditorViewModelTest {
         providerRegistry: DictionaryProviderRegistry = DefaultDictionaryProviderRegistry(emptyList()),
         wordbookRepository: WordbookRepository = InlineWordbookRepository(),
         settingsRepository: SettingsRepository = FakeSettingsRepository(),
+        reviewRepository: com.example.localvocabulary.review.domain.ReviewRepository =
+            com.example.localvocabulary.review.FakeReviewRepository(repository),
     ) = WordEditorViewModel(
         savedStateHandle = savedStateHandle,
         vocabularyRepository = repository,
+        reviewRepository = reviewRepository,
         tagRepository = tagRepository,
         settingsRepository = settingsRepository,
         dictionaryProviderRegistry = providerRegistry,
@@ -414,6 +591,7 @@ private class InlineTagRepository(initialTags: List<VocabularyTag> = emptyList()
 }
 
 private class FakeSettingsRepository : SettingsRepository {
+    override suspend fun setReviewLimits(limits: com.example.localvocabulary.review.domain.ReviewLimits) = Unit
     private val mutableSettings = MutableStateFlow(AppSettings(defaultLanguageTag = "en"))
     val addedLanguageTags = mutableListOf<String>()
     override val settings: Flow<AppSettings> = mutableSettings
@@ -434,9 +612,10 @@ private fun entry(id: Long, headword: String) = VocabularyEntry(
     senses = listOf(
         VocabularySense(
             id = 10,
+            stableId = "sense-10",
             meaning = "meaning",
             partOfSpeech = "noun",
-            examples = listOf(ExampleSentence(20, "example")),
+            examples = listOf(ExampleSentence(20, "example", stableId = "example-20")),
         ),
     ),
     notes = "note",

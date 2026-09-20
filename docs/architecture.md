@@ -22,16 +22,20 @@ app/src/main/java/com/example/localvocabulary/
 ├── feature/
 │   ├── backup/             export/restore UI and ViewModel
 │   ├── handwriting/        session-only handwriting input
+│   ├── review/             Today Review and session recovery
 │   ├── settings/           settings and dictionary pack UI
 │   ├── tags/               tag CRUD
 │   ├── wordbooks/          wordbook CRUD and membership
 │   ├── worddetail/         vocabulary detail/delete
 │   ├── wordeditor/         manual editing and dictionary suggestions
 │   ├── wordlist/           local list/search/filter
-│   └── writingpractice/    session-only review workflow
+│   └── writingpractice/    session-only spelling/writing practice
 ├── vocabulary/
 │   ├── domain/             user-owned models and repository contracts
 │   └── data/               Room-backed implementations and mapping
+├── review/
+│   ├── domain/             scheduler, daily queue rules and repository contract
+│   └── data/               atomic state/history persistence and vocabulary edit coordination
 ├── backup/                 versioned backup domain and JSON/SAF data layer
 ├── dictionary/
 │   ├── domain/             common provider contracts and search models
@@ -59,13 +63,14 @@ UI tree 깊숙이 전달하지 않고 screen callback으로 변환합니다. 복
 
 ## 사용자 vocabulary 저장
 
-Room schema version 6은 vocabulary entry를 중심으로 다음 aggregate를 저장합니다.
+Room schema version 9은 vocabulary entry를 중심으로 다음 aggregate를 저장합니다.
 
 - headword, BCP 47 source language, reading과 pronunciation
 - ordered senses와 meanings
-- examples, notes, favorite와 timestamps
+- stable sense/example identity, 문맥 원문·해석·종류·콘텐츠 출처, notes와 timestamps
 - tags와 wordbooks의 many-to-many 관계
-- grammatical gender와 review metadata
+- grammatical gender
+- Sense stable ID를 참조하는 뜻별 단일 ReviewState와 출제 방향을 기록하는 immutable ReviewEvent
 - dictionary import provenance와 사용자 수정 여부
 
 뜻과 sense는 delimiter-separated string으로 합치지 않습니다. Foreign key, index, uniqueness
@@ -110,7 +115,7 @@ Pack 설치·update·rollback·삭제는 사용자 vocabulary Room DB에 접근�
 
 ## Backup과 restore
 
-Canonical backup은 UTF-8 versioned JSON입니다. 현재 backup schema version은 5이며 document 전체를
+Canonical backup은 UTF-8 versioned JSON입니다. 현재 backup schema version은 8이며 document 전체를
 decode하고 검증한 뒤에만 Room transaction을 시작합니다. Import는 stable ID와 normalized tag
 identity를 사용하고, replace가 필요한 경우 preview와 명시적인 conflict policy를 거칩니다.
 
@@ -122,7 +127,7 @@ identity를 사용하고, replace가 필요한 경우 preview와 명시적인 co
 
 Vocabulary, handwriting stroke와 backup data를 프로젝트 운영 server로 보내지 않습니다.
 Handwriting stroke와 recognition candidate는 session-only이고 Room/backup에 저장하지 않습니다.
-Network는 catalog/pack download, ML Kit SDK/model 동작과 사용자가 연 external dictionary link에만
+Network는 catalog/pack download, ML Kit SDK/model 동작과 사용자가 연 사전·문맥 출처 link에만
 사용될 수 있습니다.
 
 API key, signing key와 password는 Git에 포함하지 않습니다. Local configuration은 gitignored
@@ -141,3 +146,22 @@ secret과 같은 보호를 제공한다고 주장하지 않습니다.
 자동화 test는 live paid API를 호출하지 않습니다. 기능 변경 시 가장 가까운 layer의 test를 함께
 수정하고, release 전에는 Wrapper를 사용해 unit test, lint, debug assemble과 필요한 device test를
 실제로 실행한 결과만 기록합니다.
+
+
+## 문맥과 stable identity
+
+`VocabularySenseDraft`는 nullable stable ID와 `VocabularyExampleDraft` 목록을 전달합니다. 신규 ID는 repository에서 생성하고, DAO는 기존 ID의 부모 소유권을 확인한 뒤 update/insert/delete를 한 transaction으로 처리합니다. 기존 child의 Long PK와 stable ID를 보존하며 ReviewState는 Sense stable ID를 참조합니다.
+
+문맥은 기존 examples table을 확장하며 별도 context aggregate를 만들지 않습니다. 사전 예문 복사는 기존 field별 license 정책을 통과해야 하고, 사용자가 편집한 파생 내용이 suggestion 해제 후 남으면 provenance와 `modifiedAfterImport`도 유지합니다. 선택 상태는 임시 UI 상태입니다.
+
+`EditorDraftSnapshot`은 사용자 입력·child identity·provenance·뜻별 복습 등록 선택을 SavedStateHandle의 JSON String에 저장합니다. search results, provider 객체, suggestion 선택은 저장하지 않습니다. 성공적으로 저장하면 초안을 지우고, 64 Ki UTF-16 code unit을 넘는 경우 오래된 초안으로 오인하지 않도록 saved state를 비우고 UI에 제한을 알립니다. 이는 process recreation용이며 강제 종료/최근 앱 제거 후 영구 초안 보장을 의미하지 않습니다.
+
+기본 editor는 표현 → 의미 → 선택적 문맥 순서입니다. 문맥 해석·종류·출처, 메모, 언어 정보, 정리를 각각 펼칠 수 있으며 추가 뜻은 기본 화면에서 접근합니다. 사전 제안은 선택 후 접고 새 lookup이나 뜻 추가 시 펼칩니다. 펼침 상태는 사용자 데이터와 분리해 복원하며 결과 수신이나 recomposition으로 수동 접힘을 해제하지 않습니다.
+
+Detail은 뜻·문맥을 먼저, 복습과 metadata를 나중에 표시하며 dictionary provenance는 생략합니다. Editor에서는 provider·수정 여부만 표시합니다. 전체 attribution은 Settings의 provider 목록과 저장된 출처 목록에서 확인합니다. 저장된 출처 목록은 provider/pack이 없어도 보존된 provenance에서 구성됩니다. `ExampleOrigin`과 dictionary provenance는 서로 대체하지 않습니다.
+
+## 복습
+
+`review/domain`은 Android·Room에 의존하지 않는 scheduler와 일일 queue 규칙을 소유합니다. `review/data`는 기존 TimeProvider와 DataStore를 사용하며 평가 event와 일정 변경을 Room transaction으로 저장합니다. `feature/review`는 SavedStateHandle에 세션 ID·평가 token·공개 상태·문장 초안을 저장하고 재생성 시 영구 event와 대조합니다.
+
+복습은 뜻별로 한 번 등록하며 정규 문제의 방향은 이력에 따라 균형 있게 결정합니다. 새 expression의 첫 뜻은 기본 등록하고 editor에서 저장 전에 끌 수 있습니다. 기존 항목·import·migration에는 자동 등록을 적용하지 않습니다. 단순 평가로 vocabulary 수정 시각을 변경하지 않습니다. 의미 변경에 따른 선택적 초기화는 vocabulary 저장과 같은 transaction에서 generation을 올리고 reset event를 남깁니다. Sense 삭제는 FK cascade로 연결된 상태·이력도 삭제합니다. Writing Practice는 기존 철자/쓰기 기능으로 독립 유지합니다. 세부 정책은 [review.md](review.md), 복원 계약은 [backup.md](backup.md)를 참고하세요.
