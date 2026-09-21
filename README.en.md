@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release"></a> ·
   <a href="#installation">Installation</a> ·
   <a href="#features">Features</a> ·
   <a href="#dictionary-packs">Dictionary data</a> ·
@@ -19,7 +18,7 @@
 
 <p align="center">
   <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
-  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.1.0-4f46e5"></a>
+  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release&amp;color=4f46e5"></a>
   <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
 </p>
@@ -63,9 +62,16 @@ other phrases can be organized with the existing tag system instead of separate 
 
 ## Screenshots
 
-Screenshots will be added after real screens have been reviewed to ensure that they contain no
-personal vocabulary or identifiable emulator data. The project does not publish fake mockups or
-placeholder screenshots.
+<p align="center">
+  <img src="docs/screenshots/word-list.jpg" width="240" alt="LexiShelf vocabulary list with English and Japanese filters and saved words">
+  <img src="docs/screenshots/dictionary-suggestions.jpg" width="240" alt="LexiShelf dictionary suggestions for that is">
+  <img src="docs/screenshots/word-detail.jpg" width="240" alt="LexiShelf word details for figure out with meaning, examples, source, wordbooks and tags">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/word-editor.jpg" width="240" alt="LexiShelf entry editor with word, meaning and context fields and collapsed notes, language information and organization menus">
+  <img src="docs/screenshots/dictionary-data.jpg" width="240" alt="LexiShelf offline dictionary data with Kaikki, CC-CEDICT and English Morphology">
+</p>
 
 ## Installation
 

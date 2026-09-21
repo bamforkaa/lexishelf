@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release"></a> ·
   <a href="#설치">설치</a> ·
   <a href="#기능">기능</a> ·
   <a href="#사전-pack">사전 데이터</a> ·
@@ -19,7 +18,7 @@
 
 <p align="center">
   <img alt="Android 6.0+" src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?logo=android&amp;logoColor=white">
-  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.1.0-4f46e5"></a>
+  <a href="https://github.com/bamforkaa/lexishelf/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/bamforkaa/lexishelf?label=release&amp;color=4f46e5"></a>
   <img alt="Local first" src="https://img.shields.io/badge/storage-local--first-334155">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-0f766e"></a>
 </p>
@@ -62,8 +61,16 @@ phrase를 별도 entity 없이 저장하고, 필요하면 기존 태그로 분�
 
 ## Screenshots
 
-개인 단어와 식별 가능한 emulator 데이터가 없는 실제 화면을 검수한 뒤 추가합니다. 현재는 가짜
-mockup이나 placeholder 이미지를 싣지 않습니다.
+<p align="center">
+  <img src="docs/screenshots/word-list.jpg" width="240" alt="LexiShelf 단어 목록: English와 日本語 필터 및 저장된 단어">
+  <img src="docs/screenshots/dictionary-suggestions.jpg" width="240" alt="LexiShelf 사전 제안: that is 검색 결과">
+  <img src="docs/screenshots/word-detail.jpg" width="240" alt="LexiShelf 단어 상세: figure out의 뜻, 예문, 출처, 단어장과 태그">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/word-editor.jpg" width="240" alt="LexiShelf 표현 추가: 단어, 의미, 문맥 입력과 메모·언어 정보·정리 메뉴">
+  <img src="docs/screenshots/dictionary-data.jpg" width="240" alt="LexiShelf 오프라인 사전 데이터: Kaikki, CC-CEDICT와 English Morphology">
+</p>
 
 ## 설치
 
